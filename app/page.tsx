@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -9,6 +9,18 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const router = useRouter()
+  
+  // Handle magic link callback if code is present in URL
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get('code')
+      if (code) {
+        // Redirect to the callback route to handle authentication
+        router.replace(`/auth/callback?code=${code}&next=/dashboard`)
+      }
+    }
+  }, [router])
   
   // Create client only when needed (client-side only)
   const getSupabaseClient = () => {
