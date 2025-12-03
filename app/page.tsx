@@ -9,12 +9,30 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const router = useRouter()
-  const supabase = createClient()
+  
+  // Create client only when needed (client-side only)
+  const getSupabaseClient = () => {
+    if (typeof window === 'undefined') {
+      return null
+    }
+    try {
+      return createClient()
+    } catch (error) {
+      return null
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setMessage('')
+
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      setMessage('Supabase client is not available. Please check your configuration.')
+      setLoading(false)
+      return
+    }
 
     try {
       const { error } = await supabase.auth.signInWithOtp({

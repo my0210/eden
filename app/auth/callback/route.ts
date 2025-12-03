@@ -8,33 +8,43 @@ export async function GET(request: Request) {
   const origin = requestUrl.origin
 
   if (code) {
-    const supabase = await createClient()
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    
-    if (!error) {
-      // Verify the session was established
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+    try {
+      const supabase = await createClient()
+      const { error } = await supabase.auth.exchangeCodeForSession(code)
       
-      if (user) {
-        // Session established successfully, redirect to dashboard
-        return NextResponse.redirect(`${origin}${next}`)
+      if (!error) {
+        // Verify the session was established
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        
+        if (user) {
+          // Session established successfully, redirect to dashboard
+          const redirectUrl = new URL(next, origin)
+          return NextResponse.redirect(redirectUrl)
+        }
       }
+    } catch (error) {
+      console.error('Auth callback error:', error)
     }
   }
 
   // Check if user is already authenticated (in case of direct access)
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (user) {
-    return NextResponse.redirect(`${origin}${next}`)
+    if (user) {
+      const redirectUrl = new URL(next, origin)
+      return NextResponse.redirect(redirectUrl)
+    }
+  } catch (error) {
+    console.error('Auth check error:', error)
   }
 
   // If there's an error or no code, redirect to home
-  return NextResponse.redirect(`${origin}/`)
+  return NextResponse.redirect(new URL('/', origin))
 }
 
