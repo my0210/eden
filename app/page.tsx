@@ -15,6 +15,15 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search)
       const code = urlParams.get('code')
+      const error = urlParams.get('error')
+      
+      if (error) {
+        setMessage(`Authentication failed: ${error}. Please try again.`)
+        // Clean up the URL
+        window.history.replaceState({}, '', window.location.pathname)
+        return
+      }
+      
       if (code) {
         // Redirect to the callback route to handle authentication
         router.replace(`/auth/callback?code=${code}&next=/dashboard`)
