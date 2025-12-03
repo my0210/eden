@@ -29,24 +29,10 @@ export default function Home() {
       }
       
       if (code) {
-        // Supabase redirects to root with code, handle it here
-        // Try to exchange code for session client-side
-        const supabase = getSupabaseClient()
-        if (supabase) {
-          supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
-            if (error) {
-              console.error('Code exchange error:', error)
-              setMessage(`Authentication failed: ${error.message}`)
-              window.history.replaceState({}, '', window.location.pathname)
-            } else if (data.session) {
-              // Success - redirect to dashboard
-              router.replace('/dashboard')
-            }
-          })
-        } else {
-          // Fallback: redirect to callback route
-          router.replace(`/auth/callback?code=${code}&next=/dashboard`)
-        }
+        // Supabase redirects to root with code
+        // For magic links, Supabase should create session automatically
+        // Just redirect to callback which will check for session
+        router.replace(`/auth/callback?code=${code}&next=/dashboard`)
       }
     }
   }, [router])
