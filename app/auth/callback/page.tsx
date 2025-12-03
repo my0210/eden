@@ -25,21 +25,43 @@ function AuthCallbackContent() {
             return
           }
           
-          console.log('Attempting code exchange with code:', code.substring(0, 20) + '...')
+          console.log('Processing magic link callback with code:', code.substring(0, 20) + '...')
           
-          // Exchange the code for a session
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          // First, check if session already exists (Supabase might have created it automatically)
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
           
-          if (error) {
-            console.error('Code exchange error:', error)
-            // Show the actual error message for debugging
-            router.replace(`/?error=auth_failed&details=${encodeURIComponent(error.message)}`)
+          if (session && session.user) {
+            console.log('Session already exists, redirecting to dashboard')
+            router.replace(next)
             return
           }
           
-          console.log('Code exchange successful:', data)
+          // If no session, the code from magic links needs to be verified
+          // Magic link codes are token hashes that need verification
+          // Try to verify the OTP token
+          const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: code,
+            type: 'magiclink',
+          })
+          
+          if (verifyError) {
+            console.error('OTP verification error:', verifyError)
+            
+            // If verifyOtp fails, check if user exists anyway (session might be in cookies)
+            const { data: { user: checkUser }, error: userCheckError } = await supabase.auth.getUser()
+            if (checkUser) {
+              console.log('User found despite verification error, redirecting')
+              router.replace(next)
+              return
+            }
+            
+            router.replace(`/?error=auth_failed&details=${encodeURIComponent(verifyError.message)}`)
+            return
+          }
+          
+          console.log('OTP verification successful:', verifyData)
 
-          // Verify session was established
+          // Verify session was established after verification
           const {
             data: { user },
             error: userError,
