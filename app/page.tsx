@@ -18,7 +18,11 @@ export default function Home() {
       const error = urlParams.get('error')
       
       if (error) {
-        setMessage(`Authentication failed: ${error}. Please try again.`)
+        const details = urlParams.get('details')
+        const errorMessage = details 
+          ? `Authentication failed: ${error}. Details: ${decodeURIComponent(details)}`
+          : `Authentication failed: ${error}. Please try again.`
+        setMessage(errorMessage)
         // Clean up the URL
         window.history.replaceState({}, '', window.location.pathname)
         return

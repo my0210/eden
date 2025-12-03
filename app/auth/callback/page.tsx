@@ -10,21 +10,34 @@ function AuthCallbackContent() {
 
   useEffect(() => {
     const handleAuth = async () => {
-      const code = searchParams.get('code')
+      // Check for code in both query params and hash (Supabase might use either)
+      const code = searchParams.get('code') || (typeof window !== 'undefined' ? new URLSearchParams(window.location.hash.substring(1)).get('code') : null)
       const next = searchParams.get('next') || '/dashboard'
 
       if (code) {
         try {
           const supabase = createClient()
           
+          // Verify environment variables are available
+          if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            console.error('Missing Supabase environment variables')
+            router.replace(`/?error=config_error&details=Missing environment variables`)
+            return
+          }
+          
+          console.log('Attempting code exchange with code:', code.substring(0, 20) + '...')
+          
           // Exchange the code for a session
-          const { error } = await supabase.auth.exchangeCodeForSession(code)
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
           
           if (error) {
             console.error('Code exchange error:', error)
-            router.replace(`/?error=auth_failed`)
+            // Show the actual error message for debugging
+            router.replace(`/?error=auth_failed&details=${encodeURIComponent(error.message)}`)
             return
           }
+          
+          console.log('Code exchange successful:', data)
 
           // Verify session was established
           const {
