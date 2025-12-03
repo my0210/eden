@@ -14,83 +14,52 @@ function AuthCallbackContent() {
       const code = searchParams.get('code') || (typeof window !== 'undefined' ? new URLSearchParams(window.location.hash.substring(1)).get('code') : null)
       const next = searchParams.get('next') || '/dashboard'
 
-      if (code) {
-        try {
-          const supabase = createClient()
-          
-          // Verify environment variables are available
-          if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-            console.error('Missing Supabase environment variables')
-            router.replace(`/?error=config_error&details=Missing environment variables`)
-            return
-          }
-          
-          console.log('Processing magic link callback with code:', code.substring(0, 20) + '...')
-          
-          // First, check if session already exists (Supabase might have created it automatically)
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-          
-          if (session && session.user) {
-            console.log('Session already exists, redirecting to dashboard')
-            router.replace(next)
-            return
-          }
-          
-          // If no session, the code from magic links needs to be verified
-          // Magic link codes are token hashes that need verification
-          // Try to verify the OTP token
-          const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: code,
-            type: 'magiclink',
-          })
-          
-          if (verifyError) {
-            console.error('OTP verification error:', verifyError)
-            
-            // If verifyOtp fails, check if user exists anyway (session might be in cookies)
-            const { data: { user: checkUser }, error: userCheckError } = await supabase.auth.getUser()
-            if (checkUser) {
-              console.log('User found despite verification error, redirecting')
-              router.replace(next)
-              return
-            }
-            
-            router.replace(`/?error=auth_failed&details=${encodeURIComponent(verifyError.message)}`)
-            return
-          }
-          
-          console.log('OTP verification successful:', verifyData)
-
-          // Verify session was established after verification
-          const {
-            data: { user },
-            error: userError,
-          } = await supabase.auth.getUser()
-
-          if (userError || !user) {
-            console.error('Get user error:', userError)
-            router.replace(`/?error=session_failed`)
-            return
-          }
-
-          // Success - redirect to dashboard
-          router.replace(next)
-        } catch (error) {
-          console.error('Auth callback exception:', error)
-          router.replace(`/?error=exception`)
-        }
-      } else {
-        // No code, check if already authenticated
+      // For magic links with redirects, Supabase should automatically establish the session
+      // when the user clicks the link. We just need to check if the session exists.
+      // The code in the URL is for Supabase's internal tracking, not for us to verify.
+      try {
         const supabase = createClient()
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (user) {
-          router.replace(next)
-        } else {
-          router.replace('/')
+        
+        // Verify environment variables are available
+        if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+          console.error('Missing Supabase environment variables')
+          router.replace(`/?error=config_error&details=Missing environment variables`)
+          return
         }
+        
+        // Wait a moment for Supabase to set cookies (if redirect just happened)
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Check if session exists (Supabase should have created it automatically)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (session && session.user) {
+          console.log('Session found, redirecting to dashboard')
+          router.replace(next)
+          return
+        }
+        
+        // If no session, check user directly (might be in cookies but not in session yet)
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        
+        if (user) {
+          console.log('User found, redirecting to dashboard')
+          router.replace(next)
+          return
+        }
+        
+        // If we have a code but no session/user, the link might be invalid or expired
+        if (code) {
+          console.error('Code present but no session/user found. Code:', code.substring(0, 20) + '...')
+          router.replace(`/?error=auth_failed&details=${encodeURIComponent('Session not found. The link may have expired or been used already.')}`)
+          return
+        }
+        
+        // No code and no user - redirect to home
+        router.replace('/')
+      } catch (error) {
+        console.error('Auth callback exception:', error)
+        router.replace(`/?error=exception`)
       }
     }
 
