@@ -9,19 +9,48 @@ export async function GET(request: Request) {
 
   const supabase = await createClient()
   
-  // For magic links with emailRedirectTo, Supabase should automatically establish the session
-  // when redirecting. We just need to check if the user is authenticated.
+  // First check if user is already authenticated (Supabase might have created session automatically)
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
   if (user) {
-    // User is authenticated, redirect to dashboard
     return NextResponse.redirect(new URL(next, origin))
   }
 
-  // If no user and we have a code, the session wasn't created automatically
-  // This shouldn't happen with proper configuration, but redirect to home
+  // If we have a code but no user, we need to exchange it for a session
+  // Note: For PKCE flows, this requires the code verifier, but for magic links
+  // Supabase should handle this automatically. If not, we'll get an error.
+  if (code) {
+    try {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+      
+      if (error) {
+        console.error('Code exchange error:', error)
+        // If exchange fails, redirect to home with error
+        const homeUrl = new URL('/', origin)
+        homeUrl.searchParams.set('error', 'auth_failed')
+        homeUrl.searchParams.set('details', encodeURIComponent(error.message))
+        return NextResponse.redirect(homeUrl)
+      }
+
+      // Verify user was created
+      const {
+        data: { user: newUser },
+      } = await supabase.auth.getUser()
+
+      if (newUser) {
+        return NextResponse.redirect(new URL(next, origin))
+      }
+    } catch (error) {
+      console.error('Auth callback exception:', error)
+      const homeUrl = new URL('/', origin)
+      homeUrl.searchParams.set('error', 'exception')
+      return NextResponse.redirect(homeUrl)
+    }
+  }
+
+  // No code and no user - redirect to home
   return NextResponse.redirect(new URL('/', origin))
 }
 
