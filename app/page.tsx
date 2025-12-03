@@ -35,10 +35,17 @@ export default function Home() {
     }
 
     try {
+      // Construct the redirect URL properly - ensure it's a valid absolute URL
+      const origin = window.location.origin
+      const redirectUrl = `${origin}/auth/callback?next=/dashboard`
+      
+      // Validate the URL is properly formed
+      new URL(redirectUrl) // This will throw if malformed
+      
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+          emailRedirectTo: redirectUrl,
         },
       })
 
