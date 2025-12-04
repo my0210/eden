@@ -6,6 +6,7 @@ import type {
   CategoryWithMetrics,
   MetricWithValue 
 } from '@/lib/types/eden'
+import AppleHealthUpload from './AppleHealthUpload'
 
 // Category icons and colors
 const categoryConfig: Record<string, { icon: string; color: string; bgColor: string }> = {
@@ -170,8 +171,13 @@ export default async function DashboardPage() {
           Welcome, {user.email?.split('@')[0]}
         </h1>
         <p className="text-gray-600 mt-1">
-          Your Eden health metrics at a glance
+          Your Eden metrics at a glance
         </p>
+      </div>
+
+      {/* Apple Health Upload Section */}
+      <div className="mb-8">
+        <AppleHealthUpload userId={user.id} />
       </div>
 
       {/* Error message */}
