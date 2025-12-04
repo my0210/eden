@@ -1,9 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import JSZip from 'jszip'
 import { XMLParser } from 'fast-xml-parser'
 
 export const runtime = 'nodejs'
+
+// Create Supabase client inline for this route handler
+async function getSupabase() {
+  const cookieStore = await cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // Cookies might be read-only
+          }
+        },
+      },
+    }
+  )
+}
 
 // Apple Health record types we map to Eden metrics
 const APPLE_TYPES = {
@@ -200,11 +226,11 @@ function aggregateAll(records: AppleRecord[]): AggregatedMetric[] {
 
 export async function POST(req: NextRequest) {
   let importId: string | null = null
-  let supabase: Awaited<ReturnType<typeof createClient>> | null = null
+  let supabase: Awaited<ReturnType<typeof getSupabase>> | null = null
 
   try {
     // 1. Create Supabase client with user session
-    supabase = await createClient()
+    supabase = await getSupabase()
 
     // 2. Check authentication
     const { data: { user }, error: userError } = await supabase.auth.getUser()
