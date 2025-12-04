@@ -5,6 +5,7 @@ import JSZip from 'jszip'
 import { XMLParser } from 'fast-xml-parser'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60 // Allow up to 60 seconds for processing large files
 
 // Create Supabase client inline for this route handler
 async function getSupabase() {
