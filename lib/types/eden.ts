@@ -1,5 +1,3 @@
-// Eden database types
-
 export interface EdenMetricCategory {
   category_code: string
   name: string
@@ -22,7 +20,6 @@ export interface EdenMetricValue {
   measured_at: string
 }
 
-// Combined type for dashboard display
 export interface MetricWithValue extends EdenMetricDefinition {
   latestValue: number | null
   measuredAt: string | null

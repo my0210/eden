@@ -85,12 +85,8 @@ After deploying to Vercel, update your Supabase project settings:
 
 1. Go to your Supabase dashboard
 2. Navigate to **Authentication** → **URL Configuration**
-3. Add your Vercel deployment URL to **Site URL** (e.g., `https://eden-jade.vercel.app`)
-4. Add the following to **Redirect URLs**:
-   - `https://eden-jade.vercel.app/auth/callback`
-   - `http://localhost:3000/auth/callback` (for local development)
-
-**Important:** Make sure both production and local redirect URLs are configured in Supabase for the magic link authentication to work properly.
+3. Add your Vercel deployment URL to **Site URL** (e.g., `https://your-app.vercel.app`)
+4. Add `https://your-app.vercel.app/auth/callback` to **Redirect URLs**
 
 ## Project Structure
 
