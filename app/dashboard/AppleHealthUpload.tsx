@@ -58,6 +58,22 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
         return
       }
 
+      // Record the upload in apple_health_imports table
+      const { error: insertError } = await supabase
+        .from('apple_health_imports')
+        .insert({
+          user_id: userId,
+          file_path: filePath,
+          file_size: file.size,
+        })
+
+      if (insertError) {
+        console.error('Database insert error:', insertError)
+        setErrorMessage(`File uploaded but failed to record: ${insertError.message}`)
+        setStatus('error')
+        return
+      }
+
       setStatus('success')
       setFileName('')
       if (fileInputRef.current) {
