@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createRouteHandlerClient } from '@/lib/supabase/route'
 import { NextResponse } from 'next/server'
 import JSZip from 'jszip'
 import { XMLParser } from 'fast-xml-parser'
@@ -251,8 +251,19 @@ function aggregateMetrics(records: AppleHealthRecord[]): AggregatedMetric[] {
 }
 
 export async function POST(request: Request) {
-  // Create authenticated Supabase client using the user's session (respects RLS)
-  const supabase = await createClient()
+  let supabase;
+  let importId: string | null = null
+  
+  try {
+    // Create authenticated Supabase client using the user's session (respects RLS)
+    supabase = await createRouteHandlerClient()
+  } catch (clientError) {
+    console.error('Failed to create Supabase client:', clientError)
+    return NextResponse.json(
+      { error: 'Failed to initialize database connection' },
+      { status: 500 }
+    )
+  }
   
   // Check if user is authenticated
   const {
@@ -263,12 +274,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
   
-  let importId: string | null = null
-  
   try {
     // Parse request body
     const body = await request.json()
-    importId = body.importId
+    importId = body.importId as string | null
     
     if (!importId) {
       return NextResponse.json({ error: 'importId is required' }, { status: 400 })
