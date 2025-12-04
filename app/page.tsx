@@ -8,7 +8,8 @@ export default function Home() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
-  const [isProcessingAuth, setIsProcessingAuth] = useState(false)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+  const [isRedirecting, setIsRedirecting] = useState(false)
   const router = useRouter()
   
   // Listen for auth state changes - this catches ALL auth events including magic links
@@ -18,16 +19,17 @@ export default function Home() {
     // Check if already logged in on mount
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
+        setIsRedirecting(true)
         router.replace('/dashboard')
+      } else {
+        setIsCheckingAuth(false)
       }
     })
     
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('Auth event:', event, session?.user?.email)
-      
       if (event === 'SIGNED_IN' && session) {
-        // User signed in successfully - redirect to dashboard
+        setIsRedirecting(true)
         router.replace('/dashboard')
       }
     })
@@ -47,6 +49,74 @@ export default function Home() {
       subscription.unsubscribe()
     }
   }, [router])
+  
+  // Show loading screen while checking auth or redirecting
+  if (isCheckingAuth || isRedirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="text-center">
+          {/* Animated logo/icon */}
+          <div className="relative mb-8">
+            <div className="w-16 h-16 mx-auto">
+              <svg 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                className="w-full h-full animate-pulse"
+              >
+                <circle 
+                  cx="12" 
+                  cy="12" 
+                  r="10" 
+                  stroke="url(#gradient)" 
+                  strokeWidth="2"
+                  className="opacity-20"
+                />
+                <path 
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"
+                  fill="url(#gradient)"
+                  className="opacity-90"
+                />
+                <path 
+                  d="M8 12l3 3 5-6" 
+                  stroke="white" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                  className={isRedirecting ? "opacity-100" : "opacity-0"}
+                />
+                <defs>
+                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#6366f1" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            
+            {/* Spinning ring */}
+            {!isRedirecting && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-20 h-20 border-2 border-transparent border-t-indigo-500 rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+          
+          {/* Text */}
+          <h1 className="text-2xl font-semibold text-white mb-2">
+            Eden
+          </h1>
+          <p className="text-slate-400 text-sm">
+            {isRedirecting ? 'Welcome back' : 'Loading'}
+            <span className="inline-flex ml-1">
+              <span className="animate-bounce delay-0">.</span>
+              <span className="animate-bounce delay-100">.</span>
+              <span className="animate-bounce delay-200">.</span>
+            </span>
+          </p>
+        </div>
+      </div>
+    )
+  }
   
   // Create client only when needed (client-side only)
   const getSupabaseClient = () => {
@@ -123,10 +193,10 @@ export default function Home() {
 
             <button
               type="submit"
-              disabled={loading || isProcessingAuth}
+              disabled={loading}
               className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {isProcessingAuth ? 'Signing in...' : loading ? 'Sending...' : 'Login with email'}
+              {loading ? 'Sending...' : 'Login with email'}
             </button>
           </form>
 
