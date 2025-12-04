@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import JSZip from 'jszip'
 import { XMLParser } from 'fast-xml-parser'
@@ -36,23 +36,6 @@ interface AggregatedMetric {
   metricCode: string
   value: number
   measuredAt: Date
-}
-
-// Create Supabase client with service role key (server-side only)
-function createServiceClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase environment variables for service client')
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
 }
 
 // Parse Apple Health date string to Date
@@ -268,7 +251,18 @@ function aggregateMetrics(records: AppleHealthRecord[]): AggregatedMetric[] {
 }
 
 export async function POST(request: Request) {
-  const supabase = createServiceClient()
+  // Create authenticated Supabase client using the user's session (respects RLS)
+  const supabase = await createClient()
+  
+  // Check if user is authenticated
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
+  
   let importId: string | null = null
   
   try {
@@ -281,6 +275,7 @@ export async function POST(request: Request) {
     }
     
     // Mark import as processing
+    // RLS ensures user can only update their own imports
     const { error: updateProcessingError } = await supabase
       .from('apple_health_imports')
       .update({ status: 'processing' })
@@ -291,6 +286,7 @@ export async function POST(request: Request) {
     }
     
     // Load the import row
+    // RLS ensures user can only read their own imports
     const { data: importRow, error: importError } = await supabase
       .from('apple_health_imports')
       .select('user_id, file_path')
@@ -303,7 +299,13 @@ export async function POST(request: Request) {
     
     const { user_id, file_path } = importRow
     
+    // Verify the import belongs to the authenticated user
+    if (user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+    
     // Download the zip file from storage
+    // RLS on the bucket ensures user can only access their own files
     const { data: fileData, error: downloadError } = await supabase.storage
       .from('apple_health_uploads')
       .download(file_path)
@@ -407,10 +409,11 @@ export async function POST(request: Request) {
     }
     
     // Build the rows to insert
+    // Use the authenticated user's ID to ensure RLS allows the insert
     const rowsToInsert = aggregatedMetrics
       .filter(m => metricCodeToId.has(m.metricCode))
       .map(m => ({
-        user_id: user_id,
+        user_id: user.id, // Use authenticated user's ID
         metric_id: metricCodeToId.get(m.metricCode)!,
         value: m.value,
         measured_at: m.measuredAt.toISOString(),
@@ -431,6 +434,7 @@ export async function POST(request: Request) {
     }
     
     // Insert the metric values
+    // RLS policy: auth.uid() = user_id allows insert
     const { error: insertError } = await supabase
       .from('eden_metric_values')
       .insert(rowsToInsert)
@@ -478,4 +482,3 @@ export async function POST(request: Request) {
     )
   }
 }
-
