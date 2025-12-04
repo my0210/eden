@@ -114,12 +114,15 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
       })
       
       const data = await res.json()
+      console.log('Process response:', res.status, data)
       
       if (res.ok) {
         const count = data.importedCount ?? 0
         setProcessMessage(`Processing completed. Imported ${count} metric${count !== 1 ? 's' : ''}.`)
       } else {
-        setProcessMessage(data.error || 'Processing failed. Please try again.')
+        const errorMsg = data.error || `Processing failed (status ${res.status}). Please try again.`
+        console.error('Process error:', errorMsg)
+        setProcessMessage(errorMsg)
       }
     } catch (err) {
       console.error('Process error:', err)
