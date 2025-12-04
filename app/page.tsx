@@ -8,33 +8,71 @@ export default function Home() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [isProcessingAuth, setIsProcessingAuth] = useState(false)
   const router = useRouter()
   
-  // Handle magic link callback if code is present in URL
+  // Handle magic link callback - MUST be client-side for PKCE
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    const handleAuthCallback = async () => {
+      if (typeof window === 'undefined') return
+      
       const urlParams = new URLSearchParams(window.location.search)
       const code = urlParams.get('code')
-      const error = urlParams.get('error')
+      const errorParam = urlParams.get('error')
       
-      if (error) {
+      // Handle errors from previous attempts
+      if (errorParam) {
         const details = urlParams.get('details')
         const errorMessage = details 
-          ? `Authentication failed: ${error}. Details: ${decodeURIComponent(details)}`
-          : `Authentication failed: ${error}. Please try again.`
+          ? `Authentication failed: ${errorParam}. Details: ${decodeURIComponent(details)}`
+          : `Authentication failed: ${errorParam}. Please try again.`
         setMessage(errorMessage)
-        // Clean up the URL
         window.history.replaceState({}, '', window.location.pathname)
         return
       }
       
+      // If there's a code, exchange it for a session CLIENT-SIDE
+      // This is critical - PKCE code verifier is in localStorage, only accessible client-side
       if (code) {
-        // Supabase redirects to root with code
-        // For magic links, Supabase should create session automatically
-        // Just redirect to callback which will check for session
-        router.replace(`/auth/callback?code=${code}&next=/dashboard`)
+        setIsProcessingAuth(true)
+        setMessage('Signing you in...')
+        
+        try {
+          const supabase = createClient()
+          
+          // Exchange the code for a session - client-side has access to PKCE code verifier
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          
+          if (error) {
+            console.error('Code exchange error:', error)
+            setMessage(`Authentication failed: ${error.message}`)
+            window.history.replaceState({}, '', window.location.pathname)
+            setIsProcessingAuth(false)
+            return
+          }
+          
+          if (data.session) {
+            // Success! Redirect to dashboard
+            router.replace('/dashboard')
+            return
+          }
+        } catch (err) {
+          console.error('Auth exception:', err)
+          setMessage('An error occurred during sign in. Please try again.')
+          window.history.replaceState({}, '', window.location.pathname)
+          setIsProcessingAuth(false)
+        }
+      }
+      
+      // Check if already logged in
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        router.replace('/dashboard')
       }
     }
+    
+    handleAuthCallback()
   }, [router])
   
   // Create client only when needed (client-side only)
@@ -62,17 +100,14 @@ export default function Home() {
     }
 
     try {
-      // Construct the redirect URL properly - ensure it's a valid absolute URL
+      // Redirect back to root - we handle auth client-side there
       const origin = window.location.origin
-      const redirectUrl = `${origin}/auth/callback?next=/dashboard`
-      
-      // Validate the URL is properly formed
-      new URL(redirectUrl) // This will throw if malformed
       
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: redirectUrl,
+          // Redirect to root - we'll handle the code exchange client-side
+          emailRedirectTo: origin,
         },
       })
 
@@ -120,10 +155,10 @@ export default function Home() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || isProcessingAuth}
               className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
-              {loading ? 'Sending...' : 'Login with email'}
+              {isProcessingAuth ? 'Signing in...' : loading ? 'Sending...' : 'Login with email'}
             </button>
           </form>
 
