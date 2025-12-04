@@ -36,7 +36,7 @@ const categoryConfig: Record<string, { icon: string; color: string; bgColor: str
   },
 }
 
-async function getEdenMetrics(userId: string): Promise<CategoryWithMetrics[]> {
+async function getEdenMetrics(userId: string): Promise<{ categories: CategoryWithMetrics[], error: string | null }> {
   const supabase = await createClient()
   
   // Fetch all categories ordered by sort_order
@@ -47,7 +47,17 @@ async function getEdenMetrics(userId: string): Promise<CategoryWithMetrics[]> {
   
   if (categoriesError) {
     console.error('Error fetching categories:', categoriesError)
-    return []
+    return { 
+      categories: [], 
+      error: `Categories error: ${categoriesError.message}. This might be an RLS policy issue.` 
+    }
+  }
+  
+  if (!categories || categories.length === 0) {
+    return { 
+      categories: [], 
+      error: 'No categories found. Check if eden_metric_categories table has data and RLS policies allow reading.' 
+    }
   }
   
   // Fetch all metric definitions
@@ -58,7 +68,10 @@ async function getEdenMetrics(userId: string): Promise<CategoryWithMetrics[]> {
   
   if (definitionsError) {
     console.error('Error fetching definitions:', definitionsError)
-    return []
+    return { 
+      categories: [], 
+      error: `Definitions error: ${definitionsError.message}` 
+    }
   }
   
   // Fetch latest values for this user
@@ -107,7 +120,7 @@ async function getEdenMetrics(userId: string): Promise<CategoryWithMetrics[]> {
     }
   })
   
-  return result
+  return { categories: result, error: null }
 }
 
 function formatValue(value: number | null, unit: string): string {
@@ -147,7 +160,7 @@ function formatDate(dateString: string | null): string {
 
 export default async function DashboardPage() {
   const user = await requireAuth()
-  const categoriesWithMetrics = await getEdenMetrics(user.id)
+  const { categories: categoriesWithMetrics, error } = await getEdenMetrics(user.id)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -161,12 +174,23 @@ export default async function DashboardPage() {
         </p>
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800 text-sm font-medium">Error loading metrics:</p>
+          <p className="text-red-600 text-sm mt-1">{error}</p>
+          <p className="text-red-500 text-xs mt-2">
+            Make sure RLS policies are configured in Supabase to allow authenticated users to read the tables.
+          </p>
+        </div>
+      )}
+
       {/* Metrics Grid */}
-      {categoriesWithMetrics.length === 0 ? (
+      {categoriesWithMetrics.length === 0 && !error ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
           <p className="text-gray-500">No metrics configured yet.</p>
         </div>
-      ) : (
+      ) : categoriesWithMetrics.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {categoriesWithMetrics.map((category) => {
             const config = categoryConfig[category.category_code] || {
@@ -231,7 +255,7 @@ export default async function DashboardPage() {
             )
           })}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
