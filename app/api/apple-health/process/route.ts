@@ -278,42 +278,57 @@ export async function POST(req: NextRequest) {
       throw new Error(`Download failed: ${downloadError?.message || 'No data'}`)
     }
 
-    // 7. Unzip and find export.xml
-    const zip = await JSZip.loadAsync(await fileData.arrayBuffer())
-    let xmlContent: string | null = null
+    // Check file size - limit to 50MB to avoid memory issues
+    const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+    if (fileData.size > MAX_FILE_SIZE) {
+      throw new Error(`File too large (${Math.round(fileData.size / 1024 / 1024)}MB). Maximum supported size is 50MB. Try exporting a shorter date range from Apple Health.`)
+    }
 
-    // Try common paths
+    // 7. Unzip and find export.xml
+    const zipBuffer = await fileData.arrayBuffer()
+    const zip = await JSZip.loadAsync(zipBuffer)
+    
+    // Find export.xml file
+    let xmlFile: JSZip.JSZipObject | null = null
     for (const path of ['apple_health_export/export.xml', 'export.xml']) {
       const file = zip.file(path)
       if (file) {
-        xmlContent = await file.async('string')
+        xmlFile = file
         break
       }
     }
 
     // Fallback: case-insensitive search
-    if (!xmlContent) {
+    if (!xmlFile) {
       for (const name of Object.keys(zip.files)) {
         if (name.toLowerCase().endsWith('export.xml')) {
-          const file = zip.file(name)
-          if (file) {
-            xmlContent = await file.async('string')
-            break
-          }
+          xmlFile = zip.file(name)
+          if (xmlFile) break
         }
       }
     }
 
-    if (!xmlContent) {
+    if (!xmlFile) {
       throw new Error('export.xml not found in Apple Health export')
     }
 
-    // 8. Parse XML
+    // Check uncompressed size of export.xml
+    const xmlInfo = xmlFile as unknown as { _data?: { uncompressedSize?: number } }
+    const uncompressedSize = xmlInfo._data?.uncompressedSize || 0
+    if (uncompressedSize > 200 * 1024 * 1024) { // 200MB uncompressed
+      throw new Error(`export.xml is too large (${Math.round(uncompressedSize / 1024 / 1024)}MB uncompressed). Try exporting a shorter date range.`)
+    }
+
+    const xmlContent = await xmlFile.async('string')
+
+    // 8. Parse XML - only extract Record elements with minimal memory
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '',
+      isArray: (name) => name === 'Record', // Ensure Record is always an array
     })
     const parsed = parser.parse(xmlContent)
+
 
     // Extract Record elements
     let rawRecords = parsed?.HealthData?.Record || []
@@ -321,16 +336,21 @@ export async function POST(req: NextRequest) {
       rawRecords = rawRecords ? [rawRecords] : []
     }
 
-    // Filter to types we care about and normalize
+    // Filter to types we care about IMMEDIATELY to reduce memory
     const relevantTypes: Set<string> = new Set(Object.values(APPLE_TYPES))
-    const records: AppleRecord[] = rawRecords
-      .filter((r: Record<string, unknown>) => relevantTypes.has(r.type as string))
-      .map((r: Record<string, unknown>) => ({
-        type: r.type as string,
-        value: r.value as string | undefined,
-        startDate: r.startDate as string | undefined,
-        endDate: r.endDate as string | undefined,
-      }))
+    const records: AppleRecord[] = []
+    for (const r of rawRecords) {
+      if (relevantTypes.has(r.type)) {
+        records.push({
+          type: r.type,
+          value: r.value,
+          startDate: r.startDate,
+          endDate: r.endDate,
+        })
+      }
+    }
+    // Clear rawRecords to free memory
+    rawRecords = []
 
     // 9. Aggregate metrics
     const aggregated = aggregateAll(records)
