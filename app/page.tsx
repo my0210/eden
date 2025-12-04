@@ -11,68 +11,41 @@ export default function Home() {
   const [isProcessingAuth, setIsProcessingAuth] = useState(false)
   const router = useRouter()
   
-  // Handle magic link callback - MUST be client-side for PKCE
+  // Listen for auth state changes - this catches ALL auth events including magic links
   useEffect(() => {
-    const handleAuthCallback = async () => {
-      if (typeof window === 'undefined') return
-      
-      const urlParams = new URLSearchParams(window.location.search)
-      const code = urlParams.get('code')
-      const errorParam = urlParams.get('error')
-      
-      // Handle errors from previous attempts
-      if (errorParam) {
-        const details = urlParams.get('details')
-        const errorMessage = details 
-          ? `Authentication failed: ${errorParam}. Details: ${decodeURIComponent(details)}`
-          : `Authentication failed: ${errorParam}. Please try again.`
-        setMessage(errorMessage)
-        window.history.replaceState({}, '', window.location.pathname)
-        return
-      }
-      
-      // If there's a code, exchange it for a session CLIENT-SIDE
-      // This is critical - PKCE code verifier is in localStorage, only accessible client-side
-      if (code) {
-        setIsProcessingAuth(true)
-        setMessage('Signing you in...')
-        
-        try {
-          const supabase = createClient()
-          
-          // Exchange the code for a session - client-side has access to PKCE code verifier
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-          
-          if (error) {
-            console.error('Code exchange error:', error)
-            setMessage(`Authentication failed: ${error.message}`)
-            window.history.replaceState({}, '', window.location.pathname)
-            setIsProcessingAuth(false)
-            return
-          }
-          
-          if (data.session) {
-            // Success! Redirect to dashboard
-            router.replace('/dashboard')
-            return
-          }
-        } catch (err) {
-          console.error('Auth exception:', err)
-          setMessage('An error occurred during sign in. Please try again.')
-          window.history.replaceState({}, '', window.location.pathname)
-          setIsProcessingAuth(false)
-        }
-      }
-      
-      // Check if already logged in
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+    const supabase = createClient()
+    
+    // Check if already logged in on mount
+    supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         router.replace('/dashboard')
       }
+    })
+    
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth event:', event, session?.user?.email)
+      
+      if (event === 'SIGNED_IN' && session) {
+        // User signed in successfully - redirect to dashboard
+        router.replace('/dashboard')
+      }
+    })
+    
+    // Handle URL params (error messages from previous attempts)
+    const urlParams = new URLSearchParams(window.location.search)
+    const errorParam = urlParams.get('error')
+    if (errorParam) {
+      const details = urlParams.get('details')
+      setMessage(details 
+        ? `Authentication failed: ${errorParam}. Details: ${decodeURIComponent(details)}`
+        : `Authentication failed: ${errorParam}. Please try again.`)
+      window.history.replaceState({}, '', window.location.pathname)
     }
     
-    handleAuthCallback()
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [router])
   
   // Create client only when needed (client-side only)
@@ -100,15 +73,10 @@ export default function Home() {
     }
 
     try {
-      // Redirect back to root - we handle auth client-side there
-      const origin = window.location.origin
-      
+      // Don't specify emailRedirectTo - let Supabase use the Site URL
+      // This avoids PKCE issues and uses the implicit flow
       const { error } = await supabase.auth.signInWithOtp({
         email,
-        options: {
-          // Redirect to root - we'll handle the code exchange client-side
-          emailRedirectTo: origin,
-        },
       })
 
       if (error) {
