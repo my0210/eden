@@ -44,12 +44,12 @@ export default async function DashboardPage() {
                   Welcome, {displayName}
                 </h1>
                 <p className="mt-2 text-sm text-slate-600 max-w-xl">
-                  Eden uses your metrics and profile to build this card and guide your training, recovery, and lifestyle decisions.
+                  Eden turns your health data into a simple plan to help you stay in your prime – not just hit better lab numbers.
                 </p>
               </div>
               {!hasProfile && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 max-w-md">
-                  Eden only knows a little about you so far. Start the onboarding chat on WhatsApp to unlock a more personalised card.
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 max-w-md">
+                  Eden only has a light picture of you right now. Start the onboarding chat on WhatsApp to unlock a fully personalised card and plan.
                 </p>
               )}
             </div>
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
         <section className="space-y-3">
           <div className="flex items-baseline justify-between">
             <h2 className="text-lg font-semibold text-slate-900">Data sources</h2>
-            <p className="text-xs text-slate-500">More data → better coaching</p>
+            <p className="text-xs text-slate-500">More signal → smarter coaching</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {/* Apple Health tile */}
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
                 <div>
                   <p className="text-sm font-medium text-slate-900">Apple Health</p>
                   <p className="text-xs text-slate-500">
-                    Upload an export so Eden can use your real-world data.
+                    Connect your iPhone data so Eden can track how your heart, movement, and sleep change over time.
                   </p>
                 </div>
               </div>
@@ -97,7 +97,7 @@ export default async function DashboardPage() {
             <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 flex flex-col justify-center">
               <p className="text-sm font-medium text-slate-900">Labs & wearables</p>
               <p className="mt-1 text-xs text-slate-500">
-                Soon, you&apos;ll be able to connect labs and more devices. For now, Eden uses your basic profile and Apple Health.
+                Soon you&apos;ll be able to connect labs and more devices. For now, Eden uses your basic profile and Apple Health to guide your plan.
               </p>
             </div>
           </div>
