@@ -7,6 +7,7 @@ import type {
   MetricWithValue 
 } from '@/lib/types/eden'
 import AppleHealthUpload from './AppleHealthUpload'
+import EdenCoachChat from './EdenCoachChat'
 
 // Category icons and colors
 const categoryConfig: Record<string, { icon: string; color: string; bgColor: string }> = {
@@ -262,6 +263,15 @@ export default async function DashboardPage() {
           })}
         </div>
       ) : null}
+
+      {/* Eden Coach Chat Section */}
+      <section className="mt-8">
+        <h2 className="text-xl font-semibold mb-2">Chat with Eden</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Ask Eden about your current status or what to focus on this week.
+        </p>
+        <EdenCoachChat />
+      </section>
     </div>
   )
 }
