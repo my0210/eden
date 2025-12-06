@@ -163,116 +163,163 @@ function formatDate(dateString: string | null): string {
 export default async function DashboardPage() {
   const user = await requireAuth()
   const { categories: categoriesWithMetrics, error } = await getEdenMetrics(user.id)
+  const displayName = user.email?.split('@')[0] || 'there'
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Welcome, {user.email?.split('@')[0]}
-        </h1>
-        <p className="text-gray-600 mt-1">
-          Your Eden metrics at a glance
-        </p>
-      </div>
+    <main className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-8 lg:py-10 space-y-8">
+        
+        {/* Hero Section */}
+        <section className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)] lg:gap-8 lg:items-start">
+          {/* Left: Welcome text */}
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 border border-emerald-100">
+              <span className="text-sm">🧬</span>
+              <span>Primespan Coach</span>
+            </div>
+            <h1 className="mt-4 text-2xl sm:text-3xl font-semibold text-slate-900">
+              Welcome, {displayName}
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 max-w-2xl">
+              This is your current Eden health snapshot. Eden uses these metrics to guide your training, recovery, and lifestyle decisions.
+            </p>
+          </div>
 
-      {/* Apple Health Upload Section */}
-      <div className="mb-8">
-        <AppleHealthUpload userId={user.id} />
-      </div>
-
-      {/* Error message */}
-      {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800 text-sm font-medium">Error loading metrics:</p>
-          <p className="text-red-600 text-sm mt-1">{error}</p>
-          <p className="text-red-500 text-xs mt-2">
-            Make sure RLS policies are configured in Supabase to allow authenticated users to read the tables.
-          </p>
-        </div>
-      )}
-
-      {/* Metrics Grid */}
-      {categoriesWithMetrics.length === 0 && !error ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-          <p className="text-gray-500">No metrics configured yet.</p>
-        </div>
-      ) : categoriesWithMetrics.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {categoriesWithMetrics.map((category) => {
-            const config = categoryConfig[category.category_code] || {
-              icon: '📊',
-              color: 'text-gray-600',
-              bgColor: 'bg-gray-50 border-gray-200',
-            }
-            
-            return (
-              <div
-                key={category.category_code}
-                className={`rounded-xl border-2 ${config.bgColor} overflow-hidden`}
-              >
-                {/* Category Header */}
-                <div className="px-5 py-4 border-b border-inherit">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{config.icon}</span>
-                    <h2 className={`text-lg font-semibold ${config.color}`}>
-                      {category.name}
-                    </h2>
+          {/* Right: Today at a glance card */}
+          <div className="mt-6 lg:mt-0 rounded-2xl border border-slate-200 bg-white shadow-sm p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Today at a glance</p>
+              <span className="text-xs text-slate-400">Updated recently</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {categoriesWithMetrics.map((category) => {
+                const config = categoryConfig[category.category_code] || { icon: '📊', color: 'text-slate-600' }
+                const metricsWithData = category.metrics.filter(m => m.latestValue !== null).length
+                return (
+                  <div
+                    key={category.category_code}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-xs border border-slate-100"
+                  >
+                    <span>{config.icon}</span>
+                    <span className="text-slate-700 font-medium">{category.name}</span>
+                    <span className="text-slate-400">·</span>
+                    <span className="text-slate-500">{metricsWithData} tracked</span>
                   </div>
-                </div>
-                
-                {/* Metrics List */}
-                <div className="divide-y divide-inherit">
-                  {category.metrics.length === 0 ? (
-                    <div className="px-5 py-4 text-gray-500 text-sm">
-                      No metrics in this category
-                    </div>
-                  ) : (
-                    category.metrics.map((metric) => (
-                      <div
-                        key={metric.id}
-                        className="px-5 py-3 hover:bg-white/50 transition-colors"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {metric.name}
-                            </p>
-                            {metric.measuredAt && (
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                {formatDate(metric.measuredAt)}
-                              </p>
-                            )}
-                          </div>
-                          <div className="ml-4 flex-shrink-0 text-right">
-                            <p className={`text-sm font-semibold ${
-                              metric.latestValue !== null 
-                                ? config.color 
-                                : 'text-gray-400'
-                            }`}>
-                              {formatValue(metric.latestValue, metric.unit)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      ) : null}
+                )
+              })}
+            </div>
+            <p className="text-xs text-slate-500">
+              Eden reads these signals to decide what to focus on with you.
+            </p>
+          </div>
+        </section>
 
-      {/* Eden Coach Chat Section */}
-      <section className="mt-8">
-        <h2 className="text-xl font-semibold mb-2">Chat with Eden</h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Ask Eden about your current status or what to focus on this week.
-        </p>
-        <EdenCoachChat />
-      </section>
-    </div>
+        {/* Apple Health Upload Section */}
+        <section>
+          <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-emerald-50 to-sky-50 p-4 sm:p-5 shadow-sm">
+            <AppleHealthUpload userId={user.id} />
+          </div>
+        </section>
+
+        {/* Error message */}
+        {error && (
+          <div className="rounded-2xl bg-red-50 border border-red-200 p-4">
+            <p className="text-red-800 text-sm font-medium">Error loading metrics</p>
+            <p className="text-red-600 text-sm mt-1">{error}</p>
+            <p className="text-red-500 text-xs mt-2">
+              Make sure RLS policies are configured in Supabase to allow authenticated users to read the tables.
+            </p>
+          </div>
+        )}
+
+        {/* Metrics Grid Section */}
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between flex-wrap gap-2">
+            <h2 className="text-lg font-semibold text-slate-900">Your Eden metrics</h2>
+            <p className="text-xs text-slate-500">
+              Heart · Frame · Metabolism · Recovery · Mind
+            </p>
+          </div>
+
+          {categoriesWithMetrics.length === 0 && !error ? (
+            <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center shadow-sm">
+              <p className="text-slate-500 text-sm">No metrics configured yet.</p>
+            </div>
+          ) : categoriesWithMetrics.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {categoriesWithMetrics.map((category) => {
+                const config = categoryConfig[category.category_code] || {
+                  icon: '📊',
+                  color: 'text-slate-600',
+                  bgColor: 'bg-slate-50 border-slate-200',
+                }
+
+                return (
+                  <div
+                    key={category.category_code}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col"
+                  >
+                    {/* Category Header */}
+                    <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-100">
+                      <span className="text-xl">{config.icon}</span>
+                      <h3 className={`text-sm font-semibold ${config.color}`}>
+                        {category.name}
+                      </h3>
+                    </div>
+
+                    {/* Metrics List */}
+                    <div className="flex flex-col gap-2 flex-1">
+                      {category.metrics.length === 0 ? (
+                        <p className="text-slate-400 text-xs">No metrics in this category</p>
+                      ) : (
+                        category.metrics.map((metric) => (
+                          <div
+                            key={metric.id}
+                            className="flex justify-between items-start py-1.5 hover:bg-slate-50 rounded-lg px-1 -mx-1 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-slate-800 truncate">
+                                {metric.name}
+                              </p>
+                              {metric.measuredAt && (
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                  {formatDate(metric.measuredAt)}
+                                </p>
+                              )}
+                            </div>
+                            <div className="ml-3 flex-shrink-0 text-right">
+                              <p
+                                className={`text-sm font-medium ${
+                                  metric.latestValue !== null ? config.color : 'text-slate-400'
+                                }`}
+                              >
+                                {formatValue(metric.latestValue, metric.unit)}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : null}
+        </section>
+
+        {/* Chat with Eden Section */}
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Chat with Eden</h2>
+            <p className="text-sm text-slate-600">
+              Use the coach to interpret your metrics and decide what to focus on next.
+            </p>
+          </div>
+          <EdenCoachChat />
+        </section>
+
+      </div>
+    </main>
   )
 }
 
