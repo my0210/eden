@@ -3,138 +3,213 @@
 import { useState, useRef, useEffect } from 'react'
 
 type Message = {
+  id: string
   role: 'user' | 'assistant'
   content: string
 }
 
+const INITIAL_MESSAGE: Message = {
+  id: 'welcome',
+  role: 'assistant',
+  content:
+    "Hi, I'm Eden. I'm using your latest health metrics to help you decide what to focus on. Ask me anything about your primespan, training, sleep, or recovery.",
+}
+
+const QUICK_PROMPTS = [
+  'What should I focus on this week?',
+  'Explain what my metrics say about my heart and recovery.',
+  "How should I adjust training if I'm traveling?",
+  'Help me design a simple daily routine.',
+]
+
 export default function EdenCoachChat() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, isLoading])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  async function handleSend(messageText: string) {
+    if (!messageText.trim() || isLoading) return
 
-    if (!input.trim() || isLoading) return
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: messageText.trim(),
+    }
 
-    const userMessage = input.trim()
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }])
+    setMessages((prev) => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
+    setError(null)
 
     try {
       const res = await fetch('/api/eden-coach/message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: userMessage,
+          message: userMessage.content,
           channel: 'web',
         }),
       })
 
       const data = await res.json()
 
-      if (res.ok && data.reply) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }])
+      if (!res.ok || !data?.reply) {
+        setError('Something went wrong. Please try again.')
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: 'Sorry, something went wrong. Please try again in a moment.',
+          },
+        ])
       } else {
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: data.reply,
+          },
         ])
       }
     } catch (err) {
-      console.error('Chat error:', err)
+      console.error(err)
+      setError('Something went wrong. Please try again.')
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', content: 'Sorry, something went wrong. Please try again.' },
+        {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: 'Sorry, there was a connection problem. Please try again.',
+        },
       ])
     } finally {
       setIsLoading(false)
     }
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    handleSend(input)
+  }
+
+  function handleQuickPrompt(prompt: string) {
+    handleSend(prompt)
+  }
+
   return (
-    <div className="bg-white rounded-xl border-2 border-indigo-200 overflow-hidden">
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-indigo-200 bg-indigo-50">
+      <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 px-5 py-4">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">🧠</span>
-          <h2 className="text-lg font-semibold text-indigo-700">Eden Coach</h2>
+          <span className="text-2xl">✨</span>
+          <div>
+            <h3 className="text-white font-semibold">Eden Coach</h3>
+            <p className="text-indigo-100 text-xs">
+              Ask Eden about your current status or what to focus on this week.
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Messages area */}
-      <div className="h-80 overflow-y-auto p-4 space-y-3 bg-gray-50">
-        {messages.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-8">
-            Ask Eden anything about your health and performance goals.
-          </p>
-        ) : (
-          messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                  msg.role === 'user'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-white border border-gray-200 text-gray-800'
-                }`}
-              >
-                <p className="text-xs font-semibold mb-1 opacity-70">
-                  {msg.role === 'user' ? 'You' : 'Eden'}
-                </p>
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+      {/* Chat area */}
+      <div className="max-h-[380px] overflow-y-auto bg-white p-4 space-y-3">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={msg.role === 'user' ? 'flex justify-end' : 'flex items-start gap-2'}
+          >
+            {msg.role === 'assistant' && (
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center flex-shrink-0">
+                <span className="text-sm">🧠</span>
               </div>
+            )}
+            <div
+              className={
+                msg.role === 'user'
+                  ? 'rounded-2xl bg-indigo-500 text-white px-3 py-2 text-sm max-w-[80%]'
+                  : 'rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-800 max-w-[80%]'
+              }
+            >
+              <p className="whitespace-pre-wrap">{msg.content}</p>
             </div>
-          ))
-        )}
+          </div>
+        ))}
+
+        {/* Typing indicator */}
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-gray-200 rounded-lg px-4 py-2">
-              <p className="text-xs font-semibold mb-1 text-gray-500">Eden</p>
-              <p className="text-sm text-gray-400 flex items-center gap-1">
-                <span className="animate-pulse">Thinking</span>
-                <span className="animate-bounce">.</span>
-                <span className="animate-bounce" style={{ animationDelay: '0.1s' }}>.</span>
-                <span className="animate-bounce" style={{ animationDelay: '0.2s' }}>.</span>
-              </p>
+          <div className="flex items-start gap-2">
+            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm">🧠</span>
+            </div>
+            <div className="rounded-2xl bg-slate-100 px-4 py-2 text-sm text-slate-500">
+              <span className="inline-flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </span>
             </div>
           </div>
         )}
+
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="px-4 py-2 bg-red-50 border-t border-red-100">
+          <p className="text-xs text-red-500">{error}</p>
+        </div>
+      )}
+
+      {/* Quick prompts */}
+      <div className="px-4 py-3 border-t border-slate-200 bg-white">
+        <div className="flex flex-wrap gap-2">
+          {QUICK_PROMPTS.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => handleQuickPrompt(prompt)}
+              disabled={isLoading}
+              className="text-xs px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Input area */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200 bg-white">
+      <form
+        onSubmit={handleSubmit}
+        className="border-t border-slate-200 bg-slate-50/80 px-4 py-3"
+      >
         <div className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Eden a question..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition text-sm"
+            placeholder="Ask Eden something..."
             disabled={isLoading}
+            className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-60 disabled:cursor-not-allowed"
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium text-sm
-              hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2
-              disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="rounded-xl bg-indigo-600 text-white text-sm font-medium px-4 py-2 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition"
           >
-            {isLoading ? 'Sending...' : 'Send'}
+            {isLoading ? 'Sending…' : 'Send'}
           </button>
         </div>
       </form>
     </div>
   )
 }
-
