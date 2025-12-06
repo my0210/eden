@@ -97,7 +97,7 @@ export default async function DashboardPage() {
             <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 flex flex-col justify-center">
               <p className="text-sm font-medium text-slate-900">Labs & wearables</p>
               <p className="mt-1 text-xs text-slate-500">
-                Soon, you'll be able to connect labs and more devices. For now, Eden uses your basic profile and Apple Health.
+                Soon, you&apos;ll be able to connect labs and more devices. For now, Eden uses your basic profile and Apple Health.
               </p>
             </div>
           </div>

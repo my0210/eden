@@ -292,7 +292,7 @@ export default function EdenCard({ snapshot, hasProfile }: EdenCardProps) {
         {!hasProfile ? (
           <div className="space-y-4">
             <p className="text-sm text-slate-600 leading-relaxed">
-              I don't know you well enough yet to personalise fully. Start with Eden on WhatsApp to fill in basics,
+              I don&apos;t know you well enough yet to personalise fully. Start with Eden on WhatsApp to fill in basics,
               then this card will update with your personalised health profile.
             </p>
             <a
