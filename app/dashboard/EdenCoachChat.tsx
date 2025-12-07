@@ -11,7 +11,7 @@ type Message = {
 const INITIAL_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: "Hi! I'm Eden. Ask me anything about your health data or what to focus on.",
+  content: "Hi, I'm Eden, your primespan coach. I use your health data and a few quick questions to help you stay in your prime, not just chase better numbers.\n\nTo start, what do you most want help with right now – more energy, better performance, or sorting out health issues? You can just reply with a word like 'energy', 'performance', or 'health'.",
 }
 
 export default function EdenCoachChat() {
