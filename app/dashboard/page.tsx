@@ -34,17 +34,17 @@ export default async function DashboardPage() {
         <header className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900">
-              Eden dashboard
+              My Eden
             </h1>
             <p className="mt-1 text-sm text-slate-600">
-              Your Eden card and data sources.
+              See where you stand and what powers your insights.
             </p>
           </div>
           <Link
             href="/chat"
             className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition"
           >
-            Chat with Eden
+            Talk to Eden
           </Link>
         </header>
 
@@ -57,7 +57,7 @@ export default async function DashboardPage() {
         <section className="space-y-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Data sources</h2>
-            <p className="text-xs text-slate-500">These feeds help Eden understand your health over time.</p>
+            <p className="text-xs text-slate-500">More data means better insights. Connect what you can.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {/* Apple Health tile */}
@@ -67,7 +67,7 @@ export default async function DashboardPage() {
                 <div>
                   <p className="text-sm font-medium text-slate-900">Apple Health</p>
                   <p className="text-xs text-slate-500">
-                    Upload an Apple Health export so Eden can use your real-world activity, heart rate, and sleep.
+                    Upload your export to include activity, heart rate, and sleep data.
                   </p>
                 </div>
               </div>
@@ -80,11 +80,18 @@ export default async function DashboardPage() {
             <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 flex flex-col justify-center">
               <p className="text-sm font-medium text-slate-900">Labs &amp; wearables</p>
               <p className="mt-1 text-xs text-slate-500">
-                Additional sources will appear here as they are connected.
+                More integrations coming soon.
               </p>
             </div>
           </div>
         </section>
+
+        {/* Disclaimer */}
+        <footer className="pt-4 border-t border-slate-200">
+          <p className="text-[11px] text-slate-400 text-center">
+            Eden is not a medical service and does not provide diagnosis or treatment. Always consult a qualified professional for health concerns.
+          </p>
+        </footer>
 
       </div>
     </main>

@@ -51,7 +51,7 @@ export default async function ChatPage() {
               E
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-50">Eden Coach</p>
+              <p className="text-sm font-semibold text-slate-50">Eden</p>
               <p className="text-[11px] text-slate-400">
                 Stay in your prime.
               </p>
@@ -66,17 +66,17 @@ export default async function ChatPage() {
               href="/dashboard"
               className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-100 hover:bg-slate-800 transition"
             >
-              View card
+              My Eden
             </Link>
           </div>
         </header>
 
-        {/* This week with Eden strip */}
+        {/* This week's focus strip */}
         <section className="mb-3 rounded-2xl bg-slate-900/70 border border-slate-800 px-3 py-2">
           {activePlan ? (
             <div className="space-y-1">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                This week with Eden
+                This week&apos;s focus
               </p>
               <p className="text-xs text-slate-100">
                 {activePlan.focus_summary}
@@ -88,10 +88,10 @@ export default async function ChatPage() {
           ) : (
             <div className="space-y-1">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                Getting to know you
+                Let&apos;s get started
               </p>
               <p className="text-xs text-slate-100">
-                I&apos;ll use this chat to learn about your goals and routines, then I&apos;ll suggest a clear focus for your first week.
+                Tell me about your goals and I&apos;ll help you build a simple weekly focus.
               </p>
             </div>
           )}
@@ -104,8 +104,12 @@ export default async function ChatPage() {
           </div>
         </section>
 
+        {/* Disclaimer */}
+        <p className="mt-2 text-center text-[10px] text-slate-600">
+          Eden is not a medical service. Always consult a professional for health concerns.
+        </p>
+
       </div>
     </main>
   )
 }
-
