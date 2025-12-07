@@ -11,7 +11,7 @@ type Message = {
 const INITIAL_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: "Hey! I'm Eden. What's on your mind today?",
+  content: "Hey! I'm Eden. Ask me anything about your health data or what to focus on.",
 }
 
 export default function EdenCoachChat() {
@@ -64,16 +64,21 @@ export default function EdenCoachChat() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-gray-50">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg) => (
           <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : 'flex'}>
+            {msg.role === 'assistant' && (
+              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center mr-2 flex-shrink-0">
+                <span className="text-xs font-bold text-white">E</span>
+              </div>
+            )}
             <div
               className={
                 msg.role === 'user'
-                  ? 'max-w-[85%] rounded-2xl rounded-br-sm bg-stone-900 text-white px-4 py-2.5 text-[15px]'
-                  : 'max-w-[85%] rounded-2xl rounded-bl-sm bg-white border border-stone-200 text-stone-800 px-4 py-2.5 text-[15px] shadow-sm'
+                  ? 'max-w-[80%] rounded-2xl rounded-tr-sm bg-emerald-500 text-white px-4 py-2.5 text-[15px]'
+                  : 'max-w-[80%] rounded-2xl rounded-tl-sm bg-white text-gray-900 px-4 py-2.5 text-[15px] shadow-sm'
               }
             >
               <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
@@ -83,11 +88,14 @@ export default function EdenCoachChat() {
 
         {isLoading && (
           <div className="flex">
-            <div className="rounded-2xl rounded-bl-sm bg-white border border-stone-200 px-4 py-3 shadow-sm">
-              <div className="flex gap-1.5">
-                <span className="w-2 h-2 bg-stone-300 rounded-full animate-bounce" />
-                <span className="w-2 h-2 bg-stone-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                <span className="w-2 h-2 bg-stone-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center mr-2 flex-shrink-0">
+              <span className="text-xs font-bold text-white">E</span>
+            </div>
+            <div className="rounded-2xl rounded-tl-sm bg-white px-4 py-3 shadow-sm">
+              <div className="flex gap-1">
+                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
               </div>
             </div>
           </div>
@@ -97,7 +105,7 @@ export default function EdenCoachChat() {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-stone-200/60 bg-[#f8f7f4]">
+      <div className="p-4 bg-white border-t border-gray-100">
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -109,21 +117,20 @@ export default function EdenCoachChat() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Message Eden..."
+            placeholder="Ask Eden..."
             disabled={isLoading}
-            className="flex-1 rounded-xl border border-stone-200 bg-white px-4 py-3 text-[15px] text-stone-900 placeholder:text-stone-400 outline-none focus:border-stone-300 focus:ring-1 focus:ring-stone-300 transition disabled:opacity-50"
+            className="flex-1 rounded-full border border-gray-200 bg-gray-50 px-4 py-2.5 text-[15px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-emerald-500 focus:bg-white transition disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="rounded-xl bg-stone-900 text-white px-5 py-3 text-sm font-medium hover:bg-stone-800 transition disabled:opacity-40"
+            className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition disabled:opacity-40 disabled:hover:bg-emerald-500"
           >
-            Send
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
           </button>
         </form>
-        <p className="mt-3 text-[11px] text-stone-400 text-center">
-          Eden is not a medical service. Consult a professional for health concerns.
-        </p>
       </div>
     </div>
   )
