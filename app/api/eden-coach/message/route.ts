@@ -38,11 +38,24 @@ type CoachRequestBody = {
   channel?: 'web' | 'whatsapp'
 }
 
-const SYSTEM_PROMPT = `You are Eden, an AI health and performance coach focused on primespan (healthy, high-performance years). You receive: (1) a JSON snapshot of the user's current health metrics and trends, (2) an optional persona text describing their goals, constraints, and tendencies, (3) the user's current weekly plan with a focus summary and actions, and (4) the last few chat messages.
+const SYSTEM_PROMPT = `You are Eden, a health & performance coach focused on extending primespan (the years a person feels and performs at their best).
 
-You also receive the user's current weekly plan, as JSON with a focus summary and a few actions. You must respect this plan as the default path unless the user clearly wants to change it. Use the plan to prioritise what to talk about, and avoid giving 20 extra ideas; stay focused.
+You receive three main pieces of context as JSON in a message labelled EDEN_CONTEXT:
+1) profile: basics about the user (age, sex at birth, height, weight, goals, constraints).
+2) snapshot: a summary of their current metrics and derived scores across heart, frame, metabolism, recovery, and mind.
+3) plan: the current weekly focus, including a short summary and a handful of concrete actions.
 
-You must give specific, actionable coaching while staying safe (no medical diagnosis, encourage seeing a doctor for serious issues). Keep answers concise, practical, and encouraging.`
+Use this context to answer in a clear, coaching style. Respect the current weekly plan as the default path unless the user clearly wants to change it. Be concrete, avoid giving 20 different ideas, and prioritise what will matter most for the next 1–2 weeks.
+
+Onboarding behaviour:
+- If the profile is thin or missing (hasProfile is false or profile is null) and there is no active weekly plan, start by asking a small sequence of onboarding questions instead of jumping into detailed advice.
+- Ask for: age, sex at birth (for interpreting metrics), height and weight, main goal, and rough weekly time available for training/recovery.
+- Ask one question at a time, summarise back what you learned, and only then move to setting a clear focus for the first week.
+- You cannot directly write to databases; treat what the user tells you as conversation context and repeat key facts back so they feel heard.
+
+Safety:
+- Give specific, actionable coaching while staying safe (no medical diagnosis, encourage seeing a doctor for serious issues).
+- Keep answers concise, practical, and encouraging.`
 
 export async function POST(req: NextRequest) {
   try {
@@ -109,36 +122,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
 
-    // 5. Fetch user snapshot
-    const snapshot = await getUserSnapshot(supabase, user.id)
+    // 5. Fetch user profile
+    let profile = null
+    try {
+      const { data: profileData } = await supabase
+        .from('eden_user_profile')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      profile = profileData
+    } catch (err) {
+      console.error('Failed to fetch profile:', err)
+    }
 
-    // 6. Fetch user persona (if any)
-    const { data: personaData } = await supabase
-      .from('eden_user_personas')
-      .select('persona_text')
-      .eq('user_id', user.id)
-      .maybeSingle()
+    const hasProfile = !!profile
 
-    const personaText = personaData?.persona_text || null
+    // 6. Fetch user snapshot
+    let snapshot = null
+    try {
+      snapshot = await getUserSnapshot(supabase, user.id)
+    } catch (err) {
+      console.error('Failed to fetch snapshot:', err)
+    }
 
     // 7. Fetch active weekly plan for today
     const today = new Date().toISOString().slice(0, 10)
 
-    const { data: activePlans, error: planError } = await supabase
-      .from('eden_plans')
-      .select('id, start_date, end_date, status, focus_summary')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .lte('start_date', today)
-      .gte('end_date', today)
-      .order('start_date', { ascending: false })
-      .limit(1)
+    let activePlan = null
+    try {
+      const { data: activePlans, error: planError } = await supabase
+        .from('eden_plans')
+        .select('id, start_date, end_date, status, focus_summary')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .lte('start_date', today)
+        .gte('end_date', today)
+        .order('start_date', { ascending: false })
+        .limit(1)
 
-    if (planError) {
-      console.error('Failed to fetch active plan:', planError)
+      if (planError) {
+        console.error('Failed to fetch active plan:', planError)
+      }
+
+      activePlan = activePlans?.[0] ?? null
+    } catch (err) {
+      console.error('Failed to fetch active plan:', err)
     }
-
-    const activePlan = activePlans?.[0] ?? null
 
     // 8. Fetch plan actions if plan exists
     let planActions: Array<{
@@ -150,20 +179,24 @@ export async function POST(req: NextRequest) {
     }> = []
 
     if (activePlan) {
-      const { data: actionsData, error: actionsError } = await supabase
-        .from('eden_plan_actions')
-        .select('title, description, metric_code, target_value, cadence')
-        .eq('plan_id', activePlan.id)
-        .order('priority', { ascending: true })
+      try {
+        const { data: actionsData, error: actionsError } = await supabase
+          .from('eden_plan_actions')
+          .select('title, description, metric_code, target_value, cadence')
+          .eq('plan_id', activePlan.id)
+          .order('priority', { ascending: true })
 
-      if (actionsError) {
-        console.error('Failed to fetch plan actions:', actionsError)
+        if (actionsError) {
+          console.error('Failed to fetch plan actions:', actionsError)
+        }
+
+        planActions = actionsData ?? []
+      } catch (err) {
+        console.error('Failed to fetch plan actions:', err)
       }
-
-      planActions = actionsData ?? []
     }
 
-    // Build plan context object
+    // 9. Build context objects
     const planContext = activePlan
       ? {
           focusSummary: activePlan.focus_summary,
@@ -173,7 +206,17 @@ export async function POST(req: NextRequest) {
         }
       : null
 
-    // 9. Fetch last ~10 messages for context
+    const profileContext = profile ? { ...profile } : null
+    const snapshotContext = snapshot ?? null
+
+    const edenContext = {
+      hasProfile,
+      profile: profileContext,
+      snapshot: snapshotContext,
+      plan: planContext,
+    }
+
+    // 10. Fetch last ~10 messages for context
     const { data: recentMessages } = await supabase
       .from('eden_messages')
       .select('role, content')
@@ -181,7 +224,7 @@ export async function POST(req: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(10)
 
-    // 10. Build OpenAI messages
+    // 11. Build OpenAI messages
     const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
 
     // System prompt
@@ -190,28 +233,11 @@ export async function POST(req: NextRequest) {
       content: SYSTEM_PROMPT,
     })
 
-    // Context message with snapshot and persona
-    let contextContent = `User snapshot JSON: ${JSON.stringify(snapshot)}`
-    if (personaText) {
-      contextContent += `\n\nUser persona: ${personaText}`
-    }
+    // Combined context message
     openaiMessages.push({
       role: 'assistant',
-      content: contextContent,
+      content: `EDEN_CONTEXT: ${JSON.stringify(edenContext)}`,
     })
-
-    // Plan context message
-    if (planContext) {
-      openaiMessages.push({
-        role: 'assistant',
-        content: `Current weekly plan JSON: ${JSON.stringify(planContext)}`,
-      })
-    } else {
-      openaiMessages.push({
-        role: 'assistant',
-        content: 'No active weekly plan yet. If the user seems new or unfocused, suggest setting a simple focus for this week and keep it manageable.',
-      })
-    }
 
     // Add conversation history (excluding the just-inserted user message which is last)
     if (recentMessages && recentMessages.length > 0) {
@@ -223,7 +249,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 11. Call OpenAI
+    // 12. Call OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: openaiMessages,
@@ -232,7 +258,7 @@ export async function POST(req: NextRequest) {
 
     const replyText = completion.choices[0]?.message?.content || 'I apologize, I could not generate a response.'
 
-    // 12. Insert assistant reply
+    // 13. Insert assistant reply
     const { error: insertReplyError } = await supabase
       .from('eden_messages')
       .insert({
@@ -246,13 +272,13 @@ export async function POST(req: NextRequest) {
       // Continue anyway - we have the reply
     }
 
-    // 13. Update conversation's last_message_at
+    // 14. Update conversation's last_message_at
     await supabase
       .from('eden_conversations')
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    // 14. Return reply
+    // 15. Return reply
     return NextResponse.json({ reply: replyText })
 
   } catch (err) {
