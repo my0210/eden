@@ -11,7 +11,6 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
   const [isUploading, setIsUploading] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleClick = () => {
@@ -22,7 +21,6 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
     const file = e.target.files?.[0]
     if (!file) return
 
-    setFileName(file.name)
     setIsUploading(true)
     setMessage(null)
 
@@ -52,7 +50,6 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
         return
       }
 
-      // Auto-process
       setIsUploading(false)
       setIsProcessing(true)
 
@@ -65,7 +62,7 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
       const data = await res.json()
       
       if (res.ok) {
-        setMessage({ type: 'success', text: `Successfully imported ${data.importedCount ?? 0} metrics!` })
+        setMessage({ type: 'success', text: `Imported ${data.importedCount ?? 0} metrics` })
         setTimeout(() => window.location.href = '/dashboard', 2000)
       } else {
         setMessage({ type: 'error', text: data.error || 'Processing failed' })
@@ -91,7 +88,7 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
       <button
         onClick={handleClick}
         disabled={isUploading || isProcessing}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-white bg-emerald-500 rounded-xl hover:bg-emerald-600 disabled:opacity-50 transition"
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-black bg-[#c8ff00] rounded-xl hover:bg-[#d4ff33] disabled:opacity-50 transition"
       >
         {isUploading ? (
           <>
@@ -99,7 +96,7 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span>Uploading...</span>
+            Uploading...
           </>
         ) : isProcessing ? (
           <>
@@ -107,29 +104,23 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span>Processing data...</span>
+            Processing...
           </>
         ) : (
           <>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            <span>Upload Health Export</span>
+            Upload Health Export
           </>
         )}
       </button>
 
-      {fileName && !message && (
-        <p className="mt-2 text-xs text-gray-500 text-center">
-          {fileName}
-        </p>
-      )}
-
       {message && (
         <div className={`mt-3 px-4 py-3 rounded-xl text-sm ${
           message.type === 'success' 
-            ? 'bg-emerald-50 text-emerald-700' 
-            : 'bg-red-50 text-red-700'
+            ? 'bg-[#c8ff00]/10 text-[#c8ff00]' 
+            : 'bg-red-500/10 text-red-400'
         }`}>
           {message.text}
         </div>

@@ -64,21 +64,16 @@ export default function EdenCoachChat() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
         {messages.map((msg) => (
           <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : 'flex'}>
-            {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center mr-2 flex-shrink-0">
-                <span className="text-xs font-bold text-white">E</span>
-              </div>
-            )}
             <div
               className={
                 msg.role === 'user'
-                  ? 'max-w-[80%] rounded-2xl rounded-tr-sm bg-emerald-500 text-white px-4 py-2.5 text-[15px]'
-                  : 'max-w-[80%] rounded-2xl rounded-tl-sm bg-white text-gray-900 px-4 py-2.5 text-[15px] shadow-sm'
+                  ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-[#c8ff00] text-black px-4 py-3 text-[15px]'
+                  : 'max-w-[80%] rounded-2xl rounded-bl-sm bg-[#1a1a1a] text-white/90 px-4 py-3 text-[15px]'
               }
             >
               <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
@@ -88,14 +83,11 @@ export default function EdenCoachChat() {
 
         {isLoading && (
           <div className="flex">
-            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center mr-2 flex-shrink-0">
-              <span className="text-xs font-bold text-white">E</span>
-            </div>
-            <div className="rounded-2xl rounded-tl-sm bg-white px-4 py-3 shadow-sm">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" />
-                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                <span className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+            <div className="rounded-2xl rounded-bl-sm bg-[#1a1a1a] px-4 py-3">
+              <div className="flex gap-1.5">
+                <span className="w-2 h-2 bg-white/30 rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-white/30 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                <span className="w-2 h-2 bg-white/30 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
               </div>
             </div>
           </div>
@@ -105,32 +97,33 @@ export default function EdenCoachChat() {
       </div>
 
       {/* Input */}
-      <div className="p-4 bg-white border-t border-gray-100">
+      <div className="flex-shrink-0 px-6 py-4 border-t border-white/10">
         <form
           onSubmit={(e) => {
             e.preventDefault()
             handleSend(input)
           }}
-          className="flex gap-2"
+          className="flex gap-3"
         >
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Eden..."
+            placeholder="Message Eden..."
             disabled={isLoading}
-            className="flex-1 rounded-full border border-gray-200 bg-gray-50 px-4 py-2.5 text-[15px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-emerald-500 focus:bg-white transition disabled:opacity-50"
+            className="flex-1 rounded-xl bg-[#1a1a1a] border border-white/10 px-4 py-3 text-[15px] text-white placeholder:text-white/30 outline-none focus:border-white/20 transition disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center hover:bg-emerald-600 transition disabled:opacity-40 disabled:hover:bg-emerald-500"
+            className="px-6 py-3 rounded-xl bg-[#c8ff00] text-black text-sm font-medium hover:bg-[#d4ff33] transition disabled:opacity-40"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            Send
           </button>
         </form>
+        <p className="mt-3 text-[11px] text-white/20 text-center">
+          Eden is not a medical service. Consult a professional for health concerns.
+        </p>
       </div>
     </div>
   )
