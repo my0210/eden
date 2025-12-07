@@ -82,7 +82,6 @@ export async function deriveUserProfileFromMessages(
 - height_cm (integer)
 - weight_kg (number)
 - primary_goal (string: brief description of their main health/fitness goal)
-- weekly_training_time_hours (number)
 - first_name (string)
 
 Use null for anything you cannot infer confidently from what the user explicitly stated. Do not guess or assume. Do not include any natural language explanation.`,
@@ -123,7 +122,6 @@ Use null for anything you cannot infer confidently from what the user explicitly
   maybeCopy('height_cm')
   maybeCopy('weight_kg')
   maybeCopy('primary_goal')
-  maybeCopy('weekly_training_time_hours')
   maybeCopy('first_name')
 
   if (Object.keys(updateData).length === 0) return

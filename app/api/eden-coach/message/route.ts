@@ -86,7 +86,6 @@ function summarizeContext(ctx: EdenContext): string {
     if (p.height_cm) profileBits.push(`${p.height_cm}cm`)
     if (p.weight_kg) profileBits.push(`${p.weight_kg}kg`)
     if (p.primary_goal) profileBits.push(`Goal: ${p.primary_goal}`)
-    if (p.weekly_training_time_hours) profileBits.push(`Available: ~${p.weekly_training_time_hours}h/week for training`)
     
     if (profileBits.length > 0) {
       parts.push(`**Profile**: ${profileBits.join(', ')}`)
