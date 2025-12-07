@@ -32,6 +32,7 @@ export default function EdenCoachChat() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const hasLoadedHistory = useRef(false)
+  const isSendingRef = useRef(false) // Prevent double-sends
 
   // Load conversation history on mount
   useEffect(() => {
@@ -64,7 +65,11 @@ export default function EdenCoachChat() {
   }, [messages, isLoading])
 
   async function handleSend(text: string) {
-    if (!text.trim() || isLoading) return
+    // Triple protection against double-sends
+    if (!text.trim() || isLoading || isSendingRef.current) return
+    
+    // Lock immediately with ref (sync, no race condition)
+    isSendingRef.current = true
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -99,6 +104,7 @@ export default function EdenCoachChat() {
       ])
     } finally {
       setIsLoading(false)
+      isSendingRef.current = false
     }
   }
 
