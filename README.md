@@ -114,7 +114,7 @@ After deploying to Vercel, update your Supabase project settings:
 
 1. **Landing Page (`/`)**: Users enter their email to receive a magic link
 2. **Email Magic Link**: Supabase sends an email with a secure login link
-3. **Authentication**: Clicking the link authenticates the user and redirects to `/dashboard`
+3. **Authentication**: Clicking the link authenticates the user and redirects to `/chat`
 4. **Protected Route**: The dashboard is protected by middleware and server-side auth checks
 5. **Session Management**: User sessions are managed via secure HTTP-only cookies
 
