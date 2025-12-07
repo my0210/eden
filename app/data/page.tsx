@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
 import AppleHealthUpload from '../dashboard/AppleHealthUpload'
 import ProfileMenu from '../dashboard/ProfileMenu'
+import ResetUserDataCard from './ResetUserDataCard'
 
 export default async function DataPage() {
   const user = await requireAuth()
@@ -65,6 +66,9 @@ export default async function DataPage() {
             </div>
           </div>
         </div>
+
+        {/* Developer Tools */}
+        <ResetUserDataCard />
 
         <p className="text-[11px] text-[#8E8E93] text-center mt-8">
           Eden is not a medical service. Consult a professional for health concerns.
