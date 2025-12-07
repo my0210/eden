@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getUserSnapshot } from '@/lib/context/getUserSnapshot'
@@ -29,15 +30,23 @@ export default async function DashboardPage() {
     <main className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-3xl px-4 py-8 lg:py-10 space-y-8">
 
-        {/* Hero Section */}
-        <section className="space-y-3">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900">
-            Eden dashboard
-          </h1>
-          <p className="text-sm text-slate-600 max-w-xl">
-            See your current Eden card and the data sources powering it.
-          </p>
-        </section>
+        {/* Header with navigation */}
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900">
+              Eden dashboard
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Your Eden card and data sources.
+            </p>
+          </div>
+          <Link
+            href="/chat"
+            className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition"
+          >
+            Chat with Eden
+          </Link>
+        </header>
 
         {/* Eden Card */}
         <section>
