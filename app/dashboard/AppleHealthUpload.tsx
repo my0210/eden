@@ -88,39 +88,39 @@ export default function AppleHealthUpload({ userId }: AppleHealthUploadProps) {
       <button
         onClick={handleClick}
         disabled={isUploading || isProcessing}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-black bg-[#c8ff00] rounded-xl hover:bg-[#d4ff33] disabled:opacity-50 transition"
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 text-[17px] font-medium text-white bg-[#007AFF] rounded-xl hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
       >
         {isUploading ? (
           <>
-            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Uploading...
+            Uploading…
           </>
         ) : isProcessing ? (
           <>
-            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Processing...
+            Processing…
           </>
         ) : (
           <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
-            Upload Health Export
+            Import Health Data
           </>
         )}
       </button>
 
       {message && (
-        <div className={`mt-3 px-4 py-3 rounded-xl text-sm ${
+        <div className={`mt-3 px-4 py-3 rounded-xl text-[15px] ${
           message.type === 'success' 
-            ? 'bg-[#c8ff00]/10 text-[#c8ff00]' 
-            : 'bg-red-500/10 text-red-400'
+            ? 'bg-[#34C759]/10 text-[#34C759]' 
+            : 'bg-[#FF3B30]/10 text-[#FF3B30]'
         }`}>
           {message.text}
         </div>

@@ -33,29 +33,29 @@ export default function ProfileMenu({ email }: ProfileMenuProps) {
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black text-sm font-medium hover:bg-white/90 transition"
+        className="w-8 h-8 rounded-full bg-[#007AFF] flex items-center justify-center"
+        aria-label="Account menu"
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
-        Account
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-64 rounded-xl bg-[#1a1a1a] border border-white/10 shadow-xl overflow-hidden z-50">
-          <div className="px-4 py-3 border-b border-white/10">
-            <p className="text-xs text-white/50">Signed in as</p>
-            <p className="text-sm text-white truncate">{email}</p>
+        <div className="absolute right-0 mt-2 w-72 rounded-xl bg-white shadow-lg overflow-hidden z-50 border border-[#C6C6C8]">
+          <div className="px-4 py-3 bg-[#F2F2F7]">
+            <p className="text-[11px] text-[#8E8E93] uppercase tracking-wide">Account</p>
+            <p className="text-[15px] text-black truncate mt-0.5">{email}</p>
           </div>
+          <div className="h-px bg-[#C6C6C8]" />
           <button
             onClick={handleLogout}
-            className="w-full px-4 py-3 text-left text-sm text-white/70 hover:text-white hover:bg-white/5 transition"
+            className="w-full px-4 py-3 text-left text-[17px] text-[#FF3B30] hover:bg-[#F2F2F7] active:bg-[#E5E5EA] transition-colors"
           >
-            Sign out
+            Sign Out
           </button>
         </div>
       )}
     </div>
   )
 }
-

@@ -2,3 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Apple System Colors - Light */
+  --apple-blue: #007AFF;
+  --apple-green: #34C759;
+  --apple-red: #FF3B30;
+  --apple-orange: #FF9500;
+  --apple-yellow: #FFCC00;
+  --apple-teal: #5AC8FA;
+  --apple-pink: #FF2D55;
+  --apple-purple: #AF52DE;
+  
+  /* Apple Gray Scale */
+  --apple-gray: #8E8E93;
+  --apple-gray-2: #AEAEB2;
+  --apple-gray-3: #C7C7CC;
+  --apple-gray-4: #D1D1D6;
+  --apple-gray-5: #E5E5EA;
+  --apple-gray-6: #F2F2F7;
+  
+  /* Backgrounds */
+  --background-primary: #FFFFFF;
+  --background-secondary: #F2F2F7;
+  --background-tertiary: #FFFFFF;
+  
+  /* Labels */
+  --label-primary: #000000;
+  --label-secondary: #3C3C43;
+  --label-tertiary: #3C3C4399;
+  --label-quaternary: #3C3C434D;
+  
+  /* Separators */
+  --separator: #3C3C4349;
+  --separator-opaque: #C6C6C8;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--background-secondary);
+  color: var(--label-primary);
+}
+
+/* Apple-style text sizes */
+.text-title-1 { font-size: 28px; font-weight: 700; letter-spacing: 0.36px; }
+.text-title-2 { font-size: 22px; font-weight: 700; letter-spacing: 0.35px; }
+.text-title-3 { font-size: 20px; font-weight: 600; letter-spacing: 0.38px; }
+.text-headline { font-size: 17px; font-weight: 600; letter-spacing: -0.41px; }
+.text-body { font-size: 17px; font-weight: 400; letter-spacing: -0.41px; }
+.text-callout { font-size: 16px; font-weight: 400; letter-spacing: -0.32px; }
+.text-subheadline { font-size: 15px; font-weight: 400; letter-spacing: -0.24px; }
+.text-footnote { font-size: 13px; font-weight: 400; letter-spacing: -0.08px; }
+.text-caption-1 { font-size: 12px; font-weight: 400; letter-spacing: 0; }
+.text-caption-2 { font-size: 11px; font-weight: 400; letter-spacing: 0.07px; }

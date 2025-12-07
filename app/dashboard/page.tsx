@@ -72,11 +72,11 @@ function computeCategoryScores(snapshot: UserSnapshot | null): CategoryScores {
 }
 
 const categories = [
-  { key: 'heart', label: 'Heart' },
-  { key: 'frame', label: 'Frame' },
-  { key: 'metabolism', label: 'Metabolism' },
-  { key: 'recovery', label: 'Recovery' },
-  { key: 'mind', label: 'Mind' },
+  { key: 'heart', label: 'Heart', icon: '♥' },
+  { key: 'frame', label: 'Frame', icon: '◼' },
+  { key: 'metabolism', label: 'Metabolism', icon: '⚡' },
+  { key: 'recovery', label: 'Recovery', icon: '☾' },
+  { key: 'mind', label: 'Mind', icon: '◉' },
 ] as const
 
 // Pentagon helpers
@@ -89,15 +89,15 @@ function pointFor(score: number, index: number): string {
 }
 
 function getStatusColor(score: number): string {
-  if (score >= 70) return 'text-[#c8ff00]'
-  if (score >= 50) return 'text-yellow-400'
-  return 'text-red-400'
+  if (score >= 70) return 'text-[#34C759]' // Apple green
+  if (score >= 50) return 'text-[#FF9500]' // Apple orange
+  return 'text-[#FF3B30]' // Apple red
 }
 
-function getStatusText(score: number): string {
-  if (score >= 70) return 'On track'
-  if (score >= 50) return 'Okay'
-  return 'Needs work'
+function getStatusBg(score: number): string {
+  if (score >= 70) return 'bg-[#34C759]'
+  if (score >= 50) return 'bg-[#FF9500]'
+  return 'bg-[#FF3B30]'
 }
 
 export default async function DashboardPage() {
@@ -134,97 +134,114 @@ export default async function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Navigation */}
-      <header className="border-b border-white/10">
-        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/dashboard" className="text-xl font-semibold">Eden</Link>
-            <nav className="flex gap-6">
-              <Link href="/dashboard" className="text-sm text-white">Dashboard</Link>
-              <Link href="/chat" className="text-sm text-white/50 hover:text-white">Chat</Link>
-              <Link href="/data" className="text-sm text-white/50 hover:text-white">Data</Link>
-            </nav>
-          </div>
+    <main className="min-h-screen bg-[#F2F2F7]">
+      {/* Navigation - Apple style */}
+      <header className="bg-[#F2F2F7]/80 backdrop-blur-xl sticky top-0 z-50">
+        <div className="max-w-3xl mx-auto px-4 h-12 flex items-center justify-between">
+          <nav className="flex items-center gap-6">
+            <Link href="/dashboard" className="text-[17px] font-semibold text-[#007AFF]">Dashboard</Link>
+            <Link href="/chat" className="text-[17px] text-[#3C3C43]/60 hover:text-[#007AFF]">Chat</Link>
+            <Link href="/data" className="text-[17px] text-[#3C3C43]/60 hover:text-[#007AFF]">Data</Link>
+          </nav>
           <ProfileMenu email={user.email || ''} />
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-10">
-        {/* Pentagon */}
-        <div className="flex justify-center mb-12">
-          <svg viewBox="0 0 200 200" className="w-56 h-56">
-            <polygon points={outerPoints} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
-            <polygon points={categories.map((_, i) => pointFor(50, i)).join(' ')} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-            {categories.map((_, i) => {
-              const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
-              return <line key={i} x1={centerX} y1={centerY} x2={centerX + radius * Math.cos(angle)} y2={centerY + radius * Math.sin(angle)} stroke="rgba(255,255,255,0.05)" />
-            })}
-            {hasData && <polygon points={dataPoints} fill="rgba(200, 255, 0, 0.15)" stroke="#c8ff00" strokeWidth="2" />}
-            {hasData && categories.map((cat, i) => {
-              const score = scores[cat.key]
-              const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
-              const r = (score / 100) * radius
-              return <circle key={cat.key} cx={centerX + r * Math.cos(angle)} cy={centerY + r * Math.sin(angle)} r="4" fill="#c8ff00" />
-            })}
-            {categories.map((cat, i) => {
-              const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
-              const x = centerX + (radius + 24) * Math.cos(angle)
-              const y = centerY + (radius + 24) * Math.sin(angle)
-              return <text key={cat.key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="text-[11px] fill-white/50">{cat.label}</text>
-            })}
-          </svg>
+      <div className="max-w-3xl mx-auto px-4 py-6">
+        {/* Title */}
+        <h1 className="text-[28px] font-bold tracking-tight text-black mb-6">Eden</h1>
+
+        {/* Pentagon Card */}
+        <div className="bg-white rounded-xl shadow-sm mb-4">
+          <div className="p-6 flex justify-center">
+            <svg viewBox="0 0 200 200" className="w-48 h-48">
+              {/* Grid rings */}
+              <polygon points={outerPoints} fill="none" stroke="#E5E5EA" strokeWidth="1" />
+              <polygon points={categories.map((_, i) => pointFor(75, i)).join(' ')} fill="none" stroke="#E5E5EA" strokeWidth="0.5" />
+              <polygon points={categories.map((_, i) => pointFor(50, i)).join(' ')} fill="none" stroke="#E5E5EA" strokeWidth="0.5" />
+              <polygon points={categories.map((_, i) => pointFor(25, i)).join(' ')} fill="none" stroke="#E5E5EA" strokeWidth="0.5" />
+              {/* Radial lines */}
+              {categories.map((_, i) => {
+                const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                return <line key={i} x1={centerX} y1={centerY} x2={centerX + radius * Math.cos(angle)} y2={centerY + radius * Math.sin(angle)} stroke="#E5E5EA" strokeWidth="0.5" />
+              })}
+              {/* Data polygon */}
+              {hasData && <polygon points={dataPoints} fill="rgba(0, 122, 255, 0.15)" stroke="#007AFF" strokeWidth="2" />}
+              {/* Data points */}
+              {hasData && categories.map((cat, i) => {
+                const score = scores[cat.key]
+                const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                const r = (score / 100) * radius
+                return <circle key={cat.key} cx={centerX + r * Math.cos(angle)} cy={centerY + r * Math.sin(angle)} r="4" fill="#007AFF" />
+              })}
+              {/* Labels */}
+              {categories.map((cat, i) => {
+                const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                const x = centerX + (radius + 20) * Math.cos(angle)
+                const y = centerY + (radius + 20) * Math.sin(angle)
+                return <text key={cat.key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="text-[11px] fill-[#8E8E93] font-medium">{cat.label}</text>
+              })}
+            </svg>
+          </div>
         </div>
 
-        {/* Category Cards */}
-        <div className="space-y-4">
-          {categories.map((cat) => {
+        {/* Category List */}
+        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          {categories.map((cat, idx) => {
             const score = scores[cat.key]
             const metrics = metricsByCategory[cat.key]
             const hasScore = score > 0
 
             return (
-              <div key={cat.key} className="rounded-2xl bg-[#141414] border border-white/5 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">{cat.label}</h3>
-                  <div className="flex items-center gap-3">
-                    {hasScore && (
-                      <span className={`text-sm font-medium ${getStatusColor(score)}`}>
-                        {getStatusText(score)}
+              <div key={cat.key}>
+                {idx > 0 && <div className="h-px bg-[#C6C6C8] mx-4" />}
+                <div className="px-4 py-3">
+                  {/* Category header */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">{cat.icon}</span>
+                      <span className="text-[17px] font-semibold text-black">{cat.label}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {hasScore && (
+                        <span className={`w-2 h-2 rounded-full ${getStatusBg(score)}`} />
+                      )}
+                      <span className="text-[22px] font-bold text-black tabular-nums">
+                        {hasScore ? score : '—'}
                       </span>
-                    )}
-                    <span className="text-2xl font-bold">{hasScore ? score : '—'}</span>
+                    </div>
                   </div>
+                  
+                  {/* Metrics */}
+                  {metrics.length > 0 ? (
+                    <div className="space-y-1 ml-8">
+                      {metrics.map((m, mIdx) => (
+                        <div key={mIdx} className="flex items-center justify-between">
+                          <span className="text-[15px] text-[#8E8E93]">{m.name}</span>
+                          <span className="text-[15px] text-[#3C3C43] tabular-nums">
+                            {m.value !== null ? m.value : '—'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-[#8E8E93] ml-8">No data yet</p>
+                  )}
                 </div>
-                
-                {metrics.length > 0 ? (
-                  <div className="space-y-2">
-                    {metrics.map((m, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-sm">
-                        <span className="text-white/50">{m.name}</span>
-                        <span className="text-white/80">
-                          {m.value !== null ? m.value : '—'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-white/30">No metrics yet</p>
-                )}
               </div>
             )
           })}
         </div>
 
         {!hasData && (
-          <div className="mt-8 text-center">
-            <p className="text-white/50">
-              <Link href="/data" className="text-[#c8ff00] hover:underline">Upload data</Link> to see your health metrics.
+          <div className="mt-4 bg-white rounded-xl shadow-sm p-4 text-center">
+            <p className="text-[15px] text-[#8E8E93]">
+              <Link href="/data" className="text-[#007AFF]">Import data</Link> to see your health metrics.
             </p>
           </div>
         )}
 
-        <p className="text-xs text-white/20 text-center mt-12">
+        <p className="text-[11px] text-[#8E8E93] text-center mt-8">
           Eden is not a medical service. Consult a professional for health concerns.
         </p>
       </div>

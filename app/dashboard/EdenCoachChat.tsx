@@ -11,7 +11,7 @@ type Message = {
 const INITIAL_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: "Hey! I'm Eden. Ask me anything about your health data or what to focus on.",
+  content: "Hi! I'm Eden. Ask me anything about your health data or what to focus on.",
 }
 
 export default function EdenCoachChat() {
@@ -64,30 +64,30 @@ export default function EdenCoachChat() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-white">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg) => (
           <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : 'flex'}>
             <div
               className={
                 msg.role === 'user'
-                  ? 'max-w-[80%] rounded-2xl rounded-br-sm bg-[#c8ff00] text-black px-4 py-3 text-[15px]'
-                  : 'max-w-[80%] rounded-2xl rounded-bl-sm bg-[#1a1a1a] text-white/90 px-4 py-3 text-[15px]'
+                  ? 'max-w-[75%] rounded-2xl rounded-br-md bg-[#007AFF] text-white px-4 py-2.5'
+                  : 'max-w-[75%] rounded-2xl rounded-bl-md bg-[#E5E5EA] text-black px-4 py-2.5'
               }
             >
-              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+              <p className="text-[17px] leading-[22px] whitespace-pre-wrap">{msg.content}</p>
             </div>
           </div>
         ))}
 
         {isLoading && (
           <div className="flex">
-            <div className="rounded-2xl rounded-bl-sm bg-[#1a1a1a] px-4 py-3">
-              <div className="flex gap-1.5">
-                <span className="w-2 h-2 bg-white/30 rounded-full animate-bounce" />
-                <span className="w-2 h-2 bg-white/30 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
-                <span className="w-2 h-2 bg-white/30 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
+            <div className="rounded-2xl rounded-bl-md bg-[#E5E5EA] px-4 py-3">
+              <div className="flex gap-1">
+                <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" />
+                <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" style={{ animationDelay: '0.15s' }} />
+                <span className="w-2 h-2 bg-[#8E8E93] rounded-full animate-bounce" style={{ animationDelay: '0.3s' }} />
               </div>
             </div>
           </div>
@@ -96,34 +96,34 @@ export default function EdenCoachChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="flex-shrink-0 px-6 py-4 border-t border-white/10">
+      {/* Input - iMessage style */}
+      <div className="flex-shrink-0 px-4 py-3 border-t border-[#C6C6C8]">
         <form
           onSubmit={(e) => {
             e.preventDefault()
             handleSend(input)
           }}
-          className="flex gap-3"
+          className="flex items-center gap-2"
         >
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Message Eden..."
+            placeholder="Message"
             disabled={isLoading}
-            className="flex-1 rounded-xl bg-[#1a1a1a] border border-white/10 px-4 py-3 text-[15px] text-white placeholder:text-white/30 outline-none focus:border-white/20 transition disabled:opacity-50"
+            className="flex-1 rounded-full bg-[#F2F2F7] border border-[#C6C6C8] px-4 py-2 text-[17px] text-black placeholder:text-[#8E8E93] outline-none focus:border-[#007AFF] transition disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="px-6 py-3 rounded-xl bg-[#c8ff00] text-black text-sm font-medium hover:bg-[#d4ff33] transition disabled:opacity-40"
+            className="w-9 h-9 rounded-full bg-[#007AFF] flex items-center justify-center disabled:bg-[#C7C7CC] transition-colors"
+            aria-label="Send"
           >
-            Send
+            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
           </button>
         </form>
-        <p className="mt-3 text-[11px] text-white/20 text-center">
-          Eden is not a medical service. Consult a professional for health concerns.
-        </p>
       </div>
     </div>
   )
