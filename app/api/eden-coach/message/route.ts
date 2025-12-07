@@ -38,7 +38,11 @@ type CoachRequestBody = {
   channel?: 'web' | 'whatsapp'
 }
 
-const SYSTEM_PROMPT = `You are Eden, an AI health and performance coach focused on primespan (healthy, high-performance years). You receive: (1) a JSON snapshot of the user's current health metrics and trends, (2) an optional persona text describing their goals, constraints, and tendencies, and (3) the last few chat messages. You must give specific, actionable coaching while staying safe (no medical diagnosis, encourage seeing a doctor for serious issues). Keep answers concise, practical, and encouraging.`
+const SYSTEM_PROMPT = `You are Eden, an AI health and performance coach focused on primespan (healthy, high-performance years). You receive: (1) a JSON snapshot of the user's current health metrics and trends, (2) an optional persona text describing their goals, constraints, and tendencies, (3) the user's current weekly plan with a focus summary and actions, and (4) the last few chat messages.
+
+You also receive the user's current weekly plan, as JSON with a focus summary and a few actions. You must respect this plan as the default path unless the user clearly wants to change it. Use the plan to prioritise what to talk about, and avoid giving 20 extra ideas; stay focused.
+
+You must give specific, actionable coaching while staying safe (no medical diagnosis, encourage seeing a doctor for serious issues). Keep answers concise, practical, and encouraging.`
 
 export async function POST(req: NextRequest) {
   try {
@@ -117,7 +121,59 @@ export async function POST(req: NextRequest) {
 
     const personaText = personaData?.persona_text || null
 
-    // 7. Fetch last ~10 messages for context
+    // 7. Fetch active weekly plan for today
+    const today = new Date().toISOString().slice(0, 10)
+
+    const { data: activePlans, error: planError } = await supabase
+      .from('eden_plans')
+      .select('id, start_date, end_date, status, focus_summary')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .lte('start_date', today)
+      .gte('end_date', today)
+      .order('start_date', { ascending: false })
+      .limit(1)
+
+    if (planError) {
+      console.error('Failed to fetch active plan:', planError)
+    }
+
+    const activePlan = activePlans?.[0] ?? null
+
+    // 8. Fetch plan actions if plan exists
+    let planActions: Array<{
+      title: string
+      description: string | null
+      metric_code: string | null
+      target_value: string | null
+      cadence: string | null
+    }> = []
+
+    if (activePlan) {
+      const { data: actionsData, error: actionsError } = await supabase
+        .from('eden_plan_actions')
+        .select('title, description, metric_code, target_value, cadence')
+        .eq('plan_id', activePlan.id)
+        .order('priority', { ascending: true })
+
+      if (actionsError) {
+        console.error('Failed to fetch plan actions:', actionsError)
+      }
+
+      planActions = actionsData ?? []
+    }
+
+    // Build plan context object
+    const planContext = activePlan
+      ? {
+          focusSummary: activePlan.focus_summary,
+          startDate: activePlan.start_date,
+          endDate: activePlan.end_date,
+          actions: planActions,
+        }
+      : null
+
+    // 9. Fetch last ~10 messages for context
     const { data: recentMessages } = await supabase
       .from('eden_messages')
       .select('role, content')
@@ -125,7 +181,7 @@ export async function POST(req: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(10)
 
-    // 8. Build OpenAI messages
+    // 10. Build OpenAI messages
     const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
 
     // System prompt
@@ -144,6 +200,19 @@ export async function POST(req: NextRequest) {
       content: contextContent,
     })
 
+    // Plan context message
+    if (planContext) {
+      openaiMessages.push({
+        role: 'assistant',
+        content: `Current weekly plan JSON: ${JSON.stringify(planContext)}`,
+      })
+    } else {
+      openaiMessages.push({
+        role: 'assistant',
+        content: 'No active weekly plan yet. If the user seems new or unfocused, suggest setting a simple focus for this week and keep it manageable.',
+      })
+    }
+
     // Add conversation history (excluding the just-inserted user message which is last)
     if (recentMessages && recentMessages.length > 0) {
       for (const msg of recentMessages) {
@@ -154,7 +223,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 9. Call OpenAI
+    // 11. Call OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: openaiMessages,
@@ -163,7 +232,7 @@ export async function POST(req: NextRequest) {
 
     const replyText = completion.choices[0]?.message?.content || 'I apologize, I could not generate a response.'
 
-    // 10. Insert assistant reply
+    // 12. Insert assistant reply
     const { error: insertReplyError } = await supabase
       .from('eden_messages')
       .insert({
@@ -177,13 +246,13 @@ export async function POST(req: NextRequest) {
       // Continue anyway - we have the reply
     }
 
-    // 11. Update conversation's last_message_at
+    // 13. Update conversation's last_message_at
     await supabase
       .from('eden_conversations')
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    // 12. Return reply
+    // 14. Return reply
     return NextResponse.json({ reply: replyText })
 
   } catch (err) {
@@ -191,4 +260,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-
