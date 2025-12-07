@@ -40,6 +40,7 @@ export async function POST() {
   }
 
   const userId = user.id
+  const results: Record<string, { deleted?: number; error?: string }> = {}
 
   try {
     // 1) Load this user's plan ids (for foreign key constraint)
@@ -49,31 +50,37 @@ export async function POST() {
       .eq('user_id', userId)
 
     if (plansError) {
-      console.error('reset-user: eden_plans select error', plansError)
+      results.eden_plans_select = { error: plansError.message }
     }
 
     const planIds = (plans ?? []).map((p) => p.id)
 
     // 2) Delete plan actions first (foreign key to eden_plans)
     if (planIds.length > 0) {
-      const { error: actionsError } = await supabase
+      const { error: actionsError, count } = await supabase
         .from('eden_plan_actions')
-        .delete()
+        .delete({ count: 'exact' })
         .in('plan_id', planIds)
 
       if (actionsError) {
-        console.error('reset-user: eden_plan_actions delete error', actionsError)
+        results.eden_plan_actions = { error: actionsError.message }
+      } else {
+        results.eden_plan_actions = { deleted: count ?? 0 }
       }
     }
 
     // 3) Delete plans
-    const { error: plansDeleteError } = await supabase
-      .from('eden_plans')
-      .delete()
-      .eq('user_id', userId)
+    {
+      const { error, count } = await supabase
+        .from('eden_plans')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
 
-    if (plansDeleteError) {
-      console.error('reset-user: eden_plans delete error', plansDeleteError)
+      if (error) {
+        results.eden_plans = { error: error.message }
+      } else {
+        results.eden_plans = { deleted: count ?? 0 }
+      }
     }
 
     // 4) Load conversation ids for messages
@@ -83,89 +90,121 @@ export async function POST() {
       .eq('user_id', userId)
 
     if (convSelectError) {
-      console.error('reset-user: eden_conversations select error', convSelectError)
+      results.eden_conversations_select = { error: convSelectError.message }
     }
 
     const conversationIds = (conversations ?? []).map((c) => c.id)
 
     // 5) Delete messages (uses conversation_id, not user_id)
     if (conversationIds.length > 0) {
-      const { error: msgError } = await supabase
+      const { error, count } = await supabase
         .from('eden_messages')
-        .delete()
+        .delete({ count: 'exact' })
         .in('conversation_id', conversationIds)
 
-      if (msgError) {
-        console.error('reset-user: eden_messages delete error', msgError)
+      if (error) {
+        results.eden_messages = { error: error.message }
+      } else {
+        results.eden_messages = { deleted: count ?? 0 }
       }
     }
 
     // 6) Delete conversations
-    const { error: convError } = await supabase
-      .from('eden_conversations')
-      .delete()
-      .eq('user_id', userId)
+    {
+      const { error, count } = await supabase
+        .from('eden_conversations')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
 
-    if (convError) {
-      console.error('reset-user: eden_conversations delete error', convError)
+      if (error) {
+        results.eden_conversations = { error: error.message }
+      } else {
+        results.eden_conversations = { deleted: count ?? 0 }
+      }
     }
 
     // 7) Delete snapshots
-    const { error: snapshotError } = await supabase
-      .from('eden_user_snapshots')
-      .delete()
-      .eq('user_id', userId)
+    {
+      const { error, count } = await supabase
+        .from('eden_user_snapshots')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
 
-    if (snapshotError) {
-      console.error('reset-user: eden_user_snapshots delete error', snapshotError)
+      if (error) {
+        results.eden_user_snapshots = { error: error.message }
+      } else {
+        results.eden_user_snapshots = { deleted: count ?? 0 }
+      }
     }
 
     // 8) Delete metric values
-    const { error: metricError } = await supabase
-      .from('eden_metric_values')
-      .delete()
-      .eq('user_id', userId)
+    {
+      const { error, count } = await supabase
+        .from('eden_metric_values')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
 
-    if (metricError) {
-      console.error('reset-user: eden_metric_values delete error', metricError)
+      if (error) {
+        results.eden_metric_values = { error: error.message }
+      } else {
+        results.eden_metric_values = { deleted: count ?? 0 }
+      }
     }
 
     // 9) Delete profile
-    const { error: profileError } = await supabase
-      .from('eden_user_profile')
-      .delete()
-      .eq('user_id', userId)
+    {
+      const { error, count } = await supabase
+        .from('eden_user_profile')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
 
-    if (profileError) {
-      console.error('reset-user: eden_user_profile delete error', profileError)
+      if (error) {
+        results.eden_user_profile = { error: error.message }
+      } else {
+        results.eden_user_profile = { deleted: count ?? 0 }
+      }
     }
 
     // 10) Delete persona
-    const { error: personaError } = await supabase
-      .from('eden_user_personas')
-      .delete()
-      .eq('user_id', userId)
+    {
+      const { error, count } = await supabase
+        .from('eden_user_personas')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
 
-    if (personaError) {
-      console.error('reset-user: eden_user_personas delete error', personaError)
+      if (error) {
+        results.eden_user_personas = { error: error.message }
+      } else {
+        results.eden_user_personas = { deleted: count ?? 0 }
+      }
     }
 
     // 11) Delete Apple Health imports
-    const { error: appleError } = await supabase
-      .from('apple_health_imports')
-      .delete()
-      .eq('user_id', userId)
+    {
+      const { error, count } = await supabase
+        .from('apple_health_imports')
+        .delete({ count: 'exact' })
+        .eq('user_id', userId)
 
-    if (appleError) {
-      console.error('reset-user: apple_health_imports delete error', appleError)
+      if (error) {
+        results.apple_health_imports = { error: error.message }
+      } else {
+        results.apple_health_imports = { deleted: count ?? 0 }
+      }
     }
 
-    console.log(`reset-user: successfully reset data for user ${userId}`)
+    console.log(`reset-user: results for user ${userId}:`, results)
 
-    return NextResponse.json({ ok: true })
+    // Check if any errors occurred
+    const hasErrors = Object.values(results).some(r => r.error)
+
+    return NextResponse.json({ 
+      ok: !hasErrors, 
+      userId,
+      results 
+    })
   } catch (err) {
     console.error('reset-user: unexpected error', err)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal error', details: String(err) }, { status: 500 })
   }
 }
-

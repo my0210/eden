@@ -2,9 +2,16 @@
 
 import { useState } from 'react'
 
+type ResetResult = {
+  ok: boolean
+  userId?: string
+  results?: Record<string, { deleted?: number; error?: string }>
+  error?: string
+}
+
 export default function ResetUserDataCard() {
   const [isResetting, setIsResetting] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [result, setResult] = useState<ResetResult | null>(null)
 
   const handleReset = async () => {
     const confirmed = window.confirm(
@@ -14,20 +21,20 @@ export default function ResetUserDataCard() {
     if (!confirmed) return
 
     setIsResetting(true)
-    setMessage(null)
+    setResult(null)
 
     try {
       const res = await fetch('/api/dev/reset-user', { method: 'POST' })
-      const data = await res.json()
-
-      if (res.ok && data.ok) {
-        setMessage({ type: 'success', text: 'All Eden data for this account has been reset.' })
-      } else {
-        setMessage({ type: 'error', text: 'Reset failed. Check the console and try again.' })
+      const data: ResetResult = await res.json()
+      setResult(data)
+      
+      if (data.ok) {
+        // Reload page after short delay to show fresh state
+        setTimeout(() => window.location.reload(), 2000)
       }
     } catch (err) {
       console.error('Reset error:', err)
-      setMessage({ type: 'error', text: 'Reset failed. Check the console and try again.' })
+      setResult({ ok: false, error: 'Network error. Check console.' })
     } finally {
       setIsResetting(false)
     }
@@ -46,12 +53,34 @@ export default function ResetUserDataCard() {
       >
         {isResetting ? 'Resetting...' : 'Reset my Eden data'}
       </button>
-      {message && (
-        <p className={`mt-2 text-xs ${message.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>
-          {message.text}
-        </p>
+      
+      {result && (
+        <div className="mt-3">
+          {result.ok ? (
+            <p className="text-xs text-green-700">
+              ✓ All Eden data has been reset. Reloading page...
+            </p>
+          ) : (
+            <p className="text-xs text-red-700">
+              ✗ Reset had errors. See details below.
+            </p>
+          )}
+          
+          {result.results && (
+            <div className="mt-2 text-xs font-mono bg-white/50 rounded p-2 max-h-48 overflow-auto">
+              {Object.entries(result.results).map(([table, r]) => (
+                <div key={table} className={r.error ? 'text-red-600' : 'text-green-700'}>
+                  {table}: {r.error ? `ERROR: ${r.error}` : `deleted ${r.deleted}`}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {result.error && (
+            <p className="mt-2 text-xs text-red-600 font-mono">{result.error}</p>
+          )}
+        </div>
       )}
     </div>
   )
 }
-
