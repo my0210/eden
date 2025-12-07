@@ -9,11 +9,28 @@ export async function deriveUserProfileFromMessages(
   supabase: SupabaseClient,
   userId: string
 ): Promise<void> {
-  // 1) Fetch recent messages
+  // 1) First get the user's conversation(s)
+  const { data: conversations, error: convError } = await supabase
+    .from('eden_conversations')
+    .select('id')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+
+  if (convError) {
+    console.error('deriveUserProfileFromMessages: convError', convError)
+    return
+  }
+
+  if (!conversations || conversations.length === 0) return
+
+  const conversationId = conversations[0].id
+
+  // 2) Fetch recent messages from that conversation
   const { data: messages, error: messagesError } = await supabase
     .from('eden_messages')
     .select('role, content, created_at')
-    .eq('user_id', userId)
+    .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true })
     .limit(30)
 
@@ -24,7 +41,7 @@ export async function deriveUserProfileFromMessages(
 
   if (!messages || messages.length === 0) return
 
-  // 2) Get current profile row (or create one)
+  // 3) Get current profile row (or create one)
   const { data: existingProfile, error: profileError } = await supabase
     .from('eden_user_profile')
     .select('*')
@@ -52,7 +69,7 @@ export async function deriveUserProfileFromMessages(
     profile = inserted
   }
 
-  // 3) Ask OpenAI to extract profile fields from the conversation
+  // 4) Ask OpenAI to extract profile fields from the conversation
   const completion = await openai.chat.completions.create({
     model: 'gpt-4.1-mini',
     response_format: { type: 'json_object' },
@@ -87,7 +104,7 @@ Use null for anything you cannot infer confidently from what the user explicitly
     return
   }
 
-  // 4) Build update object with only changed non-null values
+  // 5) Build update object with only changed non-null values
   const updateData: Record<string, unknown> = {}
 
   const maybeCopy = (key: string) => {
@@ -113,7 +130,9 @@ Use null for anything you cannot infer confidently from what the user explicitly
 
   updateData.updated_at = new Date().toISOString()
 
-  // 5) Update the profile
+  console.log('deriveUserProfileFromMessages: updating profile with', updateData)
+
+  // 6) Update the profile
   const { error: updateError } = await supabase
     .from('eden_user_profile')
     .update(updateData)
@@ -123,4 +142,3 @@ Use null for anything you cannot infer confidently from what the user explicitly
     console.error('deriveUserProfileFromMessages: updateError', updateError)
   }
 }
-

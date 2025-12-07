@@ -56,6 +56,7 @@ Coaching rules:
 - If profileComplete is false and hasPlan is false, prioritise onboarding: ask a short sequence of questions (age, sex at birth, height, weight, main goal, time available, key constraints) before giving detailed plans.
 - Ask one question at a time, reflect back what you heard, and keep the conversation focused.
 - Be concrete and pragmatic. Avoid giving 20 different ideas; focus on 1–3 important moves.
+- IMPORTANT: Look at the conversation history! If the user has already told you something (like their age or goal), acknowledge it and move on to the next question.
 
 Safety:
 - Give specific, actionable coaching while staying safe (no medical diagnosis, encourage seeing a doctor for serious issues).
@@ -80,11 +81,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    // 3. Build Eden context (profile, snapshot, persona, plan)
-    const { edenContext } = await buildEdenContext(supabase, user.id)
-    const { profileComplete, hasPlan } = edenContext
-
-    // 4. Get or create conversation
+    // 3. Get or create conversation
     let conversationId: string
 
     const { data: existingConversation } = await supabase
@@ -116,7 +113,7 @@ export async function POST(req: NextRequest) {
       conversationId = newConversation.id
     }
 
-    // 5. Insert user message
+    // 4. Insert user message FIRST (so deriveProfile can see it)
     const { error: insertMsgError } = await supabase
       .from('eden_messages')
       .insert({
@@ -130,7 +127,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
 
-    // 6. Fetch last ~10 messages for context
+    // 5. Extract profile info from conversation BEFORE building context
+    // This ensures the context has the latest profile data
+    try {
+      await deriveUserProfileFromMessages(supabase, user.id)
+    } catch (e) {
+      console.error('deriveUserProfileFromMessages failed:', e)
+      // Continue anyway - not critical
+    }
+
+    // 6. Build Eden context (now with potentially updated profile)
+    const { edenContext } = await buildEdenContext(supabase, user.id)
+    const { profileComplete, hasPlan } = edenContext
+
+    // 7. Fetch last ~10 messages for context
     const { data: recentMessages } = await supabase
       .from('eden_messages')
       .select('role, content')
@@ -138,7 +148,7 @@ export async function POST(req: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(10)
 
-    // 7. Build OpenAI messages
+    // 8. Build OpenAI messages
     const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
 
     // System prompt
@@ -153,7 +163,7 @@ export async function POST(req: NextRequest) {
       content: `EDEN_CONTEXT: ${JSON.stringify(edenContext)}`,
     })
 
-    // Add conversation history (excluding the just-inserted user message which is last)
+    // Add conversation history
     if (recentMessages && recentMessages.length > 0) {
       for (const msg of recentMessages) {
         openaiMessages.push({
@@ -163,7 +173,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 8. Call OpenAI
+    // 9. Call OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: openaiMessages,
@@ -172,7 +182,7 @@ export async function POST(req: NextRequest) {
 
     const replyText = completion.choices[0]?.message?.content || 'I apologize, I could not generate a response.'
 
-    // 9. Insert assistant reply
+    // 10. Insert assistant reply
     const { error: insertReplyError } = await supabase
       .from('eden_messages')
       .insert({
@@ -183,36 +193,21 @@ export async function POST(req: NextRequest) {
 
     if (insertReplyError) {
       console.error('Failed to insert assistant reply:', insertReplyError)
-      // Continue anyway - we have the reply
     }
 
-    // 10. Update conversation's last_message_at
+    // 11. Update conversation's last_message_at
     await supabase
       .from('eden_conversations')
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    // 11. Extract profile info from conversation if profile is incomplete
-    // Runs after every turn while profile is incomplete, stops once profileComplete = true
-    try {
-      if (!profileComplete) {
-        await deriveUserProfileFromMessages(supabase, user.id)
-      }
-    } catch (e) {
-      console.error('eden-coach message route: deriveUserProfileFromMessages failed', e)
-      // Don't fail the request - profile extraction is best-effort
-    }
-
     // 12. Auto-create weekly plan if profile is complete but no plan exists
-    // This runs in the background after the reply - user sees normal response,
-    // and on the next turn Eden will have a plan in EDEN_CONTEXT
     try {
       if (profileComplete && !hasPlan) {
         await createWeeklyPlanForUser(supabase, user.id)
       }
     } catch (e) {
-      console.error('eden-coach message route: createWeeklyPlanForUser failed', e)
-      // Don't fail the request - plan creation is best-effort
+      console.error('createWeeklyPlanForUser failed:', e)
     }
 
     // 13. Return reply
