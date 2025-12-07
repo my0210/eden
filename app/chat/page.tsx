@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getUserSnapshot } from '@/lib/context/getUserSnapshot'
@@ -56,9 +57,17 @@ export default async function ChatPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-[11px] text-emerald-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            <span>Online</span>
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1 text-[11px] text-emerald-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span>Online</span>
+            </div>
+            <Link
+              href="/dashboard"
+              className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-[11px] font-medium text-slate-100 hover:bg-slate-800 transition"
+            >
+              View card
+            </Link>
           </div>
         </header>
 
