@@ -177,7 +177,6 @@ function getStrengthsAndOpportunities(scores: CategoryScores) {
 
   return {
     top1: sorted[0],
-    top2: sorted[1],
     bottom1: sorted[sorted.length - 1],
   }
 }
@@ -206,7 +205,7 @@ function getScoreDescriptor(score: number): string {
 
 export default function EdenCard({ snapshot, hasProfile }: EdenCardProps) {
   const scores = computeCategoryScores(snapshot)
-  const { top1, top2, bottom1 } = getStrengthsAndOpportunities(scores)
+  const { top1, bottom1 } = getStrengthsAndOpportunities(scores)
 
   const points = axes.map((axis, index) => pointFor(scores[axis.key], index, axes.length)).join(' ')
   const backgroundPoints = axes.map((_, i) => pointFor(100, i, axes.length)).join(' ')
@@ -218,10 +217,14 @@ export default function EdenCard({ snapshot, hasProfile }: EdenCardProps) {
         <div className="text-center py-8">
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 text-[10px] font-semibold uppercase tracking-wide text-slate-50 px-2 py-0.5">
             <span>🧠</span>
-            <span>Eden Primespan Card</span>
+            <span>Eden card</span>
           </span>
-          <p className="mt-4 text-slate-500 text-sm max-w-md mx-auto">
-            No Eden snapshot yet. Once I have your basics and a few data points, your primespan card will appear here.
+          <h2 className="mt-3 text-sm font-semibold text-slate-900">Current profile</h2>
+          <p className="mt-2 text-sm text-slate-700 max-w-md mx-auto">
+            There isn&apos;t enough data yet to build your Eden card.
+          </p>
+          <p className="mt-1 text-xs text-slate-500 max-w-md mx-auto">
+            Once Eden has some basic profile information and metrics, your card will appear here.
           </p>
         </div>
       </div>
@@ -235,17 +238,12 @@ export default function EdenCard({ snapshot, hasProfile }: EdenCardProps) {
         <div className="text-center lg:text-left">
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 text-[10px] font-semibold uppercase tracking-wide text-slate-50 px-2 py-0.5">
             <span>🧠</span>
-            <span>Eden Primespan Card</span>
+            <span>Eden card</span>
           </span>
-          <h2 className="mt-3 text-sm font-semibold text-slate-900">Overall profile</h2>
-          {!hasProfile && (
-            <span className="inline-block mt-1 text-xs bg-amber-50 text-amber-700 border border-amber-100 rounded-full px-2 py-0.5">
-              Getting to know you
-            </span>
-          )}
-          {snapshot.createdAt && (
-            <p className="mt-1 text-xs text-slate-500">Updated {formatSnapshotDate(snapshot.createdAt)}</p>
-          )}
+          <h2 className="mt-3 text-sm font-semibold text-slate-900">Current profile</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Updated from your latest available metrics.
+          </p>
         </div>
 
         {/* Radar SVG */}
@@ -299,40 +297,16 @@ export default function EdenCard({ snapshot, hasProfile }: EdenCardProps) {
 
       {/* Right side: Summary */}
       <div className="flex-1 flex flex-col justify-center">
-        {!hasProfile ? (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-700">
-              I&apos;m still getting to know you. Once we&apos;ve done a short onboarding chat, this card will show a personalised view of your heart, frame, metabolism, recovery, and mind.
-            </p>
-            <p className="text-xs text-slate-500">
-              The more context you share, the better I can coach you to stay in your prime.
-            </p>
-            <a
-              href="https://wa.me/14155238886?text=Hi%20Eden"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-full bg-emerald-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 transition"
-            >
-              Start onboarding on WhatsApp
-            </a>
-            <p className="text-[11px] text-slate-400">
-              Takes about 3–5 minutes. You can always come back here to see your updated card.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-slate-700">
-              Your strongest area right now is <span className="font-semibold">{top1.label}</span>.
-              A close second is <span className="font-semibold">{top2.label}</span>.
-              The biggest opportunity is <span className="font-semibold">{bottom1.label}</span> – that&apos;s where I&apos;ll tend to focus first.
-            </p>
-            <p className="text-xs text-slate-500">
-              Eden combines your metrics into these five domains so you can see at a glance where you&apos;re already strong and where a few smart changes could extend your prime.
-            </p>
-          </div>
-        )}
+        <div className="space-y-3">
+          <p className="text-sm text-slate-700">
+            Your strongest area right now is <span className="font-semibold">{top1.label}</span>.
+            The main opportunity is <span className="font-semibold">{bottom1.label}</span>.
+          </p>
+          <p className="text-xs text-slate-500">
+            Eden combines your metrics into five domains so you can see where you&apos;re strong and where small changes could help.
+          </p>
+        </div>
       </div>
     </div>
   )
 }
-
