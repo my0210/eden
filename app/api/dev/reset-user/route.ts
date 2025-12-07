@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-// Create Supabase client for this route handler (same pattern as other routes)
+// Create Supabase client for this route handler (same pattern as eden-coach/message)
 async function getSupabase() {
   const cookieStore = await cookies()
   return createServerClient(
@@ -40,171 +40,125 @@ export async function POST() {
   }
 
   const userId = user.id
-  const results: Record<string, { deleted?: number; error?: string }> = {}
 
   try {
-    // 1) Load this user's plan ids (for foreign key constraint)
-    const { data: plans, error: plansError } = await supabase
-      .from('eden_plans')
-      .select('id')
-      .eq('user_id', userId)
-
-    if (plansError) {
-      results.eden_plans_select = { error: plansError.message }
-    }
-
-    const planIds = (plans ?? []).map((p) => p.id)
-
-    // 2) Delete plan actions first (foreign key to eden_plans)
-    if (planIds.length > 0) {
-      const { error: actionsError, count } = await supabase
-        .from('eden_plan_actions')
-        .delete({ count: 'exact' })
-        .in('plan_id', planIds)
-
-      if (actionsError) {
-        results.eden_plan_actions = { error: actionsError.message }
-      } else {
-        results.eden_plan_actions = { deleted: count ?? 0 }
-      }
-    }
-
-    // 3) Delete plans
-    {
-      const { error, count } = await supabase
-        .from('eden_plans')
-        .delete({ count: 'exact' })
-        .eq('user_id', userId)
-
-      if (error) {
-        results.eden_plans = { error: error.message }
-      } else {
-        results.eden_plans = { deleted: count ?? 0 }
-      }
-    }
-
-    // 4) Load conversation ids for messages
+    // 1) conversations + messages
     const { data: conversations, error: convSelectError } = await supabase
       .from('eden_conversations')
       .select('id')
       .eq('user_id', userId)
 
     if (convSelectError) {
-      results.eden_conversations_select = { error: convSelectError.message }
+      console.error('reset-user: eden_conversations select error', convSelectError)
     }
 
     const conversationIds = (conversations ?? []).map((c) => c.id)
 
-    // 5) Delete messages (uses conversation_id, not user_id)
     if (conversationIds.length > 0) {
-      const { error, count } = await supabase
+      const { error: msgDeleteError } = await supabase
         .from('eden_messages')
-        .delete({ count: 'exact' })
+        .delete()
         .in('conversation_id', conversationIds)
 
-      if (error) {
-        results.eden_messages = { error: error.message }
-      } else {
-        results.eden_messages = { deleted: count ?? 0 }
+      if (msgDeleteError) {
+        console.error('reset-user: eden_messages delete error', msgDeleteError)
       }
     }
 
-    // 6) Delete conversations
-    {
-      const { error, count } = await supabase
-        .from('eden_conversations')
-        .delete({ count: 'exact' })
-        .eq('user_id', userId)
+    const { error: convDeleteError } = await supabase
+      .from('eden_conversations')
+      .delete()
+      .eq('user_id', userId)
 
-      if (error) {
-        results.eden_conversations = { error: error.message }
-      } else {
-        results.eden_conversations = { deleted: count ?? 0 }
+    if (convDeleteError) {
+      console.error('reset-user: eden_conversations delete error', convDeleteError)
+    }
+
+    // 2) plans + actions
+    const { data: plans, error: plansSelectError } = await supabase
+      .from('eden_plans')
+      .select('id')
+      .eq('user_id', userId)
+
+    if (plansSelectError) {
+      console.error('reset-user: eden_plans select error', plansSelectError)
+    }
+
+    const planIds = (plans ?? []).map((p) => p.id)
+
+    if (planIds.length > 0) {
+      const { error: actionsDeleteError } = await supabase
+        .from('eden_plan_actions')
+        .delete()
+        .in('plan_id', planIds)
+
+      if (actionsDeleteError) {
+        console.error('reset-user: eden_plan_actions delete error', actionsDeleteError)
       }
     }
 
-    // 7) Delete snapshots
-    {
-      const { error, count } = await supabase
-        .from('eden_user_snapshots')
-        .delete({ count: 'exact' })
-        .eq('user_id', userId)
+    const { error: plansDeleteError } = await supabase
+      .from('eden_plans')
+      .delete()
+      .eq('user_id', userId)
 
-      if (error) {
-        results.eden_user_snapshots = { error: error.message }
-      } else {
-        results.eden_user_snapshots = { deleted: count ?? 0 }
-      }
+    if (plansDeleteError) {
+      console.error('reset-user: eden_plans delete error', plansDeleteError)
     }
 
-    // 8) Delete metric values
-    {
-      const { error, count } = await supabase
-        .from('eden_metric_values')
-        .delete({ count: 'exact' })
-        .eq('user_id', userId)
+    // 3) snapshots and metrics
+    const { error: snapshotsDeleteError } = await supabase
+      .from('eden_user_snapshots')
+      .delete()
+      .eq('user_id', userId)
 
-      if (error) {
-        results.eden_metric_values = { error: error.message }
-      } else {
-        results.eden_metric_values = { deleted: count ?? 0 }
-      }
+    if (snapshotsDeleteError) {
+      console.error('reset-user: eden_user_snapshots delete error', snapshotsDeleteError)
     }
 
-    // 9) Delete profile
-    {
-      const { error, count } = await supabase
-        .from('eden_user_profile')
-        .delete({ count: 'exact' })
-        .eq('user_id', userId)
+    const { error: metricsDeleteError } = await supabase
+      .from('eden_metric_values')
+      .delete()
+      .eq('user_id', userId)
 
-      if (error) {
-        results.eden_user_profile = { error: error.message }
-      } else {
-        results.eden_user_profile = { deleted: count ?? 0 }
-      }
+    if (metricsDeleteError) {
+      console.error('reset-user: eden_metric_values delete error', metricsDeleteError)
     }
 
-    // 10) Delete persona
-    {
-      const { error, count } = await supabase
-        .from('eden_user_personas')
-        .delete({ count: 'exact' })
-        .eq('user_id', userId)
+    // 4) profile and persona
+    const { error: profileDeleteError } = await supabase
+      .from('eden_user_profile')
+      .delete()
+      .eq('user_id', userId)
 
-      if (error) {
-        results.eden_user_personas = { error: error.message }
-      } else {
-        results.eden_user_personas = { deleted: count ?? 0 }
-      }
+    if (profileDeleteError) {
+      console.error('reset-user: eden_user_profile delete error', profileDeleteError)
     }
 
-    // 11) Delete Apple Health imports
-    {
-      const { error, count } = await supabase
-        .from('apple_health_imports')
-        .delete({ count: 'exact' })
-        .eq('user_id', userId)
+    const { error: personaDeleteError } = await supabase
+      .from('eden_user_personas')
+      .delete()
+      .eq('user_id', userId)
 
-      if (error) {
-        results.apple_health_imports = { error: error.message }
-      } else {
-        results.apple_health_imports = { deleted: count ?? 0 }
-      }
+    if (personaDeleteError) {
+      console.error('reset-user: eden_user_personas delete error', personaDeleteError)
     }
 
-    console.log(`reset-user: results for user ${userId}:`, results)
+    // 5) Apple Health imports
+    const { error: appleDeleteError } = await supabase
+      .from('apple_health_imports')
+      .delete()
+      .eq('user_id', userId)
 
-    // Check if any errors occurred
-    const hasErrors = Object.values(results).some(r => r.error)
+    if (appleDeleteError) {
+      console.error('reset-user: apple_health_imports delete error', appleDeleteError)
+    }
 
-    return NextResponse.json({ 
-      ok: !hasErrors, 
-      userId,
-      results 
-    })
+    console.log(`reset-user: successfully reset data for user ${userId}`)
+
+    return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('reset-user: unexpected error', err)
-    return NextResponse.json({ error: 'Internal error', details: String(err) }, { status: 500 })
+    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
