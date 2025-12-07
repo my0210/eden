@@ -11,7 +11,7 @@ type Message = {
 const INITIAL_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: "Hi, I'm Eden, your primespan coach. I use your health data and a few quick questions to help you stay in your prime, not just chase better numbers.\n\nTo start, what do you most want help with right now – more energy, better performance, or sorting out health issues? You can just reply with a word like 'energy', 'performance', or 'health'.",
+  content: "Hi, I'm Eden, your primespan coach. Instead of just chasing longer life or better lab numbers, we focus on your **primespan** – the years where you actually feel strong, clear, and able to do what you care about.\n\nTo make this practical, Eden organises your health into five domains: **Heart** (cardio & blood markers), **Frame** (strength & body structure), **Metabolism** (energy & blood sugar), **Recovery** (sleep & HRV), and **Mind** (focus & cognition). Together they give a simple, honest picture of how 'in your prime' you are right now.\n\nTo start, which of these feels most important for you right now: Heart, Frame, Metabolism, Recovery, or Mind? You can just reply with one word.",
 }
 
 export default function EdenCoachChat() {
