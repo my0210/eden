@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { buildEdenContext } from '@/lib/context/buildEdenContext'
+import { deriveUserProfileFromMessages } from '@/lib/context/deriveUserProfileFromMessages'
 import { createWeeklyPlanForUser } from '@/lib/plans/createWeeklyPlanForUser'
 import OpenAI from 'openai'
 
@@ -191,7 +192,18 @@ export async function POST(req: NextRequest) {
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    // 11. Auto-create weekly plan if profile is complete but no plan exists
+    // 11. Extract profile info from conversation if profile is incomplete
+    // Runs after every turn while profile is incomplete, stops once profileComplete = true
+    try {
+      if (!profileComplete) {
+        await deriveUserProfileFromMessages(supabase, user.id)
+      }
+    } catch (e) {
+      console.error('eden-coach message route: deriveUserProfileFromMessages failed', e)
+      // Don't fail the request - profile extraction is best-effort
+    }
+
+    // 12. Auto-create weekly plan if profile is complete but no plan exists
     // This runs in the background after the reply - user sees normal response,
     // and on the next turn Eden will have a plan in EDEN_CONTEXT
     try {
@@ -203,7 +215,7 @@ export async function POST(req: NextRequest) {
       // Don't fail the request - plan creation is best-effort
     }
 
-    // 12. Return reply
+    // 13. Return reply
     return NextResponse.json({ reply: replyText })
 
   } catch (err) {
