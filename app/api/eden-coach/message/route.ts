@@ -163,6 +163,19 @@ export async function POST(req: NextRequest) {
       content: `EDEN_CONTEXT: ${JSON.stringify(edenContext)}`,
     })
 
+    // Plan context message
+    if (edenContext.plan) {
+      openaiMessages.push({
+        role: 'assistant',
+        content: 'Here is a suggested weekly plan for the user, represented as JSON. You should treat this as a plan you are proposing now based on their current profile and snapshot, not something they have already been following. When you respond, introduce it clearly (for example: "Based on what you\'ve told me, here\'s a simple plan for this week that I suggest for you"), briefly summarise the focus and key actions in natural language, and then ask how it feels and what they would adjust. Avoid phrases like "you already have a weekly plan". Plan JSON: ' + JSON.stringify(edenContext.plan),
+      })
+    } else {
+      openaiMessages.push({
+        role: 'assistant',
+        content: 'There is no weekly plan yet. If the user seems new or unsure what to focus on, you can suggest creating a simple weekly focus for them. Keep it very manageable (a few high-impact actions) and check that it feels realistic.',
+      })
+    }
+
     // Add conversation history
     if (recentMessages && recentMessages.length > 0) {
       for (const msg of recentMessages) {
