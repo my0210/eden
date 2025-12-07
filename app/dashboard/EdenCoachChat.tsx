@@ -199,7 +199,7 @@ export default function EdenCoachChat() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask Eden something..."
             disabled={isLoading}
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-60 disabled:cursor-not-allowed"
           />
           <button
             type="submit"
