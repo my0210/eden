@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { buildEdenContext } from '@/lib/context/buildEdenContext'
-import type { EdenContext } from '@/lib/context/buildEdenContext'
+import { createWeeklyPlanForUser } from '@/lib/plans/createWeeklyPlanForUser'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -80,10 +80,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Build Eden context (profile, snapshot, persona, plan)
-    const { edenContext, profile, snapshot, activePlan } = await buildEdenContext(
-      supabase,
-      user.id
-    )
+    const { edenContext } = await buildEdenContext(supabase, user.id)
+    const { profileComplete, hasPlan } = edenContext
 
     // 4. Get or create conversation
     let conversationId: string
@@ -193,7 +191,19 @@ export async function POST(req: NextRequest) {
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    // 11. Return reply
+    // 11. Auto-create weekly plan if profile is complete but no plan exists
+    // This runs in the background after the reply - user sees normal response,
+    // and on the next turn Eden will have a plan in EDEN_CONTEXT
+    try {
+      if (profileComplete && !hasPlan) {
+        await createWeeklyPlanForUser(supabase, user.id)
+      }
+    } catch (e) {
+      console.error('eden-coach message route: createWeeklyPlanForUser failed', e)
+      // Don't fail the request - plan creation is best-effort
+    }
+
+    // 12. Return reply
     return NextResponse.json({ reply: replyText })
 
   } catch (err) {

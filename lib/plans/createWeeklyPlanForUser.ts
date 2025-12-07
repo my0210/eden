@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { getUserSnapshot, UserSnapshot } from '@/lib/context/getUserSnapshot'
+import { buildEdenContext } from '@/lib/context/buildEdenContext'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -45,10 +45,10 @@ function addDays(date: Date, days: number): Date {
 
 const PLAN_SYSTEM_PROMPT = `You are Eden, a health & performance coach focused on extending primespan – the years a person feels and performs at their best.
 
-You will receive:
-1. A JSON snapshot of the user's current health metrics and profile.
-2. A summary of their last weekly plan (if any).
-3. Recent conversation messages (if any).
+You will receive EDEN_CONTEXT with:
+- profile: user's basic info (age, sex, height, weight, goals, constraints)
+- snapshot: current health metrics across heart, frame, metabolism, recovery, mind
+- plan: previous plan if any (will be null for first-time users)
 
 Your job is to create a focused weekly plan with 3-5 concrete actions.
 
@@ -71,36 +71,20 @@ Guidelines:
 - Actions should be specific, measurable, and achievable in one week.
 - If recovery or sleep metrics are lagging, prioritize those – they amplify everything else.
 - Keep the tone direct and encouraging, not clinical.
-- Don't repeat the same actions from the last plan unless the user hasn't made progress.`
+- If this is their first plan, start simple with 3 foundational habits.`
 
 export async function createWeeklyPlanForUser(
   supabase: SupabaseClient,
   userId: string
 ): Promise<EdenPlanResult> {
-  // 1. Fetch snapshot
-  let snapshot: UserSnapshot | null = null
-  try {
-    snapshot = await getUserSnapshot(supabase, userId)
-  } catch (err) {
-    console.error('Failed to get user snapshot:', err)
-    throw new Error('SNAPSHOT_UNAVAILABLE')
+  // 1. Build context using the shared helper
+  const { edenContext } = await buildEdenContext(supabase, userId)
+
+  if (!edenContext.snapshot && !edenContext.profile) {
+    throw new Error('CONTEXT_UNAVAILABLE')
   }
 
-  if (!snapshot) {
-    throw new Error('SNAPSHOT_UNAVAILABLE')
-  }
-
-  // 2. Fetch last plan (if any)
-  const { data: lastPlans } = await supabase
-    .from('eden_plans')
-    .select('*')
-    .eq('user_id', userId)
-    .order('start_date', { ascending: false })
-    .limit(1)
-
-  const lastPlan = lastPlans?.[0] ?? null
-
-  // 3. Fetch recent messages for context (guard against missing table)
+  // 2. Fetch recent messages for additional context
   let recentMessages: Array<{ role: string; content: string; created_at: string }> = []
   try {
     const { data: messages } = await supabase
@@ -117,16 +101,9 @@ export async function createWeeklyPlanForUser(
     // Table might not exist or other error – continue without messages
   }
 
-  // 4. Build context for OpenAI
+  // 3. Build context string for OpenAI
   const contextParts: string[] = []
-
-  contextParts.push(`USER SNAPSHOT:\n${JSON.stringify(snapshot, null, 2)}`)
-
-  if (lastPlan) {
-    contextParts.push(`\nLAST WEEK'S PLAN (${lastPlan.start_date} to ${lastPlan.end_date}):\nFocus: ${lastPlan.focus_summary || 'Not specified'}\nStatus: ${lastPlan.status}`)
-  } else {
-    contextParts.push('\nNO PREVIOUS PLAN – this is their first weekly plan.')
-  }
+  contextParts.push(`EDEN_CONTEXT: ${JSON.stringify(edenContext)}`)
 
   if (recentMessages.length > 0) {
     const messageSummary = recentMessages
@@ -137,9 +114,10 @@ export async function createWeeklyPlanForUser(
     contextParts.push(`\nRECENT CONVERSATION:\n${messageSummary}`)
   }
 
-  // 5. Call OpenAI
+  // 4. Call OpenAI
   const completion = await openai.chat.completions.create({
     model: 'gpt-4.1-mini',
+    response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: PLAN_SYSTEM_PROMPT },
       { role: 'user', content: contextParts.join('\n\n') },
@@ -152,15 +130,10 @@ export async function createWeeklyPlanForUser(
     throw new Error('LLM_NO_RESPONSE')
   }
 
-  // 6. Parse JSON response
+  // 5. Parse JSON response
   let parsed: LLMPlanOutput
   try {
-    // Strip any markdown code blocks if present
-    const cleanedResponse = llmResponse
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim()
-    parsed = JSON.parse(cleanedResponse)
+    parsed = JSON.parse(llmResponse)
   } catch (parseErr) {
     console.error('Failed to parse LLM response:', llmResponse)
     throw new Error('LLM_INVALID_JSON')
@@ -170,18 +143,25 @@ export async function createWeeklyPlanForUser(
     throw new Error('LLM_INVALID_STRUCTURE')
   }
 
-  // 7. Calculate dates
+  // 6. Calculate dates
   const startDate = new Date()
   const endDate = addDays(startDate, 7)
   const startDateStr = formatDateForSupabase(startDate)
   const endDateStr = formatDateForSupabase(endDate)
+
+  // 7. Mark any existing active plans as completed
+  await supabase
+    .from('eden_plans')
+    .update({ status: 'completed' })
+    .eq('user_id', userId)
+    .eq('status', 'active')
 
   // 8. Insert into eden_plans
   const { data: newPlan, error: planError } = await supabase
     .from('eden_plans')
     .insert({
       user_id: userId,
-      snapshot_id: null, // We don't store snapshot separately for now
+      snapshot_id: null,
       start_date: startDateStr,
       end_date: endDateStr,
       status: 'active',
@@ -220,7 +200,6 @@ export async function createWeeklyPlanForUser(
 
     if (actionsError) {
       console.error('Failed to insert plan actions:', actionsError)
-      // Don't throw – plan was created, just log the error
     }
   }
 
@@ -239,4 +218,3 @@ export async function createWeeklyPlanForUser(
     })),
   }
 }
-
