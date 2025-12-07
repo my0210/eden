@@ -88,12 +88,6 @@ function pointFor(score: number, index: number): string {
   return `${(centerX + r * Math.cos(angle)).toFixed(1)},${(centerY + r * Math.sin(angle)).toFixed(1)}`
 }
 
-function getStatusColor(score: number): string {
-  if (score >= 70) return 'text-[#34C759]' // Apple green
-  if (score >= 50) return 'text-[#FF9500]' // Apple orange
-  return 'text-[#FF3B30]' // Apple red
-}
-
 function getStatusBg(score: number): string {
   if (score >= 70) return 'bg-[#34C759]'
   if (score >= 50) return 'bg-[#FF9500]'
@@ -118,7 +112,7 @@ export default async function DashboardPage() {
   const outerPoints = categories.map((_, i) => pointFor(100, i)).join(' ')
 
   // Group metrics by category
-  const metricsByCategory: Record<string, Array<{ name: string; value: number | null }>> = {
+  const metricsByCategory: Record<string, Array<{ name: string; value: number | null; unit: string | null }>> = {
     heart: [], frame: [], metabolism: [], recovery: [], mind: []
   }
   
@@ -128,6 +122,7 @@ export default async function DashboardPage() {
         metricsByCategory[m.categoryCode].push({
           name: m.metricName || m.metricCode || 'Unknown',
           value: m.latestValue,
+          unit: m.unit,
         })
       }
     }
@@ -148,9 +143,6 @@ export default async function DashboardPage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
-        {/* Title */}
-        <h1 className="text-[28px] font-bold tracking-tight text-black mb-6">Eden</h1>
-
         {/* Pentagon Card */}
         <div className="bg-white rounded-xl shadow-sm mb-4">
           <div className="p-6 flex justify-center">
@@ -219,7 +211,12 @@ export default async function DashboardPage() {
                         <div key={mIdx} className="flex items-center justify-between">
                           <span className="text-[15px] text-[#8E8E93]">{m.name}</span>
                           <span className="text-[15px] text-[#3C3C43] tabular-nums">
-                            {m.value !== null ? m.value : '—'}
+                            {m.value !== null ? (
+                              <>
+                                {m.value}
+                                {m.unit && <span className="text-[#8E8E93] ml-1">{m.unit}</span>}
+                              </>
+                            ) : '—'}
                           </span>
                         </div>
                       ))}

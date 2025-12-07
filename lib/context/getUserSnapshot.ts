@@ -14,6 +14,7 @@ export type UserSnapshot = {
     metricId: string
     metricCode: string
     metricName: string
+    unit: string | null
     categoryCode: string | null
     categoryName: string | null
     latestValue: number | null
@@ -45,6 +46,7 @@ export async function getUserSnapshot(
         id,
         metric_code,
         name,
+        unit,
         category_code,
         eden_metric_categories (
           category_code,
@@ -60,6 +62,7 @@ export async function getUserSnapshot(
     metricId: string
     metricCode: string
     metricName: string
+    unit: string | null
     categoryCode: string | null
     categoryName: string | null
     latestValue: number | null
@@ -77,6 +80,7 @@ export async function getUserSnapshot(
         id: string
         metric_code: string
         name: string
+        unit: string | null
         category_code: string | null
         eden_metric_categories: {
           category_code: string
@@ -88,6 +92,7 @@ export async function getUserSnapshot(
         metricId: metricId,
         metricCode: def?.metric_code || '',
         metricName: def?.name || '',
+        unit: def?.unit || null,
         categoryCode: def?.category_code || null,
         categoryName: def?.eden_metric_categories?.name || null,
         latestValue: mv.value,
@@ -125,4 +130,3 @@ export async function getUserSnapshot(
 
   return snapshot
 }
-
