@@ -18,7 +18,6 @@ function clamp(value: number, min: number, max: number): number {
 
 function computeCategoryScores(snapshot: UserSnapshot | null): CategoryScores {
   const defaultScores: CategoryScores = { heart: 0, frame: 0, metabolism: 0, recovery: 0, mind: 0 }
-
   if (!snapshot?.metrics?.length) return defaultScores
 
   const categoryMetrics: Record<string, number[]> = { heart: [], frame: [], metabolism: [], recovery: [], mind: [] }
@@ -30,7 +29,6 @@ function computeCategoryScores(snapshot: UserSnapshot | null): CategoryScores {
     if (!cat || value === null) continue
 
     let score = 50
-
     if (cat === 'heart') {
       if (code === 'vo2max') score = clamp((value / 60) * 100, 20, 100)
       else if (code?.includes('resting_hr')) score = clamp(100 - ((value - 50) / 30) * 60, 40, 100)
@@ -74,12 +72,23 @@ function computeCategoryScores(snapshot: UserSnapshot | null): CategoryScores {
 }
 
 const categories = [
-  { key: 'heart', label: 'Heart', emoji: '❤️', color: 'bg-rose-500' },
-  { key: 'frame', label: 'Frame', emoji: '💪', color: 'bg-amber-500' },
-  { key: 'metabolism', label: 'Metabolism', emoji: '🔥', color: 'bg-orange-500' },
-  { key: 'recovery', label: 'Recovery', emoji: '😴', color: 'bg-blue-500' },
-  { key: 'mind', label: 'Mind', emoji: '🧠', color: 'bg-purple-500' },
+  { key: 'heart', label: 'Heart', gradient: 'from-rose-500 to-pink-600' },
+  { key: 'frame', label: 'Frame', gradient: 'from-amber-500 to-orange-600' },
+  { key: 'metabolism', label: 'Metabolism', gradient: 'from-yellow-500 to-amber-600' },
+  { key: 'recovery', label: 'Recovery', gradient: 'from-cyan-500 to-blue-600' },
+  { key: 'mind', label: 'Mind', gradient: 'from-violet-500 to-purple-600' },
 ] as const
+
+// Pentagon chart helpers
+const centerX = 100
+const centerY = 100
+const radius = 70
+
+function pointFor(score: number, index: number, total: number): string {
+  const angle = (Math.PI * 2 * index) / total - Math.PI / 2
+  const r = (score / 100) * radius
+  return `${(centerX + r * Math.cos(angle)).toFixed(1)},${(centerY + r * Math.sin(angle)).toFixed(1)}`
+}
 
 export default async function DashboardPage() {
   const user = await requireAuth()
@@ -94,105 +103,124 @@ export default async function DashboardPage() {
 
   const scores = computeCategoryScores(snapshot)
   const hasData = Object.values(scores).some(s => s > 0)
+  
+  const dataPoints = categories.map((_, i) => pointFor(scores[categories[i].key], i, 5)).join(' ')
+  const outerPoints = categories.map((_, i) => pointFor(100, i, 5)).join(' ')
 
   return (
-    <main className="min-h-screen bg-white flex flex-col">
-      
-      {/* Top bar */}
-      <header className="flex items-center justify-center px-4 py-3 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
-            <span className="text-xs font-bold text-white">E</span>
+    <main className="min-h-screen bg-white">
+      {/* Top Navigation */}
+      <header className="border-b border-gray-100">
+        <div className="max-w-2xl mx-auto px-4">
+          <div className="flex items-center justify-between h-14">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+                  <span className="text-xs font-bold text-white">E</span>
+                </div>
+                <span className="font-semibold text-gray-900">Eden</span>
+              </div>
+              <nav className="flex gap-1">
+                <Link href="/dashboard" className="px-3 py-1.5 text-sm font-medium text-gray-900 bg-gray-100 rounded-full">
+                  Data
+                </Link>
+                <Link href="/chat" className="px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 rounded-full">
+                  Chat
+                </Link>
+              </nav>
+            </div>
+            <AppleHealthUpload userId={user.id} />
           </div>
-          <span className="font-semibold text-gray-900">Eden</span>
         </div>
       </header>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
-          
-          {/* Categories */}
-          <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Your Five Pillars</h2>
-            <div className="space-y-3">
-              {categories.map((cat) => {
-                const score = scores[cat.key]
-                const hasScore = score > 0
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        
+        {/* Pentagon Visualization */}
+        <div className="flex justify-center mb-8">
+          <div className="relative">
+            <svg viewBox="0 0 200 200" className="w-48 h-48">
+              {/* Outer pentagon */}
+              <polygon points={outerPoints} fill="none" stroke="#e5e7eb" strokeWidth="1" />
+              {/* Middle ring */}
+              <polygon points={categories.map((_, i) => pointFor(50, i, 5)).join(' ')} fill="none" stroke="#e5e7eb" strokeWidth="0.5" strokeDasharray="4,4" />
+              {/* Radial lines */}
+              {categories.map((_, i) => {
+                const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
                 return (
-                  <div key={cat.key} className="bg-gray-50 rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{cat.emoji}</span>
-                        <span className="font-medium text-gray-900">{cat.label}</span>
-                      </div>
-                      <span className={`text-lg font-bold ${hasScore ? 'text-gray-900' : 'text-gray-300'}`}>
-                        {hasScore ? score : '—'}
-                      </span>
-                    </div>
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${cat.color} transition-all duration-500`}
-                        style={{ width: `${score}%` }}
-                      />
-                    </div>
-                  </div>
+                  <line key={i} x1={centerX} y1={centerY} x2={centerX + radius * Math.cos(angle)} y2={centerY + radius * Math.sin(angle)} stroke="#e5e7eb" strokeWidth="0.5" />
                 )
               })}
-            </div>
-          </section>
-
-          {/* No data message */}
-          {!hasData && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-sm text-amber-800">
-                <strong>No data yet.</strong> Upload Apple Health data or chat with Eden to start building your profile.
-              </p>
-            </div>
-          )}
-
-          {/* Data Sources */}
-          <section>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Data Sources</h2>
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-pink-500 to-red-500 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Apple Health</p>
-                  <p className="text-sm text-gray-500">Activity, heart rate, sleep</p>
-                </div>
-              </div>
-              <AppleHealthUpload userId={user.id} />
-            </div>
-          </section>
-
-          {/* Disclaimer */}
-          <p className="text-xs text-gray-400 text-center pt-4">
-            Eden is not a medical service. Consult a professional for health concerns.
-          </p>
-
+              {/* Data polygon */}
+              {hasData && (
+                <polygon points={dataPoints} fill="rgba(16, 185, 129, 0.2)" stroke="#10b981" strokeWidth="2" />
+              )}
+              {/* Data points */}
+              {hasData && categories.map((cat, i) => {
+                const score = scores[cat.key]
+                const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                const r = (score / 100) * radius
+                return (
+                  <circle key={cat.key} cx={centerX + r * Math.cos(angle)} cy={centerY + r * Math.sin(angle)} r="4" fill="#10b981" />
+                )
+              })}
+              {/* Labels */}
+              {categories.map((cat, i) => {
+                const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2
+                const labelR = radius + 20
+                const x = centerX + labelR * Math.cos(angle)
+                const y = centerY + labelR * Math.sin(angle)
+                return (
+                  <text key={cat.key} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="text-[10px] fill-gray-500 font-medium">
+                    {cat.label}
+                  </text>
+                )
+              })}
+            </svg>
+          </div>
         </div>
-      </div>
 
-      {/* Bottom navigation */}
-      <nav className="flex border-t border-gray-100 bg-white">
-        <Link href="/chat" className="flex-1 flex flex-col items-center py-3 text-gray-400 hover:text-gray-600">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          <span className="text-xs font-medium mt-1">Chat</span>
-        </Link>
-        <Link href="/dashboard" className="flex-1 flex flex-col items-center py-3 text-emerald-600">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          <span className="text-xs font-medium mt-1">Dashboard</span>
-        </Link>
-      </nav>
+        {/* Category Cards Grid */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {categories.map((cat) => {
+            const score = scores[cat.key]
+            const hasScore = score > 0
+            return (
+              <div key={cat.key} className={`rounded-2xl bg-gradient-to-br ${cat.gradient} p-4 text-white`}>
+                <p className="text-sm font-medium text-white/80 mb-1">{cat.label}</p>
+                <p className="text-3xl font-bold">{hasScore ? score : '—'}</p>
+                <p className="text-xs text-white/70 mt-1">
+                  {hasScore ? (score >= 70 ? 'On track' : 'Room to improve') : 'No data yet'}
+                </p>
+              </div>
+            )
+          })}
+          
+          {/* Empty slot for grid balance */}
+          <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-4 text-white">
+            <p className="text-sm font-medium text-white/80 mb-1">Overall</p>
+            <p className="text-3xl font-bold">{hasData ? Math.round(Object.values(scores).filter(s => s > 0).reduce((a,b) => a+b, 0) / Object.values(scores).filter(s => s > 0).length) : '—'}</p>
+            <p className="text-xs text-white/70 mt-1">
+              {hasData ? 'Across all pillars' : 'Add data to see'}
+            </p>
+          </div>
+        </div>
+
+        {/* No data message */}
+        {!hasData && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+            <p className="text-sm text-gray-600">
+              Upload Apple Health data to see your scores across all five pillars.
+            </p>
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <p className="text-xs text-gray-400 text-center mt-8">
+          Eden is not a medical service. Consult a professional for health concerns.
+        </p>
+      </div>
     </main>
   )
 }
