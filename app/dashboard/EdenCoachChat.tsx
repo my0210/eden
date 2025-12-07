@@ -8,6 +8,17 @@ type Message = {
   content: string
 }
 
+// Simple markdown renderer for bold text and newlines
+function renderMarkdown(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>
+    }
+    return <span key={i}>{part}</span>
+  })
+}
+
 const INITIAL_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
@@ -76,7 +87,7 @@ export default function EdenCoachChat() {
                   : 'max-w-[75%] rounded-2xl rounded-bl-md bg-[#E5E5EA] text-black px-4 py-2.5'
               }
             >
-              <p className="text-[17px] leading-[22px] whitespace-pre-wrap">{msg.content}</p>
+              <p className="text-[17px] leading-[22px] whitespace-pre-wrap">{renderMarkdown(msg.content)}</p>
             </div>
           </div>
         ))}
