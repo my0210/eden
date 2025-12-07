@@ -26,8 +26,8 @@ export default async function ChatPage() {
       <header className="flex-shrink-0 bg-[#F2F2F7]/80 backdrop-blur-xl">
         <div className="max-w-3xl mx-auto px-4 h-12 flex items-center justify-between">
           <nav className="flex items-center gap-6">
+            <Link href="/chat" className="text-[17px] font-semibold text-[#007AFF]">Eden</Link>
             <Link href="/dashboard" className="text-[17px] text-[#3C3C43]/60 hover:text-[#007AFF]">Dashboard</Link>
-            <Link href="/chat" className="text-[17px] font-semibold text-[#007AFF]">Chat</Link>
             <Link href="/data" className="text-[17px] text-[#3C3C43]/60 hover:text-[#007AFF]">Data</Link>
           </nav>
           <ProfileMenu email={user.email || ''} />
