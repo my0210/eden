@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { getUserSnapshot } from '@/lib/context/getUserSnapshot'
+import { buildEdenContext } from '@/lib/context/buildEdenContext'
+import type { EdenContext } from '@/lib/context/buildEdenContext'
 import OpenAI from 'openai'
 
 const openai = new OpenAI({
@@ -40,18 +41,20 @@ type CoachRequestBody = {
 
 const SYSTEM_PROMPT = `You are Eden, a health & performance coach focused on extending primespan (the years a person feels and performs at their best).
 
-You receive three main pieces of context as JSON in a message labelled EDEN_CONTEXT:
-1) profile: basics about the user (age, sex at birth, height, weight, goals, constraints).
-2) snapshot: a summary of their current metrics and derived scores across heart, frame, metabolism, recovery, and mind.
-3) plan: the current weekly focus, including a short summary and a handful of concrete actions.
+You will receive a JSON object called EDEN_CONTEXT with these fields:
+- profile: basic facts and constraints about the user (age, sex at birth, height, weight, primary goal, injuries, time available, etc.).
+- persona: a longer-term view of how this user tends to behave and what motivates them (may be null for now).
+- snapshot: the current state of their metrics across heart, frame, metabolism, recovery, and mind.
+- plan: the current weekly focus, with a short summary and a few concrete actions (may be null if no plan yet).
+- profileComplete: whether the profile has enough information for safe, meaningful coaching.
+- hasPlan: whether there is an active weekly plan for the current week.
 
-Use this context to answer in a clear, coaching style. Respect the current weekly plan as the default path unless the user clearly wants to change it. Be concrete, avoid giving 20 different ideas, and prioritise what will matter most for the next 1–2 weeks.
-
-Onboarding behaviour:
-- If the profile is thin or missing (hasProfile is false or profile is null) and there is no active weekly plan, start by asking a small sequence of onboarding questions instead of jumping into detailed advice.
-- Ask for: age, sex at birth (for interpreting metrics), height and weight, main goal, and rough weekly time available for training/recovery.
-- Ask one question at a time, summarise back what you learned, and only then move to setting a clear focus for the first week.
-- You cannot directly write to databases; treat what the user tells you as conversation context and repeat key facts back so they feel heard.
+Coaching rules:
+- Use the snapshot and plan to decide what matters most over the next 1–2 weeks, not just today.
+- If hasPlan is true, treat the plan as the default path unless the user clearly wants to change it. Use the plan actions as the backbone of your advice.
+- If profileComplete is false and hasPlan is false, prioritise onboarding: ask a short sequence of questions (age, sex at birth, height, weight, main goal, time available, key constraints) before giving detailed plans.
+- Ask one question at a time, reflect back what you heard, and keep the conversation focused.
+- Be concrete and pragmatic. Avoid giving 20 different ideas; focus on 1–3 important moves.
 
 Safety:
 - Give specific, actionable coaching while staying safe (no medical diagnosis, encourage seeing a doctor for serious issues).
@@ -76,7 +79,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }
 
-    // 3. Get or create conversation
+    // 3. Build Eden context (profile, snapshot, persona, plan)
+    const { edenContext, profile, snapshot, activePlan } = await buildEdenContext(
+      supabase,
+      user.id
+    )
+
+    // 4. Get or create conversation
     let conversationId: string
 
     const { data: existingConversation } = await supabase
@@ -108,7 +117,7 @@ export async function POST(req: NextRequest) {
       conversationId = newConversation.id
     }
 
-    // 4. Insert user message
+    // 5. Insert user message
     const { error: insertMsgError } = await supabase
       .from('eden_messages')
       .insert({
@@ -122,101 +131,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
 
-    // 5. Fetch user profile
-    let profile = null
-    try {
-      const { data: profileData } = await supabase
-        .from('eden_user_profile')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      profile = profileData
-    } catch (err) {
-      console.error('Failed to fetch profile:', err)
-    }
-
-    const hasProfile = !!profile
-
-    // 6. Fetch user snapshot
-    let snapshot = null
-    try {
-      snapshot = await getUserSnapshot(supabase, user.id)
-    } catch (err) {
-      console.error('Failed to fetch snapshot:', err)
-    }
-
-    // 7. Fetch active weekly plan for today
-    const today = new Date().toISOString().slice(0, 10)
-
-    let activePlan = null
-    try {
-      const { data: activePlans, error: planError } = await supabase
-        .from('eden_plans')
-        .select('id, start_date, end_date, status, focus_summary')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .lte('start_date', today)
-        .gte('end_date', today)
-        .order('start_date', { ascending: false })
-        .limit(1)
-
-      if (planError) {
-        console.error('Failed to fetch active plan:', planError)
-      }
-
-      activePlan = activePlans?.[0] ?? null
-    } catch (err) {
-      console.error('Failed to fetch active plan:', err)
-    }
-
-    // 8. Fetch plan actions if plan exists
-    let planActions: Array<{
-      title: string
-      description: string | null
-      metric_code: string | null
-      target_value: string | null
-      cadence: string | null
-    }> = []
-
-    if (activePlan) {
-      try {
-        const { data: actionsData, error: actionsError } = await supabase
-          .from('eden_plan_actions')
-          .select('title, description, metric_code, target_value, cadence')
-          .eq('plan_id', activePlan.id)
-          .order('priority', { ascending: true })
-
-        if (actionsError) {
-          console.error('Failed to fetch plan actions:', actionsError)
-        }
-
-        planActions = actionsData ?? []
-      } catch (err) {
-        console.error('Failed to fetch plan actions:', err)
-      }
-    }
-
-    // 9. Build context objects
-    const planContext = activePlan
-      ? {
-          focusSummary: activePlan.focus_summary,
-          startDate: activePlan.start_date,
-          endDate: activePlan.end_date,
-          actions: planActions,
-        }
-      : null
-
-    const profileContext = profile ? { ...profile } : null
-    const snapshotContext = snapshot ?? null
-
-    const edenContext = {
-      hasProfile,
-      profile: profileContext,
-      snapshot: snapshotContext,
-      plan: planContext,
-    }
-
-    // 10. Fetch last ~10 messages for context
+    // 6. Fetch last ~10 messages for context
     const { data: recentMessages } = await supabase
       .from('eden_messages')
       .select('role, content')
@@ -224,7 +139,7 @@ export async function POST(req: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(10)
 
-    // 11. Build OpenAI messages
+    // 7. Build OpenAI messages
     const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
 
     // System prompt
@@ -233,7 +148,7 @@ export async function POST(req: NextRequest) {
       content: SYSTEM_PROMPT,
     })
 
-    // Combined context message
+    // EDEN_CONTEXT as assistant message
     openaiMessages.push({
       role: 'assistant',
       content: `EDEN_CONTEXT: ${JSON.stringify(edenContext)}`,
@@ -249,7 +164,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 12. Call OpenAI
+    // 8. Call OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: openaiMessages,
@@ -258,7 +173,7 @@ export async function POST(req: NextRequest) {
 
     const replyText = completion.choices[0]?.message?.content || 'I apologize, I could not generate a response.'
 
-    // 13. Insert assistant reply
+    // 9. Insert assistant reply
     const { error: insertReplyError } = await supabase
       .from('eden_messages')
       .insert({
@@ -272,13 +187,13 @@ export async function POST(req: NextRequest) {
       // Continue anyway - we have the reply
     }
 
-    // 14. Update conversation's last_message_at
+    // 10. Update conversation's last_message_at
     await supabase
       .from('eden_conversations')
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    // 15. Return reply
+    // 11. Return reply
     return NextResponse.json({ reply: replyText })
 
   } catch (err) {
