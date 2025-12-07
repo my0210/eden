@@ -2,7 +2,6 @@ import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getUserSnapshot } from '@/lib/context/getUserSnapshot'
 import AppleHealthUpload from './AppleHealthUpload'
-import EdenCoachChat from './EdenCoachChat'
 import EdenCard from './EdenCard'
 
 export default async function DashboardPage() {
@@ -29,7 +28,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8 lg:py-10 space-y-8">
+      <div className="mx-auto max-w-3xl px-4 py-8 lg:py-10 space-y-8">
 
         {/* Hero Section */}
         <section className="space-y-4">
@@ -56,18 +55,9 @@ export default async function DashboardPage() {
           </div>
         </section>
 
-        {/* Main area: Eden card + chat */}
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)] items-start">
+        {/* Eden Card */}
+        <section>
           <EdenCard snapshot={snapshot} hasProfile={hasProfile} />
-          <div className="space-y-3">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Chat with Eden</h2>
-              <p className="text-sm text-slate-600">
-                Use the coach to interpret your card and decide what to focus on next.
-              </p>
-            </div>
-            <EdenCoachChat />
-          </div>
         </section>
 
         {/* Data sources */}
