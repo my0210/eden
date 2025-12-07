@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getUserSnapshot, UserSnapshot } from '@/lib/context/getUserSnapshot'
-import AppleHealthUpload from './AppleHealthUpload'
 
 type CategoryScores = {
   heart: number
@@ -113,23 +112,23 @@ export default async function DashboardPage() {
       <header className="border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4">
           <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
-                  <span className="text-xs font-bold text-white">E</span>
-                </div>
-                <span className="font-semibold text-gray-900">Eden</span>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+                <span className="text-xs font-bold text-white">E</span>
               </div>
-              <nav className="flex gap-1">
-                <Link href="/dashboard" className="px-3 py-1.5 text-sm font-medium text-gray-900 bg-gray-100 rounded-full">
-                  Data
-                </Link>
-                <Link href="/chat" className="px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 rounded-full">
-                  Chat
-                </Link>
-              </nav>
+              <span className="font-semibold text-gray-900">Eden</span>
             </div>
-            <AppleHealthUpload userId={user.id} />
+            <nav className="flex gap-1">
+              <Link href="/dashboard" className="px-3 py-1.5 text-sm font-medium text-gray-900 bg-gray-100 rounded-full">
+                Dashboard
+              </Link>
+              <Link href="/chat" className="px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 rounded-full">
+                Chat
+              </Link>
+              <Link href="/data" className="px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 rounded-full">
+                Data
+              </Link>
+            </nav>
           </div>
         </div>
       </header>
@@ -196,22 +195,13 @@ export default async function DashboardPage() {
               </div>
             )
           })}
-          
-          {/* Empty slot for grid balance */}
-          <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-4 text-white">
-            <p className="text-sm font-medium text-white/80 mb-1">Overall</p>
-            <p className="text-3xl font-bold">{hasData ? Math.round(Object.values(scores).filter(s => s > 0).reduce((a,b) => a+b, 0) / Object.values(scores).filter(s => s > 0).length) : '—'}</p>
-            <p className="text-xs text-white/70 mt-1">
-              {hasData ? 'Across all pillars' : 'Add data to see'}
-            </p>
-          </div>
         </div>
 
         {/* No data message */}
         {!hasData && (
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
             <p className="text-sm text-gray-600">
-              Upload Apple Health data to see your scores across all five pillars.
+              Go to <Link href="/data" className="text-emerald-600 font-medium hover:underline">Data</Link> to upload Apple Health data and see your scores.
             </p>
           </div>
         )}

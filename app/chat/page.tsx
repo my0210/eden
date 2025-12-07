@@ -21,34 +21,35 @@ export default async function ChatPage() {
   const activePlan = activePlans?.[0] ?? null
 
   return (
-    <main className="min-h-screen bg-white flex flex-col">
+    <main className="h-screen bg-white flex flex-col">
       {/* Top Navigation */}
-      <header className="border-b border-gray-100">
+      <header className="flex-shrink-0 border-b border-gray-100">
         <div className="max-w-2xl mx-auto px-4">
           <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
-                  <span className="text-xs font-bold text-white">E</span>
-                </div>
-                <span className="font-semibold text-gray-900">Eden</span>
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500 flex items-center justify-center">
+                <span className="text-xs font-bold text-white">E</span>
               </div>
-              <nav className="flex gap-1">
-                <Link href="/dashboard" className="px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 rounded-full">
-                  Data
-                </Link>
-                <Link href="/chat" className="px-3 py-1.5 text-sm font-medium text-gray-900 bg-gray-100 rounded-full">
-                  Chat
-                </Link>
-              </nav>
+              <span className="font-semibold text-gray-900">Eden</span>
             </div>
+            <nav className="flex gap-1">
+              <Link href="/dashboard" className="px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 rounded-full">
+                Dashboard
+              </Link>
+              <Link href="/chat" className="px-3 py-1.5 text-sm font-medium text-gray-900 bg-gray-100 rounded-full">
+                Chat
+              </Link>
+              <Link href="/data" className="px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 rounded-full">
+                Data
+              </Link>
+            </nav>
           </div>
         </div>
       </header>
 
       {/* Focus banner */}
       {activePlan && (
-        <div className="border-b border-gray-100 bg-emerald-50">
+        <div className="flex-shrink-0 border-b border-gray-100 bg-emerald-50">
           <div className="max-w-2xl mx-auto px-4 py-3">
             <p className="text-xs font-medium text-emerald-600 uppercase tracking-wide mb-0.5">This week</p>
             <p className="text-sm text-emerald-900">{activePlan.focus_summary}</p>
@@ -56,8 +57,8 @@ export default async function ChatPage() {
         </div>
       )}
 
-      {/* Chat area */}
-      <div className="flex-1 overflow-hidden max-w-2xl mx-auto w-full">
+      {/* Chat area - takes remaining height */}
+      <div className="flex-1 min-h-0 max-w-2xl mx-auto w-full">
         <EdenCoachChat />
       </div>
     </main>
