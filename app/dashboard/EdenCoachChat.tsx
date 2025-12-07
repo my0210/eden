@@ -12,14 +12,13 @@ const INITIAL_MESSAGE: Message = {
   id: 'welcome',
   role: 'assistant',
   content:
-    "Hi, I'm Eden. I'm using your latest health metrics to help you decide what to focus on. Ask me anything about your primespan, training, sleep, or recovery.",
+    "Hey — I'm Eden. I can see your health data and I'm here to help you stay in your prime. What's on your mind?",
 }
 
 const QUICK_PROMPTS = [
-  'What should I focus on this week?',
-  'Explain what my metrics say about my heart and recovery.',
-  "How should I adjust training if I'm traveling?",
-  'Help me design a simple daily routine.',
+  'What should I focus on?',
+  'How am I doing overall?',
+  'Help me build a routine',
 ]
 
 export default function EdenCoachChat() {
@@ -29,7 +28,6 @@ export default function EdenCoachChat() {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
@@ -67,7 +65,7 @@ export default function EdenCoachChat() {
           {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: 'Sorry, something went wrong. Please try again in a moment.',
+            content: 'Sorry, something went wrong. Please try again.',
           },
         ])
       } else {
@@ -82,13 +80,13 @@ export default function EdenCoachChat() {
       }
     } catch (err) {
       console.error(err)
-      setError('Something went wrong. Please try again.')
+      setError('Connection error.')
       setMessages((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: 'Sorry, there was a connection problem. Please try again.',
+          content: 'Connection problem. Please try again.',
         },
       ])
     } finally {
@@ -101,61 +99,44 @@ export default function EdenCoachChat() {
     handleSend(input)
   }
 
-  function handleQuickPrompt(prompt: string) {
-    handleSend(prompt)
-  }
-
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-600 px-5 py-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">✨</span>
-          <div>
-            <h3 className="text-white font-semibold">Eden Coach</h3>
-            <p className="text-indigo-100 text-xs">
-              Ask Eden about your current status or what to focus on this week.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Chat area */}
-      <div className="max-h-[380px] overflow-y-auto bg-white p-4 space-y-3">
+    <div className="h-full flex flex-col">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={msg.role === 'user' ? 'flex justify-end' : 'flex items-start gap-2'}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.role === 'assistant' && (
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center flex-shrink-0">
-                <span className="text-sm">🧠</span>
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mr-2 flex-shrink-0 shadow-lg shadow-emerald-500/10">
+                <span className="text-xs font-bold text-white">E</span>
               </div>
             )}
             <div
               className={
                 msg.role === 'user'
-                  ? 'rounded-2xl bg-indigo-500 text-white px-3 py-2 text-sm max-w-[80%]'
-                  : 'rounded-2xl bg-slate-100 px-3 py-2 text-sm text-slate-800 max-w-[80%]'
+                  ? 'max-w-[80%] rounded-2xl rounded-br-md bg-emerald-500 text-white px-4 py-2.5 text-sm'
+                  : 'max-w-[80%] rounded-2xl rounded-bl-md bg-white/[0.06] text-white/90 px-4 py-2.5 text-sm border border-white/[0.06]'
               }
             >
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
             </div>
           </div>
         ))}
 
         {/* Typing indicator */}
         {isLoading && (
-          <div className="flex items-start gap-2">
-            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-sm">🧠</span>
+          <div className="flex justify-start">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mr-2 flex-shrink-0">
+              <span className="text-xs font-bold text-white">E</span>
             </div>
-            <div className="rounded-2xl bg-slate-100 px-4 py-2 text-sm text-slate-500">
-              <span className="inline-flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </span>
+            <div className="rounded-2xl rounded-bl-md bg-white/[0.06] border border-white/[0.06] px-4 py-3">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-emerald-400/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 bg-emerald-400/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 bg-emerald-400/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
             </div>
           </div>
         )}
@@ -163,50 +144,51 @@ export default function EdenCoachChat() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Error message */}
+      {/* Error */}
       {error && (
-        <div className="px-4 py-2 bg-red-50 border-t border-red-100">
-          <p className="text-xs text-red-500">{error}</p>
+        <div className="px-4 py-2 bg-red-500/10 border-t border-red-500/20">
+          <p className="text-xs text-red-400">{error}</p>
         </div>
       )}
 
       {/* Quick prompts */}
-      <div className="px-4 py-3 border-t border-slate-200 bg-white">
-        <div className="flex flex-wrap gap-2">
-          {QUICK_PROMPTS.map((prompt) => (
-            <button
-              key={prompt}
-              type="button"
-              onClick={() => handleQuickPrompt(prompt)}
-              disabled={isLoading}
-              className="text-xs px-3 py-1.5 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {prompt}
-            </button>
-          ))}
+      {messages.length <= 2 && (
+        <div className="px-4 py-3 border-t border-white/[0.06]">
+          <div className="flex flex-wrap gap-2">
+            {QUICK_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                type="button"
+                onClick={() => handleSend(prompt)}
+                disabled={isLoading}
+                className="text-xs px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/60 hover:text-white/90 transition-all disabled:opacity-40"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Input area */}
-      <form
-        onSubmit={handleSubmit}
-        className="border-t border-slate-200 bg-slate-50/80 px-4 py-3"
-      >
+      {/* Input */}
+      <form onSubmit={handleSubmit} className="p-4 border-t border-white/[0.06]">
         <div className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Eden something..."
+            placeholder="Message Eden..."
             disabled={isLoading}
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex-1 rounded-xl bg-white/[0.04] border border-white/[0.08] px-4 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:bg-white/[0.06] focus:border-emerald-500/50 transition-all disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="rounded-xl bg-indigo-600 text-white text-sm font-medium px-4 py-2 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition"
+            className="rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-sm font-medium px-5 py-3 transition-all disabled:opacity-40 disabled:hover:bg-emerald-500"
           >
-            {isLoading ? 'Sending…' : 'Send'}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
           </button>
         </div>
       </form>
