@@ -199,13 +199,16 @@ export async function POST(req: NextRequest) {
     // 6. Build Eden context (now with potentially updated profile)
     const { edenContext } = await buildEdenContext(supabase, user.id)
 
-    // 7. Fetch last ~10 messages for context
-    const { data: recentMessages } = await supabase
+    // 7. Fetch last ~10 messages for context (most recent, then reverse for chronological order)
+    const { data: recentMessagesRaw } = await supabase
       .from('eden_messages')
       .select('role, content')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: false }) // newest first
       .limit(10)
+    
+    // Reverse to get chronological order (oldest to newest)
+    const recentMessages = recentMessagesRaw?.reverse() ?? []
 
     // 8. Build OpenAI messages
     const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = []
@@ -224,7 +227,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Add conversation history
-    if (recentMessages && recentMessages.length > 0) {
+    if (recentMessages.length > 0) {
       for (const msg of recentMessages) {
         openaiMessages.push({
           role: msg.role === 'user' ? 'user' : 'assistant',
