@@ -154,6 +154,26 @@ export async function POST() {
       console.error('reset-user: apple_health_imports delete error', appleDeleteError)
     }
 
+    // 6) Reset eden_user_state (v2 onboarding)
+    const { error: stateResetError } = await supabase
+      .from('eden_user_state')
+      .update({
+        onboarding_status: 'not_started',
+        onboarding_step: 0,
+        goals_json: {},
+        identity_json: {},
+        safety_json: {},
+        behaviors_json: {},
+        coaching_json: {},
+        latest_snapshot_id: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+
+    if (stateResetError) {
+      console.error('reset-user: eden_user_state reset error', stateResetError)
+    }
+
     console.log(`reset-user: successfully reset data for user ${userId}`)
 
     return NextResponse.json({ ok: true })
