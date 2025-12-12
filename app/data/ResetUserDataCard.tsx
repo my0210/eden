@@ -85,7 +85,7 @@ export default function ResetUserDataCard() {
           disabled={isResettingOnboarding || isResetting}
           className="inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isResettingOnboarding ? 'Resetting...' : 'Reset onboarding (v2)'}
+          {isResettingOnboarding ? 'Resetting...' : 'Reset onboarding'}
         </button>
         
         {/* Wipe All Data Button */}
