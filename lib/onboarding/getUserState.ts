@@ -3,10 +3,14 @@ import { SupabaseClient } from '@supabase/supabase-js'
 export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed'
 
 export interface EdenUserState {
-  id: string
   user_id: string
   onboarding_status: OnboardingStatus
   onboarding_step: number
+  goals_json?: Record<string, any> | null
+  identity_json?: Record<string, any> | null
+  safety_json?: Record<string, any> | null
+  behaviors_json?: Record<string, any> | null
+  coaching_json?: Record<string, any> | null
   created_at: string
   updated_at: string
 }
