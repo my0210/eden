@@ -1,11 +1,11 @@
 import Link from 'next/link'
-import { requireAuth } from '@/lib/auth'
+import { requireOnboardedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import EdenCoachChat from '../dashboard/EdenCoachChat'
 import ProfileMenu from '../dashboard/ProfileMenu'
 
 export default async function ChatPage() {
-  const user = await requireAuth()
+  const { user } = await requireOnboardedUser()
   const supabase = await createClient()
 
   const today = new Date().toISOString().slice(0, 10)

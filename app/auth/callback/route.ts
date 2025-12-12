@@ -1,10 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
+import { getUserState, getRedirectPath } from '@/lib/onboarding/getUserState'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  const next = requestUrl.searchParams.get('next') || '/chat'
   const origin = requestUrl.origin
 
   if (code) {
@@ -14,7 +14,18 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     
     if (!error) {
-      return NextResponse.redirect(new URL(next, origin))
+      // Get the authenticated user
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (user) {
+        // Get or create user state and determine redirect
+        const userState = await getUserState(supabase, user.id)
+        const redirectPath = getRedirectPath(userState)
+        return NextResponse.redirect(new URL(redirectPath, origin))
+      }
+      
+      // Fallback if user somehow not available after session exchange
+      return NextResponse.redirect(new URL('/onboarding/1', origin))
     }
     
     console.error('Auth callback error:', error.message)

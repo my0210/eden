@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { requireAuth } from '@/lib/auth'
+import { requireOnboardedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { getUserSnapshot, UserSnapshot } from '@/lib/context/getUserSnapshot'
 import ProfileMenu from './ProfileMenu'
@@ -95,7 +95,7 @@ function getStatusBg(score: number): string {
 }
 
 export default async function DashboardPage() {
-  const user = await requireAuth()
+  const { user } = await requireOnboardedUser()
   const supabase = await createClient()
 
   let snapshot = null

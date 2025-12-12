@@ -40,8 +40,13 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // Protect dashboard routes
-  if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
+  // Protect dashboard, chat, and onboarding routes - require authentication
+  const protectedPaths = ['/dashboard', '/chat', '/onboarding', '/data']
+  const isProtectedPath = protectedPaths.some(path => 
+    request.nextUrl.pathname.startsWith(path)
+  )
+
+  if (isProtectedPath && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)
@@ -55,4 +60,3 @@ export const config = {
     '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
-
