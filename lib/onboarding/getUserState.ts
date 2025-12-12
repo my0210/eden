@@ -26,12 +26,13 @@ export async function getUserState(
     .eq('user_id', userId)
     .single()
 
+  // Return existing state if found
   if (existingState && !fetchError) {
     return existingState as EdenUserState
   }
 
-  // If not found (PGRST116), create new state
-  if (fetchError?.code === 'PGRST116' || !existingState) {
+  // If not found (PGRST116 = no rows), create new state
+  if (!fetchError || fetchError.code === 'PGRST116') {
     const { data: newState, error: insertError } = await supabase
       .from('eden_user_state')
       .insert({
@@ -49,6 +50,7 @@ export async function getUserState(
     return newState as EdenUserState
   }
 
+  // Some other database error occurred
   throw new Error(`Failed to fetch user state: ${fetchError.message}`)
 }
 
