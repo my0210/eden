@@ -99,21 +99,48 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
     setUploadError(null)
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
+      // Step 1: Get signed upload URL
+      const signedUrlRes = await fetch(`/api/apple-health/upload?filename=${encodeURIComponent(file.name)}`)
+      const signedUrlData = await signedUrlRes.json()
 
-      const res = await fetch('/api/apple-health/upload', {
-        method: 'POST',
-        body: formData,
+      if (!signedUrlRes.ok) {
+        setUploadError(signedUrlData.error || 'Failed to prepare upload')
+        setUploadStatus('error')
+        return
+      }
+
+      // Step 2: Upload directly to Supabase Storage using signed URL
+      const uploadRes = await fetch(signedUrlData.signedUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': 'application/zip',
+        },
       })
 
-      const data = await res.json()
+      if (!uploadRes.ok) {
+        setUploadError('Upload failed. Please try again.')
+        setUploadStatus('error')
+        return
+      }
 
-      if (res.ok) {
-        setImportId(data.importId)
+      // Step 3: Confirm upload and create import record
+      const confirmRes = await fetch('/api/apple-health/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filePath: signedUrlData.filePath,
+          fileSize: file.size,
+        }),
+      })
+
+      const confirmData = await confirmRes.json()
+
+      if (confirmRes.ok) {
+        setImportId(confirmData.importId)
         setUploadStatus('success')
       } else {
-        setUploadError(data.error || 'Upload failed')
+        setUploadError(confirmData.error || 'Failed to record upload')
         setUploadStatus('error')
       }
     } catch {
