@@ -106,13 +106,13 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
       <div className="px-6 pb-6">
         <div className="space-y-4">
           {/* Goals summary */}
-          {state.goals_json && Object.keys(state.goals_json).length > 0 && (
+          {state.goals_json && (
             <div className="p-4 bg-[#F2F2F7] rounded-xl">
               <h3 className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">Goals</h3>
               <p className="text-[15px] text-[#3C3C43]">
-                {state.goals_json.goalCategory} • {state.goals_json.horizon} months
+                {state.goals_json.goalCategory || 'Not set'} • {state.goals_json.horizon || '?'} months
               </p>
-              {state.goals_json.priorityDomains && (
+              {state.goals_json.priorityDomains?.length > 0 && (
                 <p className="text-[13px] text-[#8E8E93] mt-1">
                   Focus: {state.goals_json.priorityDomains.join(', ')}
                 </p>
@@ -121,25 +121,25 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
           )}
 
           {/* Identity summary */}
-          {state.identity_json && Object.keys(state.identity_json).length > 0 && (
+          {state.identity_json && (
             <div className="p-4 bg-[#F2F2F7] rounded-xl">
               <h3 className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">About You</h3>
               <p className="text-[15px] text-[#3C3C43]">
-                {state.identity_json.age && `${state.identity_json.age} years old`}
-                {state.identity_json.location && ` • ${state.identity_json.location}`}
+                {state.identity_json.age ? `${state.identity_json.age} years old` : ''}
+                {state.identity_json.location ? ` • ${state.identity_json.location}` : ''}
               </p>
             </div>
           )}
 
           {/* Coaching summary */}
-          {state.coaching_json && Object.keys(state.coaching_json).length > 0 && (
+          {state.coaching_json && (
             <div className="p-4 bg-[#F2F2F7] rounded-xl">
               <h3 className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">Coaching Style</h3>
               <p className="text-[15px] text-[#3C3C43]">
-                {state.coaching_json.tone} tone • {state.coaching_json.cadence} check-ins
+                {state.coaching_json.tone || 'Not set'} tone • {state.coaching_json.cadence || '?'} check-ins
               </p>
               <p className="text-[13px] text-[#8E8E93] mt-1">
-                Commitment: {state.coaching_json.commitment}/10
+                Commitment: {state.coaching_json.commitment || 5}/10
               </p>
             </div>
           )}

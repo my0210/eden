@@ -284,7 +284,6 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
 
       // Navigate to next step
       router.push(`/onboarding/${step + 1}`)
-      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -309,7 +308,6 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
         }),
       })
       router.push('/onboarding/4')
-      router.refresh()
     } finally {
       setSaving(false)
     }
