@@ -14,8 +14,8 @@ export const ONBOARDING_STEPS: Record<number, OnboardingStep> = {
   },
   2: {
     number: 2,
-    title: 'Tell us about yourself',
-    subtitle: 'Help us understand who you are',
+    title: 'What are your goals?',
+    subtitle: 'What do you want to achieve?',
   },
   3: {
     number: 3,
@@ -24,8 +24,8 @@ export const ONBOARDING_STEPS: Record<number, OnboardingStep> = {
   },
   4: {
     number: 4,
-    title: 'What are your goals?',
-    subtitle: 'What do you want to achieve?',
+    title: 'Tell us about yourself',
+    subtitle: 'Help us understand who you are',
   },
   5: {
     number: 5,
