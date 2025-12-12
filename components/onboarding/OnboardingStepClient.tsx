@@ -29,9 +29,10 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
   const [priorityDomains, setPriorityDomains] = useState<string[]>(state.goals_json?.priorityDomains || [])
 
   // Step 3: Data upload
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle')
+  const existingImportId = state.identity_json?.data_sources?.appleHealthImportId || null
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>(existingImportId ? 'success' : 'idle')
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const [importId, setImportId] = useState<string | null>(state.identity_json?.data_sources?.appleHealthImportId || null)
+  const [importId, setImportId] = useState<string | null>(existingImportId)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Step 4: Identity
@@ -44,12 +45,17 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
   const [workStyle, setWorkStyle] = useState(state.identity_json?.workStyle || '')
   const [freeTimeWindows, setFreeTimeWindows] = useState<string[]>(state.identity_json?.freeTimeWindows || [])
 
-  // Step 5: Safety
-  const [diagnoses, setDiagnoses] = useState<string>(state.safety_json?.diagnoses?.join(', ') || '')
-  const [meds, setMeds] = useState<string>(state.safety_json?.meds?.join(', ') || '')
+  // Step 5: Safety - show "none" if array is empty, otherwise join
+  const formatArrayOrNone = (arr: string[] | undefined | null): string => {
+    if (!arr) return ''
+    if (arr.length === 0) return 'none'
+    return arr.join(', ')
+  }
+  const [diagnoses, setDiagnoses] = useState<string>(formatArrayOrNone(state.safety_json?.diagnoses))
+  const [meds, setMeds] = useState<string>(formatArrayOrNone(state.safety_json?.meds))
   const [injuriesYesNo, setInjuriesYesNo] = useState<'yes' | 'no' | ''>(state.safety_json?.injuriesYesNo || '')
   const [injuryDetails, setInjuryDetails] = useState(state.safety_json?.injuryDetails || '')
-  const [redLines, setRedLines] = useState(state.safety_json?.redLines || '')
+  const [redLines, setRedLines] = useState(state.safety_json?.redLines === null ? 'none' : (state.safety_json?.redLines || ''))
   const [doctorRestrictionsYesNo, setDoctorRestrictionsYesNo] = useState<'yes' | 'no' | ''>(state.safety_json?.doctorRestrictionsYesNo || '')
   const [doctorRestrictionDetails, setDoctorRestrictionDetails] = useState(state.safety_json?.doctorRestrictionDetails || '')
 
