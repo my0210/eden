@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 
-export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed'
+export type OnboardingStatus = 'not_started' | 'in_progress' | 'profile_complete' | 'completed'
 
 export interface EdenUserState {
   user_id: string
