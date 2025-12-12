@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 type ResetResult = {
   ok: boolean
@@ -10,12 +11,14 @@ type ResetResult = {
 }
 
 export default function ResetUserDataCard() {
+  const router = useRouter()
   const [isResetting, setIsResetting] = useState(false)
+  const [isResettingOnboarding, setIsResettingOnboarding] = useState(false)
   const [result, setResult] = useState<ResetResult | null>(null)
 
-  const handleReset = async () => {
+  const handleResetAll = async () => {
     const confirmed = window.confirm(
-      'This will delete your profile, metrics, plans, messages and Apple Health imports for this account. This cannot be undone. Continue?'
+      '⚠️ DANGER: This will delete ALL your Eden data:\n\n• Profile\n• Metrics\n• Plans\n• Messages\n• Apple Health imports\n\nThis cannot be undone. Are you sure?'
     )
 
     if (!confirmed) return
@@ -40,19 +43,60 @@ export default function ResetUserDataCard() {
     }
   }
 
+  const handleResetOnboarding = async () => {
+    const confirmed = window.confirm(
+      'This will reset your onboarding status to "not started" and clear all onboarding data (goals, identity, safety, behaviors, coaching preferences).\n\nYou will be able to go through onboarding again from step 1.\n\nContinue?'
+    )
+
+    if (!confirmed) return
+
+    setIsResettingOnboarding(true)
+    setResult(null)
+
+    try {
+      const res = await fetch('/api/dev/reset-onboarding', { method: 'POST' })
+      const data = await res.json()
+      
+      if (res.ok && data.ok) {
+        // Redirect to onboarding step 1
+        router.push('/onboarding/1')
+      } else {
+        setResult({ ok: false, error: data.error || 'Failed to reset onboarding' })
+        setIsResettingOnboarding(false)
+      }
+    } catch (err) {
+      console.error('Reset onboarding error:', err)
+      setResult({ ok: false, error: 'Network error. Check console.' })
+      setIsResettingOnboarding(false)
+    }
+  }
+
   return (
     <div className="mt-8 rounded-xl border border-red-100 bg-red-50/70 p-4 text-sm">
       <p className="font-semibold text-red-800">Developer tools</p>
       <p className="mt-1 text-xs text-red-700">
-        Reset all Eden data for this account so you can re-run onboarding.
+        Developer-only actions for testing and development.
       </p>
-      <button
-        onClick={handleReset}
-        disabled={isResetting}
-        className="mt-3 inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {isResetting ? 'Resetting...' : 'Reset my Eden data'}
-      </button>
+      
+      <div className="mt-3 space-y-2">
+        {/* Reset Onboarding Button */}
+        <button
+          onClick={handleResetOnboarding}
+          disabled={isResettingOnboarding || isResetting}
+          className="inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isResettingOnboarding ? 'Resetting...' : 'Reset onboarding (v2)'}
+        </button>
+        
+        {/* Wipe All Data Button */}
+        <button
+          onClick={handleResetAll}
+          disabled={isResetting || isResettingOnboarding}
+          className="ml-2 inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isResetting ? 'Resetting...' : 'Wipe all Eden data'}
+        </button>
+      </div>
       
       {result && (
         <div className="mt-3">
