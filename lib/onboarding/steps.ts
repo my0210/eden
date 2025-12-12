@@ -53,36 +53,36 @@ export const ONBOARDING_STEPS: Record<number, OnboardingStep> = {
  * Validates the user state and returns the first missing step number.
  * Returns null if all required steps are complete.
  * 
- * Required fields:
- * - Step 2: identity_json must have required fields
- * - Step 4: goals_json must have required fields
- * - Step 5: safety_json must have required fields
- * - Step 6: behaviors_json must have required fields
- * - Step 7: coaching_json must have required fields
+ * Required fields by step:
+ * - Step 2: goals_json (goalCategory, horizon, priorityDomains)
+ * - Step 4: identity_json (age, sexAtBirth, heightCm, weightKg, timezone, location, workStyle, freeTimeWindows)
+ * - Step 5: safety_json (diagnoses, meds, injuriesYesNo, redLines, doctorRestrictionsYesNo)
+ * - Step 6: behaviors_json (domainSelections, timeBudget)
+ * - Step 7: coaching_json (tone, cadence, nudgeStyle, commitment, whyNow)
  */
 export function getFirstMissingStep(state: EdenUserState): number | null {
-  // Step 2: Identity (basic profile info)
-  if (!state.identity_json || Object.keys(state.identity_json).length === 0) {
+  // Step 2: Goals
+  if (!state.goals_json || !state.goals_json.goalCategory || !state.goals_json.horizon) {
     return 2
   }
   
-  // Step 4: Goals
-  if (!state.goals_json || Object.keys(state.goals_json).length === 0) {
+  // Step 4: Identity
+  if (!state.identity_json || !state.identity_json.age || !state.identity_json.sexAtBirth) {
     return 4
   }
   
   // Step 5: Safety
-  if (!state.safety_json || Object.keys(state.safety_json).length === 0) {
+  if (!state.safety_json || state.safety_json.injuriesYesNo === undefined) {
     return 5
   }
   
   // Step 6: Behaviors
-  if (!state.behaviors_json || Object.keys(state.behaviors_json).length === 0) {
+  if (!state.behaviors_json || !state.behaviors_json.timeBudget) {
     return 6
   }
   
   // Step 7: Coaching preferences
-  if (!state.coaching_json || Object.keys(state.coaching_json).length === 0) {
+  if (!state.coaching_json || !state.coaching_json.tone || !state.coaching_json.whyNow) {
     return 7
   }
   
