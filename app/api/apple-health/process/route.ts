@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import JSZip from 'jszip'
 import { XMLParser } from 'fast-xml-parser'
@@ -8,7 +9,29 @@ export const runtime = 'nodejs'
 export const maxDuration = 60 // Allow up to 60 seconds for processing large files
 
 // Create Supabase client inline for this route handler
-async function getSupabase() {
+async function getSupabase(req: NextRequest) {
+  // Check if this is an internal service call (from cron job)
+  const isInternalService = req.headers.get('x-internal-service') === 'true'
+  const userId = req.headers.get('x-user-id')
+  
+  if (isInternalService && userId) {
+    // Use service role for internal calls (bypasses RLS)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    
+    if (!supabaseServiceKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for internal service calls')
+    }
+    
+    return createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  }
+  
+  // Normal user session-based client
   const cookieStore = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -230,13 +253,25 @@ export async function POST(req: NextRequest) {
   let supabase: Awaited<ReturnType<typeof getSupabase>> | null = null
 
   try {
-    // 1. Create Supabase client with user session
-    supabase = await getSupabase()
+    // 1. Create Supabase client (handles both user session and service role)
+    const isInternalService = req.headers.get('x-internal-service') === 'true'
+    supabase = await getSupabase(req)
 
-    // 2. Check authentication
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    // 2. Check authentication (skip for internal service calls)
+    let userId: string | null = null
+    if (isInternalService) {
+      // Get user_id from header for internal calls
+      userId = req.headers.get('x-user-id')
+      if (!userId) {
+        return NextResponse.json({ error: 'x-user-id header required for internal calls' }, { status: 400 })
+      }
+    } else {
+      // Normal user auth check
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // 3. Parse request body
@@ -252,7 +287,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'importId is required' }, { status: 400 })
     }
 
-    // 4. Load the import row (RLS ensures user can only see their own)
+    // 4. Load the import row
+    // For internal calls, service role bypasses RLS but we verify user_id matches
+    // For normal calls, RLS ensures user can only see their own
     const { data: importRow, error: importError } = await supabase
       .from('apple_health_imports')
       .select('id, user_id, file_path')
@@ -261,6 +298,11 @@ export async function POST(req: NextRequest) {
 
     if (importError || !importRow) {
       return NextResponse.json({ error: 'Import not found' }, { status: 404 })
+    }
+
+    // Verify user_id matches (extra check for internal calls)
+    if (isInternalService && importRow.user_id !== userId) {
+      return NextResponse.json({ error: 'User ID mismatch' }, { status: 403 })
     }
 
     // 5. Update status to processing
@@ -380,22 +422,46 @@ export async function POST(req: NextRequest) {
       codeToId.set(d.metric_code, d.id)
     }
 
-    // 11. Build rows to insert
-    const rows = aggregated
-      .filter(m => codeToId.has(m.metricCode))
-      .map(m => ({
-        user_id: importRow.user_id,
-        metric_id: codeToId.get(m.metricCode)!,
-        value: m.value,
-        measured_at: m.measuredAt.toISOString(),
-        source: 'apple_health',
-      }))
+    // 11. Build rows to insert (with idempotency check)
+    const rowsToInsert: Array<{
+      user_id: string
+      metric_id: string
+      value: number
+      measured_at: string
+      source: string
+    }> = []
 
-    // 12. Insert rows
-    if (rows.length > 0) {
+    for (const m of aggregated) {
+      if (!codeToId.has(m.metricCode)) continue
+      
+      const metricId = codeToId.get(m.metricCode)!
+      const measuredAt = m.measuredAt.toISOString()
+      
+      // Check if this metric value already exists (idempotency)
+      const { data: existing } = await supabase
+        .from('eden_metric_values')
+        .select('id')
+        .eq('user_id', importRow.user_id)
+        .eq('metric_id', metricId)
+        .eq('measured_at', measuredAt)
+        .maybeSingle()
+      
+      if (!existing) {
+        rowsToInsert.push({
+          user_id: importRow.user_id,
+          metric_id: metricId,
+          value: m.value,
+          measured_at: measuredAt,
+          source: 'apple_health',
+        })
+      }
+    }
+
+    // 12. Insert new rows (idempotent - won't duplicate)
+    if (rowsToInsert.length > 0) {
       const { error: insertError } = await supabase
         .from('eden_metric_values')
-        .insert(rows)
+        .insert(rowsToInsert)
 
       if (insertError) {
         throw new Error(`Insert failed: ${insertError.message}`)

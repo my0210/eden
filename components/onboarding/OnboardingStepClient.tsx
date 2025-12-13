@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { EdenUserState } from '@/lib/onboarding/getUserState'
 
@@ -30,9 +30,12 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
 
   // Step 3: Data upload
   const existingImportId = state.identity_json?.data_sources?.appleHealthImportId || null
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>(existingImportId ? 'success' : 'idle')
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>(
+    existingImportId ? 'success' : 'idle'
+  )
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [importId, setImportId] = useState<string | null>(existingImportId)
+  const [importStatus, setImportStatus] = useState<'pending' | 'processing' | 'completed' | 'failed' | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Step 4: Identity
@@ -143,10 +146,107 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
       const confirmData = await confirmRes.json()
 
       if (confirmRes.ok) {
-        setImportId(confirmData.importId)
-        setUploadStatus('success')
+        const newImportId = confirmData.importId
+        setImportId(newImportId)
+        setUploadStatus('processing')
+        setImportStatus('pending')
+        // Polling will start via useEffect
       } else {
         setUploadError(confirmData.error || 'Failed to record upload')
+        setUploadStatus('error')
+      }
+    } catch {
+      setUploadError('Something went wrong')
+      setUploadStatus('error')
+    }
+  }
+
+  // Poll for import status when importId exists and status is pending/processing
+  useEffect(() => {
+    if (!importId || step !== 3) return
+    if (uploadStatus !== 'processing' && uploadStatus !== 'success') return
+
+    let pollInterval: NodeJS.Timeout | null = null
+    let isMounted = true
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(`/api/apple-health/status?importId=${importId}`)
+        if (!res.ok) return
+        
+        const data = await res.json()
+        if (!isMounted) return
+
+        setImportStatus(data.status)
+
+        if (data.status === 'completed') {
+          setUploadStatus('success')
+          if (pollInterval) clearInterval(pollInterval)
+        } else if (data.status === 'failed') {
+          setUploadStatus('error')
+          setUploadError(data.errorMessage || 'Processing failed')
+          if (pollInterval) clearInterval(pollInterval)
+        } else if (data.status === 'pending' || data.status === 'processing') {
+          setUploadStatus('processing')
+        }
+      } catch (err) {
+        console.error('Error polling status:', err)
+        if (pollInterval) clearInterval(pollInterval)
+      }
+    }
+
+    // Initial check
+    pollStatus()
+
+    // Set up polling every 3 seconds
+    pollInterval = setInterval(pollStatus, 3000)
+
+    return () => {
+      isMounted = false
+      if (pollInterval) clearInterval(pollInterval)
+    }
+  }, [importId, step, uploadStatus])
+
+  // Fetch initial status if importId exists on mount
+  useEffect(() => {
+    if (!importId || step !== 3) return
+    if (existingImportId && uploadStatus === 'success') {
+      // Check current status for existing import
+      fetch(`/api/apple-health/status?importId=${importId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === 'failed') {
+            setImportStatus('failed')
+            setUploadStatus('error')
+            setUploadError(data.errorMessage || 'Processing failed')
+          } else if (data.status === 'pending' || data.status === 'processing') {
+            setImportStatus(data.status)
+            setUploadStatus('processing')
+          }
+        })
+        .catch(console.error)
+    }
+  }, [])
+
+  const handleRetry = async () => {
+    if (!importId) return
+    setUploadError(null)
+    setUploadStatus('processing')
+    
+    try {
+      const res = await fetch('/api/apple-health/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importId }),
+      })
+      
+      const data = await res.json()
+      
+      if (res.ok) {
+        setImportStatus('pending')
+        // Polling will pick it up
+      } else {
+        setUploadError(data.error || 'Failed to retry')
         setUploadStatus('error')
       }
     } catch {
@@ -441,13 +541,37 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
 
           {uploadStatus === 'success' && (
             <div className="p-4 rounded-xl bg-[#34C759]/10 text-[#34C759] text-[15px]">
-              ✓ Upload complete. You can continue.
+              ✓ Upload complete. Data processed successfully. You can continue.
+            </div>
+          )}
+
+          {uploadStatus === 'processing' && (
+            <div className="p-4 rounded-xl bg-[#FF9500]/10 text-[#FF9500] text-[15px]">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>
+                  {importStatus === 'processing' 
+                    ? 'Processing your health data...' 
+                    : 'Upload complete. Processing will start shortly...'}
+                </span>
+              </div>
             </div>
           )}
 
           {uploadStatus === 'error' && uploadError && (
-            <div className="p-4 rounded-xl bg-[#FF3B30]/10 text-[#FF3B30] text-[15px]">
-              {uploadError}
+            <div className="p-4 rounded-xl bg-[#FF3B30]/10 text-[#FF3B30] text-[15px] space-y-2">
+              <div>{uploadError}</div>
+              {importStatus === 'failed' && (
+                <button
+                  onClick={handleRetry}
+                  className="text-[13px] font-medium text-[#FF3B30] hover:underline"
+                >
+                  Retry processing
+                </button>
+              )}
             </div>
           )}
 
