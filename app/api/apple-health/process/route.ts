@@ -520,7 +520,7 @@ export async function POST(req: NextRequest) {
         .eq('id', importId)
     }
 
-    return NextResponse.json({ importedCount: rows.length })
+    return NextResponse.json({ importedCount: rowsToInsert.length })
 
   } catch (err) {
     console.error('Apple Health processing error:', err)
