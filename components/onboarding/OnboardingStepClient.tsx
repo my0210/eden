@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { EdenUserState } from '@/lib/onboarding/getUserState'
+import UploadCard from '@/components/uploads/UploadCard'
+import AppleHealthUpload from '@/components/uploads/AppleHealthUpload'
+import PhotoUpload from '@/components/uploads/PhotoUpload'
 
 interface OnboardingStepClientProps {
   step: number
@@ -28,15 +31,22 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
   const [horizon, setHorizon] = useState<number>(state.goals_json?.horizon || 0)
   const [priorityDomains, setPriorityDomains] = useState<string[]>(state.goals_json?.priorityDomains || [])
 
-  // Step 3: Data upload
-  const existingImportId = state.identity_json?.data_sources?.appleHealthImportId || null
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>(
-    existingImportId ? 'success' : 'idle'
-  )
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [importId, setImportId] = useState<string | null>(existingImportId)
-  const [importStatus, setImportStatus] = useState<'pending' | 'processing' | 'completed' | 'failed' | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [uploadSkipped, setUploadSkipped] = useState(false)
+  const [importId, setImportId] = useState<string | null>(state.identity_json?.data_sources?.appleHealthImportId || null)
+
+  // Fetch latest import ID from status on mount
+  useEffect(() => {
+    if (step === 3) {
+      fetch('/api/uploads/status')
+        .then(res => res.json())
+        .then(data => {
+          if (data?.appleHealth?.latest?.id) {
+            setImportId(data.appleHealth.latest.id)
+          }
+        })
+        .catch(console.error)
+    }
+  }, [step])
 
   // Step 4: Identity
   const [age, setAge] = useState<number | ''>(state.identity_json?.age || '')
@@ -92,167 +102,6 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
       }
       return [...prev, window]
     })
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (!file.name.endsWith('.zip')) {
-      setUploadError('Please upload a .zip file exported from Apple Health')
-      setUploadStatus('error')
-      return
-    }
-
-    setUploadStatus('uploading')
-    setUploadError(null)
-
-    try {
-      // Step 1: Get signed upload URL
-      const signedUrlRes = await fetch(`/api/apple-health/upload?filename=${encodeURIComponent(file.name)}`)
-      const signedUrlData = await signedUrlRes.json()
-
-      if (!signedUrlRes.ok) {
-        setUploadError(signedUrlData.error || 'Failed to prepare upload')
-        setUploadStatus('error')
-        return
-      }
-
-      // Step 2: Upload directly to Supabase Storage using signed URL
-      const uploadRes = await fetch(signedUrlData.signedUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': 'application/zip',
-        },
-      })
-
-      if (!uploadRes.ok) {
-        setUploadError('Upload failed. Please try again.')
-        setUploadStatus('error')
-        return
-      }
-
-      // Step 3: Confirm upload and create import record
-      const confirmRes = await fetch('/api/apple-health/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filePath: signedUrlData.filePath,
-          fileSize: file.size,
-        }),
-      })
-
-      const confirmData = await confirmRes.json()
-
-      if (confirmRes.ok) {
-        const newImportId = confirmData.importId
-        setImportId(newImportId)
-        setUploadStatus('processing')
-        setImportStatus('pending')
-        // Polling will start via useEffect
-      } else {
-        setUploadError(confirmData.error || 'Failed to record upload')
-        setUploadStatus('error')
-      }
-    } catch {
-      setUploadError('Something went wrong')
-      setUploadStatus('error')
-    }
-  }
-
-  // Poll for import status when importId exists and status is pending/processing
-  useEffect(() => {
-    if (!importId || step !== 3) return
-    if (uploadStatus !== 'processing' && uploadStatus !== 'success') return
-
-    let pollInterval: NodeJS.Timeout | null = null
-    let isMounted = true
-
-    const pollStatus = async () => {
-      try {
-        const res = await fetch(`/api/apple-health/status?importId=${importId}`)
-        if (!res.ok) return
-        
-        const data = await res.json()
-        if (!isMounted) return
-
-        setImportStatus(data.status)
-
-        if (data.status === 'completed') {
-          setUploadStatus('success')
-          if (pollInterval) clearInterval(pollInterval)
-        } else if (data.status === 'failed') {
-          setUploadStatus('error')
-          setUploadError(data.errorMessage || 'Processing failed')
-          if (pollInterval) clearInterval(pollInterval)
-        } else if (data.status === 'pending' || data.status === 'processing') {
-          setUploadStatus('processing')
-        }
-      } catch (err) {
-        console.error('Error polling status:', err)
-        if (pollInterval) clearInterval(pollInterval)
-      }
-    }
-
-    // Initial check
-    pollStatus()
-
-    // Set up polling every 3 seconds
-    pollInterval = setInterval(pollStatus, 3000)
-
-    return () => {
-      isMounted = false
-      if (pollInterval) clearInterval(pollInterval)
-    }
-  }, [importId, step, uploadStatus])
-
-  // Fetch initial status if importId exists on mount
-  useEffect(() => {
-    if (!importId || step !== 3) return
-    if (existingImportId && uploadStatus === 'success') {
-      // Check current status for existing import
-      fetch(`/api/apple-health/status?importId=${importId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.status === 'failed') {
-            setImportStatus('failed')
-            setUploadStatus('error')
-            setUploadError(data.errorMessage || 'Processing failed')
-          } else if (data.status === 'pending' || data.status === 'processing') {
-            setImportStatus(data.status)
-            setUploadStatus('processing')
-          }
-        })
-        .catch(console.error)
-    }
-  }, [])
-
-  const handleRetry = async () => {
-    if (!importId) return
-    setUploadError(null)
-    setUploadStatus('processing')
-    
-    try {
-      const res = await fetch('/api/apple-health/retry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ importId }),
-      })
-      
-      const data = await res.json()
-      
-      if (res.ok) {
-        setImportStatus('pending')
-        // Polling will pick it up
-      } else {
-        setUploadError(data.error || 'Failed to retry')
-        setUploadStatus('error')
-      }
-    } catch {
-      setUploadError('Something went wrong')
-      setUploadStatus('error')
-    }
   }
 
   const validateStep = (): string | null => {
@@ -503,85 +352,56 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
 
       {/* Step 3: Data Upload */}
       {step === 3 && (
-        <div className="space-y-6">
+        <div className="space-y-4">
           <p className="text-[15px] text-[#8E8E93]">
-            Import your Apple Health data to get personalized insights. Export your data from the Health app on your iPhone.
+            Import your Apple Health data and upload a photo to improve your snapshot quality.
           </p>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadStatus === 'uploading'}
-            className="w-full flex items-center justify-center gap-2 px-4 py-4 text-[17px] font-medium text-white bg-[#007AFF] rounded-xl hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
+          <UploadCard
+            title="Apple Health"
+            subtitle="Upload your Apple Health export (.zip)"
+            icon={
+              <svg className="w-6 h-6 text-[#FF2D55]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+              </svg>
+            }
+            footer={
+              <p className="text-[13px] text-[#8E8E93]">
+                On iPhone: Health → Profile → Export All Health Data
+              </p>
+            }
           >
-            {uploadStatus === 'uploading' ? (
-              <>
-                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Uploading…
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                Upload Apple Health Export (.zip)
-              </>
-            )}
-          </button>
+            <AppleHealthUpload source="onboarding" />
+          </UploadCard>
 
-          {uploadStatus === 'success' && (
-            <div className="p-4 rounded-xl bg-[#34C759]/10 text-[#34C759] text-[15px]">
-              ✓ Upload complete. Data processed successfully. You can continue.
-            </div>
-          )}
-
-          {uploadStatus === 'processing' && (
-            <div className="p-4 rounded-xl bg-[#FF9500]/10 text-[#FF9500] text-[15px]">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                <span>
-                  {importStatus === 'processing' 
-                    ? 'Processing your health data...' 
-                    : 'Upload complete. Processing will start shortly...'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {uploadStatus === 'error' && uploadError && (
-            <div className="p-4 rounded-xl bg-[#FF3B30]/10 text-[#FF3B30] text-[15px] space-y-2">
-              <div>{uploadError}</div>
-              {importStatus === 'failed' && (
-                <button
-                  onClick={handleRetry}
-                  className="text-[13px] font-medium text-[#FF3B30] hover:underline"
-                >
-                  Retry processing
-                </button>
-              )}
-            </div>
-          )}
-
-          <button
-            onClick={handleSkipStep3}
-            disabled={saving}
-            className="w-full text-[15px] text-[#8E8E93] hover:text-[#3C3C43] transition-colors"
+          <UploadCard
+            title="Body Photos"
+            subtitle="Upload a recent photo for better personalization"
+            icon={
+              <svg className="w-6 h-6 text-[#5856D6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.75 10.5L19.5 6.75m-4.5 0L19.5 10.5m-8.25 1.125l-2.955 2.955a2.25 2.25 0 11-3.182-3.182l7.5-7.5a2.25 2.25 0 113.182 3.182L10.5 10.5zm0 0L12 12" />
+              </svg>
+            }
           >
-            Skip for now
-          </button>
+            <PhotoUpload source="onboarding" />
+          </UploadCard>
+
+          <div className="flex items-center justify-between bg-[#FFF8E5] border border-[#FFD60A]/60 text-[#8E8E93] text-[13px] rounded-xl px-3 py-2">
+            <span>Not ready to upload?</span>
+            <button
+              type="button"
+              className="text-[#FF9500] font-medium"
+              onClick={() => setUploadSkipped(true)}
+            >
+              Skip for now
+            </button>
+          </div>
+
+          {uploadSkipped && (
+            <div className="p-3 rounded-xl bg-[#FFF4E5] text-[#C85D00] text-[14px]">
+              Snapshot will be low confidence until you upload data. You can continue and upload later.
+            </div>
+          )}
         </div>
       )}
 
