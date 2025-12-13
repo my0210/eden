@@ -10,25 +10,28 @@ export const maxDuration = 60 // Allow up to 60 seconds for processing large fil
 
 // Create Supabase client inline for this route handler
 async function getSupabase(req: NextRequest) {
-  // Check if this is an internal service call (from cron job)
-  const isInternalService = req.headers.get('x-internal-service') === 'true'
-  const userId = req.headers.get('x-user-id')
+  // Check if this is a cron job call
+  const isCronJob = req.headers.get('x-cron-job') === 'true'
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET
   
-  if (isInternalService && userId) {
-    // Use service role for internal calls (bypasses RLS)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    
-    if (!supabaseServiceKey) {
-      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for internal service calls')
+  // Verify cron secret if this is a cron job call
+  if (isCronJob) {
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      throw new Error('Invalid cron secret')
     }
     
-    return createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
+    // Use anon key for cron job calls (with database functions that bypass RLS)
+    return createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      }
+    )
   }
   
   // Normal user session-based client
@@ -251,19 +254,20 @@ function aggregateAll(records: AppleRecord[]): AggregatedMetric[] {
 export async function POST(req: NextRequest) {
   let importId: string | null = null
   let supabase: Awaited<ReturnType<typeof getSupabase>> | null = null
+  let isCronJob = false
 
   try {
-    // 1. Create Supabase client (handles both user session and service role)
-    const isInternalService = req.headers.get('x-internal-service') === 'true'
+    // 1. Create Supabase client (handles both user session and cron job)
+    isCronJob = req.headers.get('x-cron-job') === 'true'
     supabase = await getSupabase(req)
 
-    // 2. Check authentication (skip for internal service calls)
+    // 2. Check authentication
     let userId: string | null = null
-    if (isInternalService) {
-      // Get user_id from header for internal calls
+    if (isCronJob) {
+      // Get user_id from header for cron job calls
       userId = req.headers.get('x-user-id')
       if (!userId) {
-        return NextResponse.json({ error: 'x-user-id header required for internal calls' }, { status: 400 })
+        return NextResponse.json({ error: 'x-user-id header required for cron job calls' }, { status: 400 })
       }
     } else {
       // Normal user auth check
@@ -288,28 +292,54 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Load the import row
-    // For internal calls, service role bypasses RLS but we verify user_id matches
+    // For cron job calls, we use a database function that bypasses RLS
     // For normal calls, RLS ensures user can only see their own
-    const { data: importRow, error: importError } = await supabase
-      .from('apple_health_imports')
-      .select('id, user_id, file_path')
-      .eq('id', importId)
-      .single()
+    let importRow: { id: string; user_id: string; file_path: string } | null = null
+    
+    if (isCronJob) {
+      // For cron jobs, use RPC function to get import (bypasses RLS)
+      const { data, error: rpcError } = await supabase
+        .rpc('get_import_by_id', { import_id: importId })
+      
+      if (rpcError || !data || data.length === 0) {
+        return NextResponse.json({ error: 'Import not found' }, { status: 404 })
+      }
+      
+      importRow = data[0] as { id: string; user_id: string; file_path: string }
+    } else {
+      // Normal call - RLS handles access control
+      const { data, error: importError } = await supabase
+        .from('apple_health_imports')
+        .select('id, user_id, file_path')
+        .eq('id', importId)
+        .single()
 
-    if (importError || !importRow) {
-      return NextResponse.json({ error: 'Import not found' }, { status: 404 })
+      if (importError || !data) {
+        return NextResponse.json({ error: 'Import not found' }, { status: 404 })
+      }
+      importRow = data
     }
 
-    // Verify user_id matches (extra check for internal calls)
-    if (isInternalService && importRow.user_id !== userId) {
+    // Verify user_id matches (extra check for cron job calls)
+    if (isCronJob && importRow.user_id !== userId) {
       return NextResponse.json({ error: 'User ID mismatch' }, { status: 403 })
     }
 
     // 5. Update status to processing
-    await supabase
-      .from('apple_health_imports')
-      .update({ status: 'processing', error_message: null })
-      .eq('id', importId)
+    if (isCronJob) {
+      // Use RPC function for cron jobs to bypass RLS
+      await supabase.rpc('update_import_status', {
+        import_id: importId,
+        new_status: 'processing',
+        error_msg: null,
+      })
+    } else {
+      // Normal update (RLS handles access)
+      await supabase
+        .from('apple_health_imports')
+        .update({ status: 'processing', error_message: null })
+        .eq('id', importId)
+    }
 
     // 6. Download ZIP from storage
     const { data: fileData, error: downloadError } = await supabase.storage
@@ -399,10 +429,18 @@ export async function POST(req: NextRequest) {
 
     if (aggregated.length === 0) {
       // No metrics found, mark as completed
-      await supabase
-        .from('apple_health_imports')
-        .update({ status: 'completed', processed_at: new Date().toISOString() })
-        .eq('id', importId)
+      if (isCronJob) {
+        await supabase.rpc('update_import_status', {
+          import_id: importId,
+          new_status: 'completed',
+          processed_at_val: new Date().toISOString(),
+        })
+      } else {
+        await supabase
+          .from('apple_health_imports')
+          .update({ status: 'completed', processed_at: new Date().toISOString() })
+          .eq('id', importId)
+      }
       return NextResponse.json({ importedCount: 0 })
     }
 
@@ -469,10 +507,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 13. Mark as completed
-    await supabase
-      .from('apple_health_imports')
-      .update({ status: 'completed', processed_at: new Date().toISOString() })
-      .eq('id', importId)
+    if (isCronJob) {
+      await supabase.rpc('update_import_status', {
+        import_id: importId,
+        new_status: 'completed',
+        processed_at_val: new Date().toISOString(),
+      })
+    } else {
+      await supabase
+        .from('apple_health_imports')
+        .update({ status: 'completed', processed_at: new Date().toISOString() })
+        .eq('id', importId)
+    }
 
     return NextResponse.json({ importedCount: rows.length })
 
@@ -484,10 +530,19 @@ export async function POST(req: NextRequest) {
     // Try to mark import as failed
     if (supabase && importId) {
       try {
-        await supabase
-          .from('apple_health_imports')
-          .update({ status: 'failed', error_message: truncated })
-          .eq('id', importId)
+        const isCronJob = req.headers.get('x-cron-job') === 'true'
+        if (isCronJob) {
+          await supabase.rpc('update_import_status', {
+            import_id: importId,
+            new_status: 'failed',
+            error_msg: truncated,
+          })
+        } else {
+          await supabase
+            .from('apple_health_imports')
+            .update({ status: 'failed', error_message: truncated })
+            .eq('id', importId)
+        }
       } catch (updateErr) {
         console.error('Failed to update import status:', updateErr)
       }

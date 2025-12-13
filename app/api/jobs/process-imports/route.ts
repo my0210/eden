@@ -6,16 +6,16 @@ import { createClient } from '@supabase/supabase-js'
 export const runtime = 'nodejs'
 export const maxDuration = 300 // 5 minutes for batch processing
 
-// Create service role client for cron job (bypasses RLS)
-function getServiceClient() {
+// Create anon client for cron job (uses database function to bypass RLS)
+function getAnonClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   
-  if (!supabaseServiceKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for cron jobs')
+  if (!supabaseAnonKey) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is required')
   }
   
-  return createClient(supabaseUrl, supabaseServiceKey, {
+  return createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -25,22 +25,18 @@ function getServiceClient() {
 
 export async function GET(request: NextRequest) {
   try {
-    // Check for cron secret (optional but recommended)
+    // Check for cron secret (required for security)
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
     if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = getServiceClient()
+    const supabase = getAnonClient()
     
-    // Get up to 3 pending imports (process in batches)
+    // Get up to 3 pending imports using database function (bypasses RLS)
     const { data: pendingImports, error: fetchError } = await supabase
-      .from('apple_health_imports')
-      .select('id, user_id, file_path, status')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true })
-      .limit(3)
+      .rpc('get_pending_imports', { limit_count: 3 })
 
     if (fetchError) {
       console.error('Error fetching pending imports:', fetchError)
@@ -79,8 +75,9 @@ export async function GET(request: NextRequest) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-internal-service': 'true', // Flag for internal calls
-            'x-user-id': importRow.user_id, // Pass user ID for RLS bypass
+            'authorization': cronSecret ? `Bearer ${cronSecret}` : '',
+            'x-cron-job': 'true', // Flag for cron job calls
+            'x-user-id': importRow.user_id, // Pass user ID for context
           },
           body: JSON.stringify({ importId: importRow.id }),
         })
