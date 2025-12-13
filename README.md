@@ -73,6 +73,7 @@ When deploying to Vercel, you'll need to add your Supabase credentials as enviro
 3. Add the following variables:
    - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anon key
+   - `CRON_SECRET` (optional but recommended) - A secret token to protect cron endpoints. Generate with: `openssl rand -hex 32`
 
 **Important:** 
 - Your `.env.local` file stays local and will never be committed to git (it's in `.gitignore`)
