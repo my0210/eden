@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { EdenUserState } from '@/lib/onboarding/getUserState'
 import { FOCUS_OPTIONS } from '@/lib/onboarding/steps'
 import AppleHealthUpload from '@/components/uploads/AppleHealthUpload'
-import PhotoUpload from '@/components/uploads/PhotoUpload'
+// TODO: Re-enable when OpenAI body composition analysis is ready
+// import PhotoUpload from '@/components/uploads/PhotoUpload'
 
 interface OnboardingStepClientProps {
   step: number
@@ -555,6 +556,7 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
               <AppleHealthUpload source="onboarding" />
             </div>
 
+            {/* TODO: Re-enable Body Photos when OpenAI body composition analysis is ready
             <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-10 h-10 rounded-xl bg-[#5856D6]/10 flex items-center justify-center">
@@ -569,6 +571,7 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
               </div>
               <PhotoUpload source="onboarding" />
             </div>
+            */}
           </div>
 
           <div className="flex items-center justify-between bg-[#FFF8E5] border border-[#FFD60A]/60 text-[#8E8E93] text-[14px] rounded-xl px-4 py-3">
@@ -917,12 +920,14 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
               )}
             </div>
 
+            {/* TODO: Re-enable when OpenAI body composition analysis is ready
             <div className="flex items-center justify-between">
               <span className="text-[15px] text-[#3C3C43]">Body Photos</span>
               <span className="text-[13px] text-[#8E8E93]">
                 {uploadStatus?.photos?.total || 0} uploaded
               </span>
             </div>
+            */}
           </div>
 
           {/* Navigation */}
