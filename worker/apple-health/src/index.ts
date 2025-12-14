@@ -13,7 +13,7 @@
 
 import { config } from './config'
 import { claimNextImport } from './claimNextImport'
-import { processImport } from './processImportStub'
+import { processImport } from './processImport'
 import { log } from './logger'
 import { getSupabase } from './supabase'
 

@@ -10,10 +10,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.4"
+    "@supabase/supabase-js": "^2.49.4",
+    "sax": "^1.4.1",
+    "unzipper": "^0.12.3"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "@types/sax": "^1.2.7",
+    "@types/unzipper": "^0.10.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   },

@@ -14,7 +14,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const config_1 = require("./config");
 const claimNextImport_1 = require("./claimNextImport");
-const processImportStub_1 = require("./processImportStub");
+const processImport_1 = require("./processImport");
 const logger_1 = require("./logger");
 const supabase_1 = require("./supabase");
 // Track if we should keep running
@@ -37,7 +37,7 @@ async function processOnce() {
     }
     // Process the import (don't await - allow concurrency)
     activeCount++;
-    (0, processImportStub_1.processImport)(importRow)
+    (0, processImport_1.processImport)(importRow)
         .catch(err => {
         logger_1.log.error(`Unhandled error in processImport`, {
             import_id: importRow.id,
