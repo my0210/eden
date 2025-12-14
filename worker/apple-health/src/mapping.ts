@@ -8,6 +8,7 @@
  */
 
 // Canonical metric codes (subset relevant for Apple Health)
+// Includes both grouped codes (body_composition) and granular DB codes (body_mass, body_fat_percentage)
 export type MetricCode = 
   | 'vo2max'
   | 'resting_hr'
@@ -15,6 +16,8 @@ export type MetricCode =
   | 'sleep'
   | 'blood_pressure'
   | 'body_composition'
+  | 'body_mass'
+  | 'body_fat_percentage'
 
 /**
  * Aggregation strategy for Apple Health records

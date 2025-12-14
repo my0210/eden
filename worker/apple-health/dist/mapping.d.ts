@@ -6,7 +6,7 @@
  *
  * IMPORTANT: Keep in sync with the app's mapping file.
  */
-export type MetricCode = 'vo2max' | 'resting_hr' | 'hrv' | 'sleep' | 'blood_pressure' | 'body_composition';
+export type MetricCode = 'vo2max' | 'resting_hr' | 'hrv' | 'sleep' | 'blood_pressure' | 'body_composition' | 'body_mass' | 'body_fat_percentage';
 /**
  * Aggregation strategy for Apple Health records
  */

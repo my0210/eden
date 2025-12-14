@@ -1,8 +1,7 @@
 /**
  * Process Apple Health imports
  * 
- * PR7B: Download → Unzip → Parse export.xml → Log summary
- * (No DB writes to eden_metric_values yet - that's PR7C)
+ * PR7C: Download → Unzip → Parse export.xml → Write metrics to DB
  */
 
 import { getSupabase, AppleHealthImport } from './supabase'
@@ -10,10 +9,12 @@ import { log } from './logger'
 import { downloadZip, cleanupTempFiles } from './download'
 import { extractExportXml } from './unzip'
 import { parseExportXml, formatParseSummaryForLog, ParseSummary } from './parseExportXml'
+import { writeMetrics, WriteResult } from './writeMetrics'
 
 export interface ProcessResult {
   success: boolean
   summary?: ParseSummary
+  writeResult?: WriteResult
   errorMessage?: string
 }
 
@@ -23,8 +24,9 @@ export interface ProcessResult {
  * Flow:
  * 1. Download ZIP from Supabase Storage
  * 2. Extract export.xml from ZIP
- * 3. Stream-parse export.xml and count records
- * 4. Log summary and mark import as completed
+ * 3. Stream-parse export.xml and collect metric rows
+ * 4. Write metrics to eden_metric_values (idempotent)
+ * 5. Mark import as completed
  * 
  * On error, marks import as failed with error message.
  * Always cleans up temp files.
@@ -33,10 +35,11 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
   const supabase = getSupabase()
   const startTime = Date.now()
   const importId = importRow.id
+  const userId = importRow.user_id
 
   log.info('Processing Apple Health import', {
     import_id: importId,
-    user_id: importRow.user_id,
+    user_id: userId,
     file_path: importRow.file_path,
     file_size: importRow.file_size,
   })
@@ -48,17 +51,42 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
     // Step 2: Extract export.xml
     const xmlPath = await extractExportXml(zipPath, importId)
 
-    // Step 3: Parse export.xml and get summary
-    const summary = await parseExportXml(xmlPath)
+    // Step 3: Parse export.xml and collect metric rows
+    const { summary, rows } = await parseExportXml(xmlPath)
 
-    // Log the detailed summary
+    // Log the parse summary
     const summaryForLog = formatParseSummaryForLog(summary)
     log.info('Parse summary', {
       import_id: importId,
       ...summaryForLog,
     })
 
-    // Step 4: Mark import as completed
+    // Step 4: Write metrics to eden_metric_values
+    let writeResult: WriteResult = {
+      inserted: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+    }
+
+    if (rows.length > 0) {
+      writeResult = await writeMetrics(supabase, userId, rows)
+      
+      log.info('Metrics written', {
+        import_id: importId,
+        user_id: userId,
+        inserted: writeResult.inserted,
+        skipped: writeResult.skipped,
+        failed: writeResult.failed,
+      })
+    } else {
+      log.info('No persistable metrics found', {
+        import_id: importId,
+        user_id: userId,
+      })
+    }
+
+    // Step 5: Mark import as completed
     const now = new Date().toISOString()
     const { error: updateError } = await supabase
       .from('apple_health_imports')
@@ -77,15 +105,18 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
 
     log.info('Import completed successfully', {
       import_id: importId,
-      user_id: importRow.user_id,
+      user_id: userId,
       duration_sec: durationSec,
       records_scanned: summary.totalRecordsScanned,
       records_matched: summary.totalRecordsMatched,
+      metrics_inserted: writeResult.inserted,
+      metrics_skipped: writeResult.skipped,
     })
 
     return {
       success: true,
       summary,
+      writeResult,
     }
 
   } catch (error) {
@@ -94,7 +125,7 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
 
     log.error('Import failed', {
       import_id: importId,
-      user_id: importRow.user_id,
+      user_id: userId,
       error: errorMessage,
     })
 
@@ -104,7 +135,7 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
       .update({
         status: 'failed',
         failed_at: now,
-        error_message: errorMessage.slice(0, 500), // Truncate long errors
+        error_message: errorMessage.slice(0, 500),
       })
       .eq('id', importId)
 
@@ -125,4 +156,3 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
     cleanupTempFiles(importId)
   }
 }
-

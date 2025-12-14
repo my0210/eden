@@ -1,14 +1,15 @@
 /**
  * Process Apple Health imports
  *
- * PR7B: Download → Unzip → Parse export.xml → Log summary
- * (No DB writes to eden_metric_values yet - that's PR7C)
+ * PR7C: Download → Unzip → Parse export.xml → Write metrics to DB
  */
 import { AppleHealthImport } from './supabase';
 import { ParseSummary } from './parseExportXml';
+import { WriteResult } from './writeMetrics';
 export interface ProcessResult {
     success: boolean;
     summary?: ParseSummary;
+    writeResult?: WriteResult;
     errorMessage?: string;
 }
 /**
@@ -17,8 +18,9 @@ export interface ProcessResult {
  * Flow:
  * 1. Download ZIP from Supabase Storage
  * 2. Extract export.xml from ZIP
- * 3. Stream-parse export.xml and count records
- * 4. Log summary and mark import as completed
+ * 3. Stream-parse export.xml and collect metric rows
+ * 4. Write metrics to eden_metric_values (idempotent)
+ * 5. Mark import as completed
  *
  * On error, marks import as failed with error message.
  * Always cleans up temp files.

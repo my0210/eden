@@ -2,18 +2,18 @@
  * Stream-parse Apple Health export.xml
  *
  * Uses SAX parser to stream through the XML without loading it all into memory.
- * Extracts records matching our mapped HK types and tracks counts/timestamps.
+ * Extracts records matching our mapped HK types and emits metric rows for DB insert.
  */
+import { MetricCode } from './mapping';
 /**
- * Parsed record from export.xml
+ * Metric row ready for DB insert
  */
-export interface ParsedRecord {
-    type: string;
-    value: string;
+export interface MetricRow {
+    metric_code: MetricCode;
+    value_raw: number;
     unit: string;
-    startDate: string;
-    endDate: string;
-    sourceName?: string;
+    measured_at: string;
+    source: 'apple_health';
 }
 /**
  * Summary of parsed metrics
@@ -41,15 +41,21 @@ export interface ParseSummary {
     errors: string[];
 }
 /**
- * Parse export.xml and extract metrics summary
- *
- * This is a LOG-ONLY pass - no database writes.
- * We're counting records and tracking timestamps.
+ * Parse result with both summary and rows
+ */
+export interface ParseResult {
+    summary: ParseSummary;
+    /** Metric rows ready for DB insert (vo2max, resting_hr, hrv, body_mass, body_fat_percentage) */
+    rows: MetricRow[];
+}
+/**
+ * Parse export.xml and extract metrics
  *
  * @param xmlPath - Path to the extracted export.xml
- * @returns Summary of parsed metrics
+ * @param onRowsBatch - Optional callback for streaming writes (called with batches of rows)
+ * @returns ParseResult with summary and all rows
  */
-export declare function parseExportXml(xmlPath: string): Promise<ParseSummary>;
+export declare function parseExportXml(xmlPath: string, onRowsBatch?: (rows: MetricRow[]) => Promise<void>): Promise<ParseResult>;
 /**
  * Format parse summary for logging
  */
