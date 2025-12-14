@@ -17,7 +17,7 @@ const logger_1 = require("./logger");
  * 1. Download the ZIP from Supabase storage
  * 2. Stream unzip and parse export.xml
  * 3. Extract metrics and insert into eden_metric_values
- * 4. Update the import status with metrics_extracted count
+ * 4. Update the import status (completed/failed)
  */
 async function processImport(importRow) {
     const supabase = (0, supabase_1.getSupabase)();
@@ -25,7 +25,7 @@ async function processImport(importRow) {
     logger_1.log.info(`Processing import (STUB)`, {
         import_id: importRow.id,
         user_id: importRow.user_id,
-        storage_path: importRow.storage_path,
+        file_path: importRow.file_path,
         file_size: importRow.file_size,
     });
     try {
@@ -41,14 +41,12 @@ async function processImport(importRow) {
         // Simulate some processing time (remove in PR7B)
         await new Promise(resolve => setTimeout(resolve, 500));
         const now = new Date().toISOString();
-        const metricsExtracted = 0; // Stub: no metrics extracted yet
         // Update status to completed
         const { error: updateError } = await supabase
             .from('apple_health_imports')
             .update({
             status: 'completed',
             processed_at: now,
-            metrics_extracted: metricsExtracted,
         })
             .eq('id', importRow.id);
         if (updateError) {
@@ -60,12 +58,10 @@ async function processImport(importRow) {
             user_id: importRow.user_id,
             previous_status: 'processing',
             new_status: 'completed',
-            metrics_extracted: metricsExtracted,
             duration_ms: durationMs,
         });
         return {
             success: true,
-            metricsExtracted,
         };
     }
     catch (error) {

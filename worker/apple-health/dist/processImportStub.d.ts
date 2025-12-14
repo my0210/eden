@@ -7,7 +7,6 @@
 import { AppleHealthImport } from './supabase';
 export interface ProcessResult {
     success: boolean;
-    metricsExtracted?: number;
     errorMessage?: string;
 }
 /**
@@ -18,7 +17,7 @@ export interface ProcessResult {
  * 1. Download the ZIP from Supabase storage
  * 2. Stream unzip and parse export.xml
  * 3. Extract metrics and insert into eden_metric_values
- * 4. Update the import status with metrics_extracted count
+ * 4. Update the import status (completed/failed)
  */
 export declare function processImport(importRow: AppleHealthImport): Promise<ProcessResult>;
 //# sourceMappingURL=processImportStub.d.ts.map

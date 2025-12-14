@@ -67,7 +67,7 @@ export async function claimNextImport(): Promise<AppleHealthImport | null> {
     user_id: claimed.user_id,
     previous_status: 'uploaded',
     new_status: 'processing',
-    storage_path: claimed.storage_path,
+    file_path: claimed.file_path,
     file_size: claimed.file_size,
   })
 

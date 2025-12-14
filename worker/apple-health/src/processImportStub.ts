@@ -10,7 +10,6 @@ import { log } from './logger'
 
 export interface ProcessResult {
   success: boolean
-  metricsExtracted?: number
   errorMessage?: string
 }
 
@@ -22,7 +21,7 @@ export interface ProcessResult {
  * 1. Download the ZIP from Supabase storage
  * 2. Stream unzip and parse export.xml
  * 3. Extract metrics and insert into eden_metric_values
- * 4. Update the import status with metrics_extracted count
+ * 4. Update the import status (completed/failed)
  */
 export async function processImport(importRow: AppleHealthImport): Promise<ProcessResult> {
   const supabase = getSupabase()
@@ -31,7 +30,7 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
   log.info(`Processing import (STUB)`, {
     import_id: importRow.id,
     user_id: importRow.user_id,
-    storage_path: importRow.storage_path,
+    file_path: importRow.file_path,
     file_size: importRow.file_size,
   })
 
@@ -50,7 +49,6 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
     await new Promise(resolve => setTimeout(resolve, 500))
 
     const now = new Date().toISOString()
-    const metricsExtracted = 0 // Stub: no metrics extracted yet
 
     // Update status to completed
     const { error: updateError } = await supabase
@@ -58,7 +56,6 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
       .update({
         status: 'completed',
         processed_at: now,
-        metrics_extracted: metricsExtracted,
       })
       .eq('id', importRow.id)
 
@@ -73,13 +70,11 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
       user_id: importRow.user_id,
       previous_status: 'processing',
       new_status: 'completed',
-      metrics_extracted: metricsExtracted,
       duration_ms: durationMs,
     })
 
     return {
       success: true,
-      metricsExtracted,
     }
 
   } catch (error) {
