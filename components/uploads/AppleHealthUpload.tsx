@@ -26,14 +26,18 @@ interface Props {
 // Files larger than 4MB use direct-to-storage upload (bypasses Vercel limits)
 const DIRECT_UPLOAD_THRESHOLD = 4 * 1024 * 1024
 
+type UploadPhase = 'idle' | 'preparing' | 'uploading' | 'confirming'
+
 export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 4000 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle')
   const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [latestImport, setLatestImport] = useState<AppleHealthImport | null>(null)
   const [statusCounts, setStatusCounts] = useState({ pending: 0, processing: 0, completed: 0, failed: 0 })
+  
+  const isUploading = uploadPhase !== 'idle'
 
   const loadStatus = async () => {
     try {
@@ -68,6 +72,8 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
    * Upload via form data (for small files < 4MB)
    */
   const uploadViaFormData = async (file: File): Promise<boolean> => {
+    setUploadPhase('uploading')
+    
     const formData = new FormData()
     formData.append('file', file)
     formData.append('source', source)
@@ -93,7 +99,7 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
   const uploadViaSignedUrl = async (file: File): Promise<boolean> => {
     try {
       // 1. Get signed upload URL
-      setMessage('Preparing upload...')
+      setUploadPhase('preparing')
       const signedUrlRes = await fetch('/api/uploads/apple-health/signed-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -113,7 +119,7 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       const { signedUrl, filePath } = await signedUrlRes.json()
 
       // 2. Upload directly to Supabase Storage
-      setMessage('Uploading to storage...')
+      setUploadPhase('uploading')
       setUploadProgress(0)
 
       const xhr = new XMLHttpRequest()
@@ -150,7 +156,7 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       await uploadPromise
 
       // 3. Confirm upload in database
-      setMessage('Confirming upload...')
+      setUploadPhase('confirming')
       setUploadProgress(null)
 
       const confirmRes = await fetch('/api/uploads/apple-health/confirm', {
@@ -187,7 +193,6 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       return
     }
 
-    setUploading(true)
     setError(null)
     setMessage(null)
     setUploadProgress(null)
@@ -203,14 +208,14 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       }
 
       if (success) {
-        setMessage('Uploaded. Processing will start shortly.')
+        setMessage('✓ Upload complete! Processing will begin shortly.')
         await loadStatus()
       }
     } catch (err) {
       console.error(err)
       setError('Something went wrong during upload')
     } finally {
-      setUploading(false)
+      setUploadPhase('idle')
       setUploadProgress(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
@@ -248,16 +253,21 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       <div className="flex items-center gap-2">
         <button
           onClick={handlePickFile}
-          disabled={uploading}
+          disabled={isUploading}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 text-[17px] font-medium text-white bg-[#007AFF] rounded-xl hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
         >
-          {uploading ? (
+          {isUploading ? (
             <>
-              <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              {uploadProgress !== null ? `Uploading ${uploadProgress}%` : 'Uploading…'}
+              {uploadPhase !== 'confirming' && (
+                <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              )}
+              {uploadPhase === 'preparing' && 'Preparing…'}
+              {uploadPhase === 'uploading' && uploadProgress !== null && `Uploading ${uploadProgress}%`}
+              {uploadPhase === 'uploading' && uploadProgress === null && 'Uploading…'}
+              {uploadPhase === 'confirming' && '✓ Finalizing…'}
             </>
           ) : (
             <>
@@ -271,10 +281,12 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       </div>
 
       {/* Upload progress bar */}
-      {uploadProgress !== null && (
+      {uploadPhase === 'uploading' && uploadProgress !== null && (
         <div className="w-full bg-[#E5E5EA] rounded-full h-2">
           <div 
-            className="bg-[#007AFF] h-2 rounded-full transition-all duration-300"
+            className={`h-2 rounded-full transition-all duration-300 ${
+              uploadProgress === 100 ? 'bg-[#34C759]' : 'bg-[#007AFF]'
+            }`}
             style={{ width: `${uploadProgress}%` }}
           />
         </div>
@@ -285,7 +297,7 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
           {error}
         </div>
       )}
-      {message && !error && (
+      {message && !error && !isUploading && (
         <div className="p-3 rounded-xl bg-[#34C759]/10 text-[#34C759] text-[15px]">
           {message}
         </div>
