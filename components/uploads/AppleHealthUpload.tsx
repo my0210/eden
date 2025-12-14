@@ -23,9 +23,13 @@ interface Props {
   pollIntervalMs?: number
 }
 
+// Files larger than 4MB use direct-to-storage upload (bypasses Vercel limits)
+const DIRECT_UPLOAD_THRESHOLD = 4 * 1024 * 1024
+
 export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 4000 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [latestImport, setLatestImport] = useState<AppleHealthImport | null>(null)
@@ -60,6 +64,120 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
 
   const handlePickFile = () => fileInputRef.current?.click()
 
+  /**
+   * Upload via form data (for small files < 4MB)
+   */
+  const uploadViaFormData = async (file: File): Promise<boolean> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('source', source)
+
+    const res = await fetch('/api/uploads/apple-health', {
+      method: 'POST',
+      body: formData,
+    })
+
+    const data = await res.json()
+    if (!res.ok) {
+      setError(data.error || 'Upload failed')
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * Upload via signed URL (for large files >= 4MB)
+   * This bypasses Vercel's body size limits
+   */
+  const uploadViaSignedUrl = async (file: File): Promise<boolean> => {
+    try {
+      // 1. Get signed upload URL
+      setMessage('Preparing upload...')
+      const signedUrlRes = await fetch('/api/uploads/apple-health/signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: file.name,
+          fileSize: file.size,
+          source,
+        }),
+      })
+
+      if (!signedUrlRes.ok) {
+        const data = await signedUrlRes.json()
+        setError(data.error || 'Failed to prepare upload')
+        return false
+      }
+
+      const { signedUrl, filePath } = await signedUrlRes.json()
+
+      // 2. Upload directly to Supabase Storage
+      setMessage('Uploading to storage...')
+      setUploadProgress(0)
+
+      const xhr = new XMLHttpRequest()
+      
+      const uploadPromise = new Promise<boolean>((resolve, reject) => {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100)
+            setUploadProgress(percent)
+          }
+        })
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(true)
+          } else {
+            reject(new Error(`Upload failed with status ${xhr.status}`))
+          }
+        })
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error during upload'))
+        })
+
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload aborted'))
+        })
+      })
+
+      xhr.open('PUT', signedUrl)
+      xhr.setRequestHeader('Content-Type', 'application/zip')
+      xhr.send(file)
+
+      await uploadPromise
+
+      // 3. Confirm upload in database
+      setMessage('Confirming upload...')
+      setUploadProgress(null)
+
+      const confirmRes = await fetch('/api/uploads/apple-health/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filePath,
+          fileSize: file.size,
+          filename: file.name,
+          source,
+        }),
+      })
+
+      if (!confirmRes.ok) {
+        const data = await confirmRes.json()
+        setError(data.error || 'Failed to confirm upload')
+        return false
+      }
+
+      return true
+    } catch (err) {
+      console.error('Signed URL upload error:', err)
+      setError(err instanceof Error ? err.message : 'Upload failed')
+      return false
+    }
+  }
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -72,30 +190,28 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
     setUploading(true)
     setError(null)
     setMessage(null)
+    setUploadProgress(null)
 
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('source', source)
+      let success: boolean
 
-      const res = await fetch('/api/uploads/apple-health', {
-        method: 'POST',
-        body: formData,
-      })
-
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error || 'Upload failed')
-        return
+      // Use signed URL for large files to bypass Vercel limits
+      if (file.size >= DIRECT_UPLOAD_THRESHOLD) {
+        success = await uploadViaSignedUrl(file)
+      } else {
+        success = await uploadViaFormData(file)
       }
 
-      setMessage('Uploaded. Processing will start shortly.')
-      await loadStatus()
+      if (success) {
+        setMessage('Uploaded. Processing will start shortly.')
+        await loadStatus()
+      }
     } catch (err) {
       console.error(err)
       setError('Something went wrong during upload')
     } finally {
       setUploading(false)
+      setUploadProgress(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
@@ -141,7 +257,7 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Uploading…
+              {uploadProgress !== null ? `Uploading ${uploadProgress}%` : 'Uploading…'}
             </>
           ) : (
             <>
@@ -154,12 +270,22 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
         </button>
       </div>
 
+      {/* Upload progress bar */}
+      {uploadProgress !== null && (
+        <div className="w-full bg-[#E5E5EA] rounded-full h-2">
+          <div 
+            className="bg-[#007AFF] h-2 rounded-full transition-all duration-300"
+            style={{ width: `${uploadProgress}%` }}
+          />
+        </div>
+      )}
+
       {error && (
         <div className="p-3 rounded-xl bg-[#FF3B30]/10 text-[#FF3B30] text-[15px]">
           {error}
         </div>
       )}
-      {message && (
+      {message && !error && (
         <div className="p-3 rounded-xl bg-[#34C759]/10 text-[#34C759] text-[15px]">
           {message}
         </div>
@@ -192,4 +318,3 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
     </div>
   )
 }
-

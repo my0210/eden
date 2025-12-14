@@ -2,7 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
-export const maxDuration = 60
+export const maxDuration = 300 // 5 minutes for large files
+
+// Increase body size limit for large Apple Health exports
+// Note: Vercel Pro allows up to 100MB, Hobby is limited to 4.5MB
+// For files > 100MB, use the signed URL upload endpoint instead
+export const fetchCache = 'force-no-store'
 
 interface AppleHealthImport {
   id: string
