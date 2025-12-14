@@ -16,6 +16,7 @@ const config_1 = require("./config");
 const claimNextImport_1 = require("./claimNextImport");
 const processImportStub_1 = require("./processImportStub");
 const logger_1 = require("./logger");
+const supabase_1 = require("./supabase");
 // Track if we should keep running
 let isRunning = true;
 // Track active processing count
@@ -49,14 +50,39 @@ async function processOnce() {
     return true;
 }
 /**
+ * Extract hostname from URL
+ */
+function getHostname(url) {
+    try {
+        return new URL(url).hostname;
+    }
+    catch {
+        return 'invalid-url';
+    }
+}
+/**
+ * Test Supabase connection with a trivial query
+ */
+async function testSupabaseConnection() {
+    const supabase = (0, supabase_1.getSupabase)();
+    const { error } = await supabase.from('apple_health_imports').select('id').limit(1);
+    if (error) {
+        throw new Error(`Supabase connection test failed: ${error.message}`);
+    }
+    logger_1.log.info('Connected to Supabase');
+}
+/**
  * Main worker loop
  */
 async function runWorker() {
+    const supabaseHost = getHostname(config_1.config.supabaseUrl);
     logger_1.log.info('Worker starting', {
         poll_interval_ms: config_1.config.pollIntervalMs,
         concurrency: config_1.config.workerConcurrency,
-        supabase_url: config_1.config.supabaseUrl,
+        supabase_host: supabaseHost,
     });
+    // Test connection before starting
+    await testSupabaseConnection();
     let lastLoggedIdle = 0;
     const IDLE_LOG_INTERVAL_MS = 60000; // Log idle status every 60 seconds
     while (isRunning) {

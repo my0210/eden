@@ -15,6 +15,7 @@ import { config } from './config'
 import { claimNextImport } from './claimNextImport'
 import { processImport } from './processImportStub'
 import { log } from './logger'
+import { getSupabase } from './supabase'
 
 // Track if we should keep running
 let isRunning = true
@@ -57,14 +58,44 @@ async function processOnce(): Promise<boolean> {
 }
 
 /**
+ * Extract hostname from URL
+ */
+function getHostname(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return 'invalid-url'
+  }
+}
+
+/**
+ * Test Supabase connection with a trivial query
+ */
+async function testSupabaseConnection(): Promise<void> {
+  const supabase = getSupabase()
+  const { error } = await supabase.from('apple_health_imports').select('id').limit(1)
+  
+  if (error) {
+    throw new Error(`Supabase connection test failed: ${error.message}`)
+  }
+  
+  log.info('Connected to Supabase')
+}
+
+/**
  * Main worker loop
  */
 async function runWorker(): Promise<void> {
+  const supabaseHost = getHostname(config.supabaseUrl)
+  
   log.info('Worker starting', {
     poll_interval_ms: config.pollIntervalMs,
     concurrency: config.workerConcurrency,
-    supabase_url: config.supabaseUrl,
+    supabase_host: supabaseHost,
   })
+
+  // Test connection before starting
+  await testSupabaseConnection()
 
   let lastLoggedIdle = 0
   const IDLE_LOG_INTERVAL_MS = 60000 // Log idle status every 60 seconds
