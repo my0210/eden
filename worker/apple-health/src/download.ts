@@ -63,26 +63,30 @@ export async function downloadZip(filePath: string, importId: string): Promise<s
 }
 
 /**
- * Clean up temp files for an import
+ * Clean up the ZIP file after processing
+ * 
+ * Note: We no longer extract XML to disk, so only the ZIP needs cleanup.
+ * 
+ * @param zipPath - Path to the ZIP file to delete
  */
-export function cleanupTempFiles(importId: string): void {
-  const files = [
-    path.join(TEMP_DIR, `${importId}.zip`),
-    path.join(TEMP_DIR, `${importId}-export.xml`),
-  ]
-
-  for (const file of files) {
-    try {
-      if (fs.existsSync(file)) {
-        fs.unlinkSync(file)
-        log.debug('Deleted temp file', { path: file })
-      }
-    } catch (err) {
-      log.warn('Failed to delete temp file', {
-        path: file,
-        error: err instanceof Error ? err.message : String(err),
-      })
+export function cleanupZipFile(zipPath: string): void {
+  try {
+    if (fs.existsSync(zipPath)) {
+      fs.unlinkSync(zipPath)
+      log.debug('Deleted ZIP file', { path: zipPath })
     }
+  } catch (err) {
+    log.warn('Failed to delete ZIP file', {
+      path: zipPath,
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 }
 
+/**
+ * @deprecated Use cleanupZipFile instead
+ */
+export function cleanupTempFiles(importId: string): void {
+  const zipPath = path.join(TEMP_DIR, `${importId}.zip`)
+  cleanupZipFile(zipPath)
+}

@@ -2,7 +2,8 @@
 /**
  * Process Apple Health imports
  *
- * PR7C: Download → Unzip → Parse export.xml → Write metrics to DB
+ * PR7B.1: Stream-parse Export.xml directly from ZIP (no temp XML files)
+ * PR7C: Write metrics to eden_metric_values
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.processImport = processImport;
@@ -16,14 +17,14 @@ const writeMetrics_1 = require("./writeMetrics");
  * Process an Apple Health import
  *
  * Flow:
- * 1. Download ZIP from Supabase Storage
- * 2. Extract export.xml from ZIP
- * 3. Stream-parse export.xml and collect metric rows
+ * 1. Download ZIP from Supabase Storage to /tmp
+ * 2. Open ZIP and find Export.xml entry (case-insensitive)
+ * 3. Stream-parse Export.xml directly from ZIP (no extraction to disk)
  * 4. Write metrics to eden_metric_values (idempotent)
  * 5. Mark import as completed
  *
  * On error, marks import as failed with error message.
- * Always cleans up temp files.
+ * Always cleans up the ZIP file (no XML temp file to clean up).
  */
 async function processImport(importRow) {
     const supabase = (0, supabase_1.getSupabase)();
@@ -35,14 +36,25 @@ async function processImport(importRow) {
         user_id: userId,
         file_path: importRow.file_path,
         file_size: importRow.file_size,
+        file_size_mb: importRow.file_size
+            ? Math.round(importRow.file_size / 1024 / 1024 * 10) / 10
+            : undefined,
     });
+    let zipPath = null;
     try {
         // Step 1: Download ZIP from storage
-        const zipPath = await (0, download_1.downloadZip)(importRow.file_path, importId);
-        // Step 2: Extract export.xml
-        const xmlPath = await (0, unzip_1.extractExportXml)(zipPath, importId);
-        // Step 3: Parse export.xml and collect metric rows
-        const { summary, rows } = await (0, parseExportXml_1.parseExportXml)(xmlPath);
+        zipPath = await (0, download_1.downloadZip)(importRow.file_path, importId);
+        // Step 2: Find Export.xml in the ZIP and get a stream
+        const exportEntry = await (0, unzip_1.findExportXmlStream)(zipPath);
+        logger_1.log.info('Starting stream parse', {
+            import_id: importId,
+            export_path: exportEntry.path,
+            uncompressed_size_mb: exportEntry.uncompressedSize
+                ? Math.round(exportEntry.uncompressedSize / 1024 / 1024 * 10) / 10
+                : undefined,
+        });
+        // Step 3: Stream-parse Export.xml directly from ZIP
+        const { summary, rows } = await (0, parseExportXml_1.parseExportXmlStream)(exportEntry.stream);
         // Log the parse summary
         const summaryForLog = (0, parseExportXml_1.formatParseSummaryForLog)(summary);
         logger_1.log.info('Parse summary', {
@@ -108,6 +120,7 @@ async function processImport(importRow) {
             import_id: importId,
             user_id: userId,
             error: errorMessage,
+            duration_sec: Math.round((Date.now() - startTime) / 1000),
         });
         // Update status to failed
         const { error: updateError } = await supabase
@@ -130,8 +143,10 @@ async function processImport(importRow) {
         };
     }
     finally {
-        // Always clean up temp files
-        (0, download_1.cleanupTempFiles)(importId);
+        // Only clean up the ZIP file (no XML temp file to clean up anymore)
+        if (zipPath) {
+            (0, download_1.cleanupZipFile)(zipPath);
+        }
     }
 }
 //# sourceMappingURL=processImport.js.map

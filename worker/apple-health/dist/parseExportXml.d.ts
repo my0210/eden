@@ -1,9 +1,10 @@
 /**
- * Stream-parse Apple Health export.xml
+ * Stream-parse Apple Health Export.xml
  *
- * Uses SAX parser to stream through the XML without loading it all into memory.
- * Extracts records matching our mapped HK types and emits metric rows for DB insert.
+ * Uses SAX parser to stream through the XML without loading it into memory.
+ * Accepts a Readable stream (from ZIP entry) - no temp files needed.
  */
+import { Readable } from 'stream';
 import { MetricCode } from './mapping';
 /**
  * Metric row ready for DB insert
@@ -45,19 +46,21 @@ export interface ParseSummary {
  */
 export interface ParseResult {
     summary: ParseSummary;
-    /** Metric rows ready for DB insert (vo2max, resting_hr, hrv, body_mass, body_fat_percentage) */
     rows: MetricRow[];
 }
 /**
- * Parse export.xml and extract metrics
+ * Parse Export.xml from a readable stream
  *
- * @param xmlPath - Path to the extracted export.xml
- * @param onRowsBatch - Optional callback for streaming writes (called with batches of rows)
- * @returns ParseResult with summary and all rows
+ * Streams directly from the ZIP entry - no temp files needed.
+ * Memory-safe: uses SAX streaming parser, doesn't buffer the whole XML.
+ *
+ * @param xmlStream - Readable stream of Export.xml content
+ * @returns ParseResult with summary and metric rows for persistence
  */
-export declare function parseExportXml(xmlPath: string, onRowsBatch?: (rows: MetricRow[]) => Promise<void>): Promise<ParseResult>;
+export declare function parseExportXmlStream(xmlStream: Readable): Promise<ParseResult>;
 /**
  * Format parse summary for logging
  */
 export declare function formatParseSummaryForLog(summary: ParseSummary): Record<string, unknown>;
+export { parseExportXmlStream as parseExportXml };
 //# sourceMappingURL=parseExportXml.d.ts.map

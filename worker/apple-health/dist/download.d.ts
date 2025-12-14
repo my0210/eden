@@ -12,7 +12,15 @@
  */
 export declare function downloadZip(filePath: string, importId: string): Promise<string>;
 /**
- * Clean up temp files for an import
+ * Clean up the ZIP file after processing
+ *
+ * Note: We no longer extract XML to disk, so only the ZIP needs cleanup.
+ *
+ * @param zipPath - Path to the ZIP file to delete
+ */
+export declare function cleanupZipFile(zipPath: string): void;
+/**
+ * @deprecated Use cleanupZipFile instead
  */
 export declare function cleanupTempFiles(importId: string): void;
 //# sourceMappingURL=download.d.ts.map

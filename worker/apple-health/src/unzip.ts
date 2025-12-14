@@ -1,17 +1,26 @@
 /**
  * Unzip Apple Health export
  * 
- * Stream-unzips the ZIP and extracts ONLY Export.xml to a temp file.
+ * Opens ZIP and provides a stream to Export.xml without extracting to disk.
  * Handles case differences (Export.xml vs export.xml) and nested paths.
  */
 
 import * as fs from 'fs'
-import * as path from 'path'
-import { pipeline } from 'stream/promises'
+import { Readable } from 'stream'
 import * as unzipper from 'unzipper'
 import { log } from './logger'
 
-const TEMP_DIR = '/tmp'
+/**
+ * Result of finding Export.xml in a ZIP
+ */
+export interface ExportXmlEntry {
+  /** Full path in ZIP (e.g., "apple_health_export/Export.xml") */
+  path: string
+  /** Readable stream of the XML content */
+  stream: Readable
+  /** Uncompressed size if available */
+  uncompressedSize?: number
+}
 
 /**
  * Get the basename of a path (the filename after the last /)
@@ -55,7 +64,9 @@ function isExportCdaXml(filePath: string): boolean {
 }
 
 /**
- * Extract Export.xml from an Apple Health ZIP file
+ * Find and open Export.xml from a ZIP file, returning a readable stream.
+ * 
+ * Does NOT extract to disk - streams directly from the ZIP.
  * 
  * Apple Health exports have structure:
  * - apple_health_export/
@@ -70,87 +81,81 @@ function isExportCdaXml(filePath: string): boolean {
  * - macOS junk: __MACOSX/ folders
  * 
  * @param zipPath - Path to the downloaded ZIP file
- * @param importId - Import ID for naming the output file
- * @returns Path to the extracted Export.xml
+ * @returns ExportXmlEntry with stream, or throws if not found
  */
-export async function extractExportXml(zipPath: string, importId: string): Promise<string> {
-  const outputPath = path.join(TEMP_DIR, `${importId}-export.xml`)
-  
-  log.info('Extracting Export.xml from ZIP', {
-    zip_path: zipPath,
-    output_path: outputPath,
-  })
+export async function findExportXmlStream(zipPath: string): Promise<ExportXmlEntry> {
+  log.info('Opening ZIP to find Export.xml', { zip_path: zipPath })
 
-  let foundExportXml = false
+  const entriesSeen: string[] = []
   let foundExportCdaXml = false
-  const entriesSeen: string[] = []  // Track entries for debugging
 
-  // Create a read stream from the ZIP
-  const zipStream = fs.createReadStream(zipPath)
-  const unzipStream = zipStream.pipe(unzipper.Parse({ forceStream: true }))
-
-  for await (const entry of unzipStream) {
-    const filePath = entry.path as string
-    const type = entry.type as string
+  // Open the ZIP file
+  const directory = await unzipper.Open.file(zipPath)
+  
+  // Scan all entries
+  for (const entry of directory.files) {
+    const filePath = entry.path
+    const type = entry.type
     
-    // Track entries for debugging (first 30)
+    // Track entries for debugging (first 30 files only)
     if (entriesSeen.length < 30 && type === 'File') {
       entriesSeen.push(filePath)
     }
 
     // Skip junk entries
     if (shouldIgnoreEntry(filePath, type)) {
-      entry.autodrain()
       continue
     }
 
     // Track if we see export_cda.xml
     if (isExportCdaXml(filePath)) {
       foundExportCdaXml = true
-      entry.autodrain()
       continue
     }
 
     // Check for Export.xml (case-insensitive)
     if (type === 'File' && isExportXml(filePath)) {
-      log.info('Found Export.xml', { 
+      log.info('Found Export.xml in ZIP', { 
         entry_path: filePath,
         basename: getBasename(filePath),
+        uncompressed_size: entry.uncompressedSize,
+        uncompressed_mb: entry.uncompressedSize 
+          ? Math.round(entry.uncompressedSize / 1024 / 1024 * 10) / 10 
+          : undefined,
       })
       
-      // Stream the file content to disk
-      const writeStream = fs.createWriteStream(outputPath)
-      await pipeline(entry, writeStream)
+      // Return a readable stream for this entry
+      const stream = entry.stream()
       
-      foundExportXml = true
-      
-      const stats = fs.statSync(outputPath)
-      log.info('Extracted Export.xml', {
-        output_path: outputPath,
-        size_bytes: stats.size,
-        size_mb: Math.round(stats.size / 1024 / 1024 * 10) / 10,
-      })
-    } else {
-      // Skip this entry - important to drain it to continue the stream
-      entry.autodrain()
+      return {
+        path: filePath,
+        stream: stream as Readable,
+        uncompressedSize: entry.uncompressedSize,
+      }
     }
   }
 
-  if (!foundExportXml) {
-    // Build a helpful error message
-    let errorMsg = 'Export.xml not found in ZIP archive'
-    
-    if (foundExportCdaXml) {
-      errorMsg = 'Found export_cda.xml but not Export.xml. The ZIP may be incomplete or corrupted.'
-    }
-    
-    log.error('Export.xml not found', {
-      found_export_cda: foundExportCdaXml,
-      entries_seen: entriesSeen,
-    })
-    
-    throw new Error(errorMsg)
+  // Not found - build helpful error message
+  let errorMsg = 'Export.xml not found in ZIP archive'
+  
+  if (foundExportCdaXml) {
+    errorMsg = 'Found export_cda.xml but not Export.xml. The ZIP may be incomplete or corrupted.'
   }
+  
+  log.error('Export.xml not found', {
+    found_export_cda: foundExportCdaXml,
+    entries_seen: entriesSeen,
+    total_files: directory.files.length,
+  })
+  
+  throw new Error(`${errorMsg}. Entries seen: ${entriesSeen.slice(0, 10).join(', ')}${entriesSeen.length > 10 ? '...' : ''}`)
+}
 
-  return outputPath
+/**
+ * Legacy function - kept for backwards compatibility but deprecated.
+ * Use findExportXmlStream instead.
+ * @deprecated Use findExportXmlStream for streaming parse
+ */
+export async function extractExportXml(zipPath: string, importId: string): Promise<string> {
+  throw new Error('extractExportXml is deprecated. Use findExportXmlStream for streaming parse.')
 }

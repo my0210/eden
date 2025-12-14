@@ -1,11 +1,11 @@
 /**
- * Stream-parse Apple Health export.xml
+ * Stream-parse Apple Health Export.xml
  * 
- * Uses SAX parser to stream through the XML without loading it all into memory.
- * Extracts records matching our mapped HK types and emits metric rows for DB insert.
+ * Uses SAX parser to stream through the XML without loading it into memory.
+ * Accepts a Readable stream (from ZIP entry) - no temp files needed.
  */
 
-import * as fs from 'fs'
+import { Readable } from 'stream'
 import * as sax from 'sax'
 import { log } from './logger'
 import { MetricCode, getAllHkTypes, buildHkTypeToMappingLookup } from './mapping'
@@ -34,7 +34,6 @@ export interface ParseSummary {
     oldestTimestamp: string | null
     sampleValues: string[]
   }>
-  // Special tracking for complex types
   sleepCategories: Record<string, number>
   bloodPressure: {
     systolicCount: number
@@ -53,12 +52,10 @@ export interface ParseSummary {
  */
 export interface ParseResult {
   summary: ParseSummary
-  /** Metric rows ready for DB insert (vo2max, resting_hr, hrv, body_mass, body_fat_percentage) */
   rows: MetricRow[]
 }
 
 // HK types we'll persist to eden_metric_values
-// Sleep and blood_pressure are log-only until we implement proper aggregation
 const PERSIST_HK_TYPES = new Set([
   'HKQuantityTypeIdentifierVO2Max',
   'HKQuantityTypeIdentifierRestingHeartRate',
@@ -67,16 +64,7 @@ const PERSIST_HK_TYPES = new Set([
   'HKQuantityTypeIdentifierBodyFatPercentage',
 ])
 
-// Map HK types to our canonical metric codes
-const HK_TO_METRIC_CODE: Record<string, MetricCode> = {
-  'HKQuantityTypeIdentifierVO2Max': 'vo2max',
-  'HKQuantityTypeIdentifierRestingHeartRate': 'resting_hr',
-  'HKQuantityTypeIdentifierHeartRateVariabilitySDNN': 'hrv',
-  'HKQuantityTypeIdentifierBodyMass': 'body_composition',  // Will be mapped to body_mass in DB
-  'HKQuantityTypeIdentifierBodyFatPercentage': 'body_composition', // Will be mapped to body_fat_percentage
-}
-
-// Map HK types to specific DB metric codes (more granular than the canonical)
+// Map HK types to specific DB metric codes
 const HK_TO_DB_METRIC_CODE: Record<string, string> = {
   'HKQuantityTypeIdentifierVO2Max': 'vo2max',
   'HKQuantityTypeIdentifierRestingHeartRate': 'resting_hr',
@@ -86,16 +74,15 @@ const HK_TO_DB_METRIC_CODE: Record<string, string> = {
 }
 
 /**
- * Parse export.xml and extract metrics
+ * Parse Export.xml from a readable stream
  * 
- * @param xmlPath - Path to the extracted export.xml
- * @param onRowsBatch - Optional callback for streaming writes (called with batches of rows)
- * @returns ParseResult with summary and all rows
+ * Streams directly from the ZIP entry - no temp files needed.
+ * Memory-safe: uses SAX streaming parser, doesn't buffer the whole XML.
+ * 
+ * @param xmlStream - Readable stream of Export.xml content
+ * @returns ParseResult with summary and metric rows for persistence
  */
-export function parseExportXml(
-  xmlPath: string,
-  onRowsBatch?: (rows: MetricRow[]) => Promise<void>
-): Promise<ParseResult> {
+export function parseExportXmlStream(xmlStream: Readable): Promise<ParseResult> {
   return new Promise((resolve, reject) => {
     const relevantHkTypes = getAllHkTypes()
     const hkTypeToMapping = buildHkTypeToMappingLookup()
@@ -118,10 +105,10 @@ export function parseExportXml(
     }
 
     const allRows: MetricRow[] = []
-    let rowBuffer: MetricRow[] = []
-    const BUFFER_SIZE = 1000  // Flush to callback every 1000 rows
+    const startTime = Date.now()
+    let lastProgressLog = startTime
 
-    // Initialize byMetricCode for all our mapped metrics
+    // Initialize byMetricCode for all mapped metrics
     for (const [hkType, mapping] of hkTypeToMapping) {
       if (!summary.byMetricCode[mapping.metric_code]) {
         summary.byMetricCode[mapping.metric_code] = {
@@ -135,28 +122,28 @@ export function parseExportXml(
     }
 
     const parser = sax.createStream(true, { trim: true })
-    const fileStream = fs.createReadStream(xmlPath, { encoding: 'utf8' })
 
+    // Progress logging interval
     const LOG_EVERY_N = 100000
-
-    const flushBuffer = async () => {
-      if (rowBuffer.length > 0 && onRowsBatch) {
-        await onRowsBatch(rowBuffer)
-        rowBuffer = []
-      }
-    }
+    const PROGRESS_LOG_INTERVAL_MS = 30000  // Log progress every 30 seconds
 
     parser.on('opentag', (node: sax.Tag) => {
       if (node.name !== 'Record') return
 
       summary.totalRecordsScanned++
 
-      if (summary.totalRecordsScanned % LOG_EVERY_N === 0) {
-        log.debug('Parse progress', {
+      // Periodic progress logging
+      const now = Date.now()
+      if (summary.totalRecordsScanned % LOG_EVERY_N === 0 || now - lastProgressLog > PROGRESS_LOG_INTERVAL_MS) {
+        const elapsedSec = Math.round((now - startTime) / 1000)
+        log.info('Parse progress', {
           records_scanned: summary.totalRecordsScanned,
           records_matched: summary.totalRecordsMatched,
           rows_collected: allRows.length,
+          elapsed_sec: elapsedSec,
+          rate_per_sec: Math.round(summary.totalRecordsScanned / Math.max(1, elapsedSec)),
         })
+        lastProgressLog = now
       }
 
       const attrs = node.attributes as Record<string, string>
@@ -196,7 +183,7 @@ export function parseExportXml(
         }
       }
 
-      // Special tracking
+      // Special tracking for complex types
       if (type === 'HKCategoryTypeIdentifierSleepAnalysis' && value) {
         summary.sleepCategories[value] = (summary.sleepCategories[value] || 0) + 1
       }
@@ -213,23 +200,19 @@ export function parseExportXml(
         summary.bodyComposition.leanBodyMassCount++
       }
 
-      // === EMIT ROW FOR PERSISTENCE ===
-      // Only for types we want to persist (not sleep/BP yet)
+      // Emit row for persistence (only for types we persist)
       if (PERSIST_HK_TYPES.has(type) && value && (endDate || startDate)) {
         const dbMetricCode = HK_TO_DB_METRIC_CODE[type]
         if (dbMetricCode) {
           const numValue = parseFloat(value)
           if (!isNaN(numValue)) {
-            const row: MetricRow = {
+            allRows.push({
               metric_code: dbMetricCode as MetricCode,
               value_raw: numValue,
               unit: unit || '',
               measured_at: endDate || startDate,
               source: 'apple_health',
-            }
-            
-            allRows.push(row)
-            rowBuffer.push(row)
+            })
           }
         }
       }
@@ -241,28 +224,25 @@ export function parseExportXml(
       parser.resume()
     })
 
-    parser.on('end', async () => {
-      try {
-        // Flush any remaining rows
-        await flushBuffer()
-        
-        log.info('XML parsing complete', {
-          total_scanned: summary.totalRecordsScanned,
-          total_matched: summary.totalRecordsMatched,
-          rows_to_insert: allRows.length,
-        })
-        
-        resolve({ summary, rows: allRows })
-      } catch (err) {
-        reject(err)
-      }
+    parser.on('end', () => {
+      const totalTime = Math.round((Date.now() - startTime) / 1000)
+      log.info('XML parsing complete', {
+        total_scanned: summary.totalRecordsScanned,
+        total_matched: summary.totalRecordsMatched,
+        rows_to_insert: allRows.length,
+        total_time_sec: totalTime,
+        final_rate_per_sec: Math.round(summary.totalRecordsScanned / Math.max(1, totalTime)),
+      })
+      
+      resolve({ summary, rows: allRows })
     })
 
-    fileStream.on('error', (err: Error) => {
-      reject(new Error(`Failed to read XML file: ${err.message}`))
+    xmlStream.on('error', (err: Error) => {
+      reject(new Error(`Stream error while parsing XML: ${err.message}`))
     })
 
-    fileStream.pipe(parser)
+    // Pipe the stream to the SAX parser
+    xmlStream.pipe(parser)
   })
 }
 
@@ -298,3 +278,6 @@ export function formatParseSummaryForLog(summary: ParseSummary): Record<string, 
     errors: summary.errors.length > 0 ? summary.errors : undefined,
   }
 }
+
+// Legacy export for backwards compatibility
+export { parseExportXmlStream as parseExportXml }

@@ -39,6 +39,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.downloadZip = downloadZip;
+exports.cleanupZipFile = cleanupZipFile;
 exports.cleanupTempFiles = cleanupTempFiles;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
@@ -87,26 +88,31 @@ async function downloadZip(filePath, importId) {
     return tempPath;
 }
 /**
- * Clean up temp files for an import
+ * Clean up the ZIP file after processing
+ *
+ * Note: We no longer extract XML to disk, so only the ZIP needs cleanup.
+ *
+ * @param zipPath - Path to the ZIP file to delete
  */
-function cleanupTempFiles(importId) {
-    const files = [
-        path.join(TEMP_DIR, `${importId}.zip`),
-        path.join(TEMP_DIR, `${importId}-export.xml`),
-    ];
-    for (const file of files) {
-        try {
-            if (fs.existsSync(file)) {
-                fs.unlinkSync(file);
-                logger_1.log.debug('Deleted temp file', { path: file });
-            }
-        }
-        catch (err) {
-            logger_1.log.warn('Failed to delete temp file', {
-                path: file,
-                error: err instanceof Error ? err.message : String(err),
-            });
+function cleanupZipFile(zipPath) {
+    try {
+        if (fs.existsSync(zipPath)) {
+            fs.unlinkSync(zipPath);
+            logger_1.log.debug('Deleted ZIP file', { path: zipPath });
         }
     }
+    catch (err) {
+        logger_1.log.warn('Failed to delete ZIP file', {
+            path: zipPath,
+            error: err instanceof Error ? err.message : String(err),
+        });
+    }
+}
+/**
+ * @deprecated Use cleanupZipFile instead
+ */
+function cleanupTempFiles(importId) {
+    const zipPath = path.join(TEMP_DIR, `${importId}.zip`);
+    cleanupZipFile(zipPath);
 }
 //# sourceMappingURL=download.js.map

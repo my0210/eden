@@ -1,14 +1,15 @@
 /**
  * Process Apple Health imports
  * 
- * PR7C: Download → Unzip → Parse export.xml → Write metrics to DB
+ * PR7B.1: Stream-parse Export.xml directly from ZIP (no temp XML files)
+ * PR7C: Write metrics to eden_metric_values
  */
 
 import { getSupabase, AppleHealthImport } from './supabase'
 import { log } from './logger'
-import { downloadZip, cleanupTempFiles } from './download'
-import { extractExportXml } from './unzip'
-import { parseExportXml, formatParseSummaryForLog, ParseSummary } from './parseExportXml'
+import { downloadZip, cleanupZipFile } from './download'
+import { findExportXmlStream } from './unzip'
+import { parseExportXmlStream, formatParseSummaryForLog, ParseSummary } from './parseExportXml'
 import { writeMetrics, WriteResult } from './writeMetrics'
 
 export interface ProcessResult {
@@ -22,14 +23,14 @@ export interface ProcessResult {
  * Process an Apple Health import
  * 
  * Flow:
- * 1. Download ZIP from Supabase Storage
- * 2. Extract export.xml from ZIP
- * 3. Stream-parse export.xml and collect metric rows
+ * 1. Download ZIP from Supabase Storage to /tmp
+ * 2. Open ZIP and find Export.xml entry (case-insensitive)
+ * 3. Stream-parse Export.xml directly from ZIP (no extraction to disk)
  * 4. Write metrics to eden_metric_values (idempotent)
  * 5. Mark import as completed
  * 
  * On error, marks import as failed with error message.
- * Always cleans up temp files.
+ * Always cleans up the ZIP file (no XML temp file to clean up).
  */
 export async function processImport(importRow: AppleHealthImport): Promise<ProcessResult> {
   const supabase = getSupabase()
@@ -42,17 +43,30 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
     user_id: userId,
     file_path: importRow.file_path,
     file_size: importRow.file_size,
+    file_size_mb: importRow.file_size 
+      ? Math.round(importRow.file_size / 1024 / 1024 * 10) / 10 
+      : undefined,
   })
+
+  let zipPath: string | null = null
 
   try {
     // Step 1: Download ZIP from storage
-    const zipPath = await downloadZip(importRow.file_path, importId)
+    zipPath = await downloadZip(importRow.file_path, importId)
 
-    // Step 2: Extract export.xml
-    const xmlPath = await extractExportXml(zipPath, importId)
+    // Step 2: Find Export.xml in the ZIP and get a stream
+    const exportEntry = await findExportXmlStream(zipPath)
+    
+    log.info('Starting stream parse', {
+      import_id: importId,
+      export_path: exportEntry.path,
+      uncompressed_size_mb: exportEntry.uncompressedSize 
+        ? Math.round(exportEntry.uncompressedSize / 1024 / 1024 * 10) / 10 
+        : undefined,
+    })
 
-    // Step 3: Parse export.xml and collect metric rows
-    const { summary, rows } = await parseExportXml(xmlPath)
+    // Step 3: Stream-parse Export.xml directly from ZIP
+    const { summary, rows } = await parseExportXmlStream(exportEntry.stream)
 
     // Log the parse summary
     const summaryForLog = formatParseSummaryForLog(summary)
@@ -127,6 +141,7 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
       import_id: importId,
       user_id: userId,
       error: errorMessage,
+      duration_sec: Math.round((Date.now() - startTime) / 1000),
     })
 
     // Update status to failed
@@ -152,7 +167,9 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
     }
 
   } finally {
-    // Always clean up temp files
-    cleanupTempFiles(importId)
+    // Only clean up the ZIP file (no XML temp file to clean up anymore)
+    if (zipPath) {
+      cleanupZipFile(zipPath)
+    }
   }
 }

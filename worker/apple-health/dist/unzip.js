@@ -2,7 +2,7 @@
 /**
  * Unzip Apple Health export
  *
- * Stream-unzips the ZIP and extracts ONLY Export.xml to a temp file.
+ * Opens ZIP and provides a stream to Export.xml without extracting to disk.
  * Handles case differences (Export.xml vs export.xml) and nested paths.
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
@@ -39,13 +39,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.findExportXmlStream = findExportXmlStream;
 exports.extractExportXml = extractExportXml;
-const fs = __importStar(require("fs"));
-const path = __importStar(require("path"));
-const promises_1 = require("stream/promises");
 const unzipper = __importStar(require("unzipper"));
 const logger_1 = require("./logger");
-const TEMP_DIR = '/tmp';
 /**
  * Get the basename of a path (the filename after the last /)
  */
@@ -85,7 +82,9 @@ function isExportCdaXml(filePath) {
     return basename.toLowerCase() === 'export_cda.xml';
 }
 /**
- * Extract Export.xml from an Apple Health ZIP file
+ * Find and open Export.xml from a ZIP file, returning a readable stream.
+ *
+ * Does NOT extract to disk - streams directly from the ZIP.
  *
  * Apple Health exports have structure:
  * - apple_health_export/
@@ -100,73 +99,68 @@ function isExportCdaXml(filePath) {
  * - macOS junk: __MACOSX/ folders
  *
  * @param zipPath - Path to the downloaded ZIP file
- * @param importId - Import ID for naming the output file
- * @returns Path to the extracted Export.xml
+ * @returns ExportXmlEntry with stream, or throws if not found
  */
-async function extractExportXml(zipPath, importId) {
-    const outputPath = path.join(TEMP_DIR, `${importId}-export.xml`);
-    logger_1.log.info('Extracting Export.xml from ZIP', {
-        zip_path: zipPath,
-        output_path: outputPath,
-    });
-    let foundExportXml = false;
+async function findExportXmlStream(zipPath) {
+    logger_1.log.info('Opening ZIP to find Export.xml', { zip_path: zipPath });
+    const entriesSeen = [];
     let foundExportCdaXml = false;
-    const entriesSeen = []; // Track entries for debugging
-    // Create a read stream from the ZIP
-    const zipStream = fs.createReadStream(zipPath);
-    const unzipStream = zipStream.pipe(unzipper.Parse({ forceStream: true }));
-    for await (const entry of unzipStream) {
+    // Open the ZIP file
+    const directory = await unzipper.Open.file(zipPath);
+    // Scan all entries
+    for (const entry of directory.files) {
         const filePath = entry.path;
         const type = entry.type;
-        // Track entries for debugging (first 30)
+        // Track entries for debugging (first 30 files only)
         if (entriesSeen.length < 30 && type === 'File') {
             entriesSeen.push(filePath);
         }
         // Skip junk entries
         if (shouldIgnoreEntry(filePath, type)) {
-            entry.autodrain();
             continue;
         }
         // Track if we see export_cda.xml
         if (isExportCdaXml(filePath)) {
             foundExportCdaXml = true;
-            entry.autodrain();
             continue;
         }
         // Check for Export.xml (case-insensitive)
         if (type === 'File' && isExportXml(filePath)) {
-            logger_1.log.info('Found Export.xml', {
+            logger_1.log.info('Found Export.xml in ZIP', {
                 entry_path: filePath,
                 basename: getBasename(filePath),
+                uncompressed_size: entry.uncompressedSize,
+                uncompressed_mb: entry.uncompressedSize
+                    ? Math.round(entry.uncompressedSize / 1024 / 1024 * 10) / 10
+                    : undefined,
             });
-            // Stream the file content to disk
-            const writeStream = fs.createWriteStream(outputPath);
-            await (0, promises_1.pipeline)(entry, writeStream);
-            foundExportXml = true;
-            const stats = fs.statSync(outputPath);
-            logger_1.log.info('Extracted Export.xml', {
-                output_path: outputPath,
-                size_bytes: stats.size,
-                size_mb: Math.round(stats.size / 1024 / 1024 * 10) / 10,
-            });
-        }
-        else {
-            // Skip this entry - important to drain it to continue the stream
-            entry.autodrain();
+            // Return a readable stream for this entry
+            const stream = entry.stream();
+            return {
+                path: filePath,
+                stream: stream,
+                uncompressedSize: entry.uncompressedSize,
+            };
         }
     }
-    if (!foundExportXml) {
-        // Build a helpful error message
-        let errorMsg = 'Export.xml not found in ZIP archive';
-        if (foundExportCdaXml) {
-            errorMsg = 'Found export_cda.xml but not Export.xml. The ZIP may be incomplete or corrupted.';
-        }
-        logger_1.log.error('Export.xml not found', {
-            found_export_cda: foundExportCdaXml,
-            entries_seen: entriesSeen,
-        });
-        throw new Error(errorMsg);
+    // Not found - build helpful error message
+    let errorMsg = 'Export.xml not found in ZIP archive';
+    if (foundExportCdaXml) {
+        errorMsg = 'Found export_cda.xml but not Export.xml. The ZIP may be incomplete or corrupted.';
     }
-    return outputPath;
+    logger_1.log.error('Export.xml not found', {
+        found_export_cda: foundExportCdaXml,
+        entries_seen: entriesSeen,
+        total_files: directory.files.length,
+    });
+    throw new Error(`${errorMsg}. Entries seen: ${entriesSeen.slice(0, 10).join(', ')}${entriesSeen.length > 10 ? '...' : ''}`);
+}
+/**
+ * Legacy function - kept for backwards compatibility but deprecated.
+ * Use findExportXmlStream instead.
+ * @deprecated Use findExportXmlStream for streaming parse
+ */
+async function extractExportXml(zipPath, importId) {
+    throw new Error('extractExportXml is deprecated. Use findExportXmlStream for streaming parse.');
 }
 //# sourceMappingURL=unzip.js.map
