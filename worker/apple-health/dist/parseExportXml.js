@@ -4,6 +4,11 @@
  *
  * Uses SAX parser to stream through the XML without loading it into memory.
  * Accepts a Readable stream (from ZIP entry) - no temp files needed.
+ *
+ * Handles:
+ * - Direct metrics (vo2max, resting_hr, hrv, body_mass, body_fat)
+ * - Sleep aggregation (7-day average)
+ * - Blood pressure pairing (systolic + diastolic)
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -45,8 +50,10 @@ exports.formatParseSummaryForLog = formatParseSummaryForLog;
 const sax = __importStar(require("sax"));
 const logger_1 = require("./logger");
 const mapping_1 = require("./mapping");
-// HK types we'll persist to eden_metric_values
-const PERSIST_HK_TYPES = new Set([
+const aggregateSleep_1 = require("./aggregateSleep");
+const pairBloodPressure_1 = require("./pairBloodPressure");
+// HK types for direct metric persistence (not aggregated)
+const DIRECT_PERSIST_HK_TYPES = new Set([
     'HKQuantityTypeIdentifierVO2Max',
     'HKQuantityTypeIdentifierRestingHeartRate',
     'HKQuantityTypeIdentifierHeartRateVariabilitySDNN',
@@ -66,6 +73,8 @@ const HK_TO_DB_METRIC_CODE = {
  *
  * Streams directly from the ZIP entry - no temp files needed.
  * Memory-safe: uses SAX streaming parser, doesn't buffer the whole XML.
+ *
+ * Handles aggregation for sleep and blood pressure after streaming completes.
  *
  * @param xmlStream - Readable stream of Export.xml content
  * @returns ParseResult with summary and metric rows for persistence
@@ -90,7 +99,11 @@ function parseExportXmlStream(xmlStream) {
             },
             errors: [],
         };
-        const allRows = [];
+        // Direct metric rows (vo2max, resting_hr, hrv, body_mass, body_fat)
+        const directRows = [];
+        // Records for aggregation
+        const sleepRecords = [];
+        const bpRecords = [];
         const startTime = Date.now();
         let lastProgressLog = startTime;
         // Initialize byMetricCode for all mapped metrics
@@ -106,9 +119,8 @@ function parseExportXmlStream(xmlStream) {
             }
         }
         const parser = sax.createStream(true, { trim: true });
-        // Progress logging interval
         const LOG_EVERY_N = 100000;
-        const PROGRESS_LOG_INTERVAL_MS = 30000; // Log progress every 30 seconds
+        const PROGRESS_LOG_INTERVAL_MS = 30000;
         parser.on('opentag', (node) => {
             if (node.name !== 'Record')
                 return;
@@ -120,7 +132,9 @@ function parseExportXmlStream(xmlStream) {
                 logger_1.log.info('Parse progress', {
                     records_scanned: summary.totalRecordsScanned,
                     records_matched: summary.totalRecordsMatched,
-                    rows_collected: allRows.length,
+                    direct_rows: directRows.length,
+                    sleep_records: sleepRecords.length,
+                    bp_records: bpRecords.length,
                     elapsed_sec: elapsedSec,
                     rate_per_sec: Math.round(summary.totalRecordsScanned / Math.max(1, elapsedSec)),
                 });
@@ -156,16 +170,43 @@ function parseExportXmlStream(xmlStream) {
                     metricSummary.sampleValues.push(`${value} ${unit || ''}`.trim());
                 }
             }
-            // Special tracking for complex types
-            if (type === 'HKCategoryTypeIdentifierSleepAnalysis' && value) {
-                summary.sleepCategories[value] = (summary.sleepCategories[value] || 0) + 1;
+            // === ROUTE RECORDS BY TYPE ===
+            // Sleep: collect for aggregation
+            if (type === 'HKCategoryTypeIdentifierSleepAnalysis') {
+                if (value) {
+                    summary.sleepCategories[value] = (summary.sleepCategories[value] || 0) + 1;
+                }
+                if (startDate && endDate && value) {
+                    sleepRecords.push({
+                        value,
+                        startDate,
+                        endDate,
+                    });
+                }
+                return;
             }
+            // Blood Pressure: collect for pairing
             if (type === 'HKQuantityTypeIdentifierBloodPressureSystolic') {
                 summary.bloodPressure.systolicCount++;
+                if (value && endDate) {
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        bpRecords.push({ type: 'systolic', value: numValue, endDate });
+                    }
+                }
+                return;
             }
-            else if (type === 'HKQuantityTypeIdentifierBloodPressureDiastolic') {
+            if (type === 'HKQuantityTypeIdentifierBloodPressureDiastolic') {
                 summary.bloodPressure.diastolicCount++;
+                if (value && endDate) {
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        bpRecords.push({ type: 'diastolic', value: numValue, endDate });
+                    }
+                }
+                return;
             }
+            // Body composition tracking
             if (type === 'HKQuantityTypeIdentifierBodyMass') {
                 summary.bodyComposition.bodyMassCount++;
             }
@@ -175,13 +216,13 @@ function parseExportXmlStream(xmlStream) {
             else if (type === 'HKQuantityTypeIdentifierLeanBodyMass') {
                 summary.bodyComposition.leanBodyMassCount++;
             }
-            // Emit row for persistence (only for types we persist)
-            if (PERSIST_HK_TYPES.has(type) && value && (endDate || startDate)) {
+            // Direct persist metrics: emit row immediately
+            if (DIRECT_PERSIST_HK_TYPES.has(type) && value && (endDate || startDate)) {
                 const dbMetricCode = HK_TO_DB_METRIC_CODE[type];
                 if (dbMetricCode) {
                     const numValue = parseFloat(value);
                     if (!isNaN(numValue)) {
-                        allRows.push({
+                        directRows.push({
                             metric_code: dbMetricCode,
                             value_raw: numValue,
                             unit: unit || '',
@@ -198,13 +239,29 @@ function parseExportXmlStream(xmlStream) {
             parser.resume();
         });
         parser.on('end', () => {
-            const totalTime = Math.round((Date.now() - startTime) / 1000);
-            logger_1.log.info('XML parsing complete', {
+            const parseTime = Date.now() - startTime;
+            logger_1.log.info('XML streaming complete, running aggregations', {
                 total_scanned: summary.totalRecordsScanned,
                 total_matched: summary.totalRecordsMatched,
-                rows_to_insert: allRows.length,
+                direct_rows: directRows.length,
+                sleep_records: sleepRecords.length,
+                bp_records: bpRecords.length,
+                parse_time_sec: Math.round(parseTime / 1000),
+            });
+            // Run aggregations
+            const sleepRows = (0, aggregateSleep_1.aggregateSleep)(sleepRecords);
+            const bpRows = (0, pairBloodPressure_1.pairBloodPressure)(bpRecords);
+            // Combine all rows
+            const allRows = [...directRows, ...sleepRows, ...bpRows];
+            const totalTime = Math.round((Date.now() - startTime) / 1000);
+            logger_1.log.info('Parse and aggregation complete', {
+                total_scanned: summary.totalRecordsScanned,
+                total_matched: summary.totalRecordsMatched,
+                direct_rows: directRows.length,
+                sleep_rows: sleepRows.length,
+                bp_rows: bpRows.length,
+                total_rows: allRows.length,
                 total_time_sec: totalTime,
-                final_rate_per_sec: Math.round(summary.totalRecordsScanned / Math.max(1, totalTime)),
             });
             resolve({ summary, rows: allRows });
         });

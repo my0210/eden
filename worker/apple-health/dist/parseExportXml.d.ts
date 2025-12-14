@@ -3,6 +3,11 @@
  *
  * Uses SAX parser to stream through the XML without loading it into memory.
  * Accepts a Readable stream (from ZIP entry) - no temp files needed.
+ *
+ * Handles:
+ * - Direct metrics (vo2max, resting_hr, hrv, body_mass, body_fat)
+ * - Sleep aggregation (7-day average)
+ * - Blood pressure pairing (systolic + diastolic)
  */
 import { Readable } from 'stream';
 import { MetricCode } from './mapping';
@@ -10,7 +15,7 @@ import { MetricCode } from './mapping';
  * Metric row ready for DB insert
  */
 export interface MetricRow {
-    metric_code: MetricCode;
+    metric_code: MetricCode | string;
     value_raw: number;
     unit: string;
     measured_at: string;
@@ -53,6 +58,8 @@ export interface ParseResult {
  *
  * Streams directly from the ZIP entry - no temp files needed.
  * Memory-safe: uses SAX streaming parser, doesn't buffer the whole XML.
+ *
+ * Handles aggregation for sleep and blood pressure after streaming completes.
  *
  * @param xmlStream - Readable stream of Export.xml content
  * @returns ParseResult with summary and metric rows for persistence

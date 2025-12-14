@@ -149,6 +149,26 @@ export async function loadScorecardInputs(
         })
       }
 
+      // === Combine bp_systolic + bp_diastolic into blood_pressure ===
+      const bpSystolic = latestByCode.get('bp_systolic')
+      const bpDiastolic = latestByCode.get('bp_diastolic')
+      
+      if (bpSystolic && bpDiastolic) {
+        // Use the newer timestamp of the two
+        const newerTimestamp = bpSystolic.measured_at > bpDiastolic.measured_at 
+          ? bpSystolic.measured_at 
+          : bpDiastolic.measured_at
+        
+        // Create combined blood_pressure metric for scoring
+        latestByCode.set('blood_pressure', {
+          metric_code: 'blood_pressure',
+          value_raw: `${bpSystolic.value_raw}/${bpDiastolic.value_raw}`,
+          unit: 'mmHg',
+          measured_at: newerTimestamp,
+          source: 'apple_health',
+        })
+      }
+
       inputs.metrics = Array.from(latestByCode.values())
     }
   } catch (e) {

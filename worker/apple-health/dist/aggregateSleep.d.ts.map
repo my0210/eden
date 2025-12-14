@@ -1,0 +1,1 @@
+{"version":3,"file":"aggregateSleep.d.ts","sourceRoot":"","sources":["../src/aggregateSleep.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAGH,OAAO,EAAE,SAAS,EAAE,MAAM,kBAAkB,CAAA;AAE5C;;GAEG;AACH,MAAM,WAAW,WAAW;IAC1B,KAAK,EAAE,MAAM,CAAA;IACb,SAAS,EAAE,MAAM,CAAA;IACjB,OAAO,EAAE,MAAM,CAAA;CAChB;AAwCD;;;;;GAKG;AACH,wBAAgB,cAAc,CAAC,OAAO,EAAE,WAAW,EAAE,GAAG,SAAS,EAAE,CAqGlE"}
