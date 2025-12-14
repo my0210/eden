@@ -19,14 +19,8 @@ function renderMarkdown(text: string) {
   })
 }
 
-const INITIAL_MESSAGE: Message = {
-  id: 'welcome',
-  role: 'assistant',
-  content: "Hi, I'm Eden, your primespan coach. Instead of just chasing longer life or better lab numbers, we focus on your **primespan** – the years where you actually feel strong, clear, and able to do what you care about.\n\nTo make this practical, Eden organises your health into five domains: **Heart** (cardio & blood markers), **Frame** (strength & body structure), **Metabolism** (energy & blood sugar), **Recovery** (sleep & HRV), and **Mind** (focus & cognition). Together they give a simple, honest picture of how 'in your prime' you are right now.\n\nTo start, which of these feels most important for you right now: Heart, Frame, Metabolism, Recovery, or Mind? You can just reply with one word.",
-}
-
 export default function EdenCoachChat() {
-  const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE])
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
@@ -46,11 +40,36 @@ export default function EdenCoachChat() {
           const data = await res.json()
           if (data.messages && data.messages.length > 0) {
             setMessages(data.messages)
+            setIsLoadingHistory(false)
+            return
           }
-          // If no messages, keep the initial message
+        }
+        
+        // No history - fetch the deterministic welcome message from server
+        const welcomeRes = await fetch('/api/eden-coach/welcome')
+        if (welcomeRes.ok) {
+          const welcomeData = await welcomeRes.json()
+          setMessages([{
+            id: 'welcome',
+            role: 'assistant',
+            content: welcomeData.message
+          }])
+        } else {
+          // Fallback if welcome endpoint fails
+          setMessages([{
+            id: 'welcome',
+            role: 'assistant',
+            content: "Welcome to Eden! I'm your primespan coach. What would you like to focus on today?"
+          }])
         }
       } catch (err) {
-        console.error('Failed to load chat history:', err)
+        console.error('Failed to load chat:', err)
+        // Fallback message
+        setMessages([{
+          id: 'welcome',
+          role: 'assistant',
+          content: "Welcome to Eden! I'm your primespan coach. What would you like to focus on today?"
+        }])
       } finally {
         setIsLoadingHistory(false)
       }

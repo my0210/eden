@@ -32,18 +32,81 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Dev tools not enabled' }, { status: 403 })
     }
 
-    // Reset onboarding state
+    // Delete scorecards for clean testing
+    const { error: scorecardsDeleteError } = await supabase
+      .from('eden_user_scorecards')
+      .delete()
+      .eq('user_id', user.id)
+
+    if (scorecardsDeleteError) {
+      console.error('reset-onboarding: eden_user_scorecards delete error', scorecardsDeleteError)
+    }
+
+    // Delete body photos (storage + DB records) for clean testing
+    try {
+      const { data: photos } = await supabase
+        .from('eden_photo_uploads')
+        .select('id, file_path')
+        .eq('user_id', user.id)
+
+      if (photos && photos.length > 0) {
+        // Delete files from storage
+        const storagePaths = photos
+          .map(p => p.file_path)
+          .filter(Boolean) as string[]
+        
+        if (storagePaths.length > 0) {
+          await supabase.storage
+            .from('body_photos')
+            .remove(storagePaths)
+        }
+
+        // Delete DB records
+        await supabase
+          .from('eden_photo_uploads')
+          .delete()
+          .eq('user_id', user.id)
+      }
+    } catch (photoErr) {
+      console.error('reset-onboarding: photo cleanup error', photoErr)
+    }
+
+    // Delete Apple Health imports for clean testing
+    const { error: ahDeleteError } = await supabase
+      .from('apple_health_imports')
+      .delete()
+      .eq('user_id', user.id)
+
+    if (ahDeleteError) {
+      console.error('reset-onboarding: apple_health_imports delete error', ahDeleteError)
+    }
+
+    // Delete metrics for clean testing
+    const { error: metricsDeleteError } = await supabase
+      .from('eden_metric_values')
+      .delete()
+      .eq('user_id', user.id)
+
+    if (metricsDeleteError) {
+      console.error('reset-onboarding: eden_metric_values delete error', metricsDeleteError)
+    }
+
+    // Reset onboarding state with all new v2 fields cleared
     const { error: updateError } = await supabase
       .from('eden_user_state')
       .update({
         onboarding_status: 'not_started',
-        onboarding_step: 0,
+        onboarding_step: 1,
+        // Clear goals_json (v2: focus_primary, focus_secondary, uploads_skipped)
         goals_json: {},
+        // Clear identity_json (v2: dob, age, sex_at_birth, height, weight, units)
         identity_json: {},
+        // Clear safety_json (v2: privacy_ack, diagnoses, meds, injuries_limitations, red_lines, doctor_restrictions)
         safety_json: {},
+        // Clear legacy fields (no longer used in v2 but reset for clean state)
         behaviors_json: {},
         coaching_json: {},
-        latest_snapshot_id: null,
+        latest_scorecard_id: null,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', user.id)
@@ -65,4 +128,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

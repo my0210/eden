@@ -59,6 +59,9 @@ async function getSupabase(req: NextRequest) {
 }
 
 // Apple Health record types we map to Eden metrics
+// NOTE: The canonical mapping is defined in lib/prime-scorecard/mapping.ts
+// This local copy exists for the current parser implementation.
+// Future: Refactor to use appleHealthMappings from the prime-scorecard module.
 const APPLE_TYPES = {
   VO2_MAX: 'HKQuantityTypeIdentifierVO2Max',
   RESTING_HR: 'HKQuantityTypeIdentifierRestingHeartRate',
@@ -70,6 +73,9 @@ const APPLE_TYPES = {
 } as const
 
 // Eden metric codes
+// NOTE: The canonical metric codes are defined in lib/prime-scorecard/metrics.ts
+// This local mapping uses legacy codes that differ slightly from canonical codes.
+// Future: Migrate to canonical codes from the prime-scorecard module.
 const EDEN_CODES = [
   'vo2max',
   'resting_hr_and_recovery',

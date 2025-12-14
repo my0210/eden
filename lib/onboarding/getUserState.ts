@@ -1,16 +1,72 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 
-export type OnboardingStatus = 'not_started' | 'in_progress' | 'profile_complete' | 'completed'
+export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed'
 
+/**
+ * Goals JSON structure (v2)
+ * - focus_primary: optional primary focus area
+ * - focus_secondary: optional secondary focus area
+ * - uploads_skipped: true if user skipped the uploads step
+ */
+export interface GoalsJson {
+  focus_primary?: string | null
+  focus_secondary?: string | null
+  uploads_skipped?: boolean
+}
+
+/**
+ * Safety JSON structure (v2)
+ * - privacy_ack: required acknowledgment of privacy policy
+ * - diagnoses: "none" or list of diagnosed conditions
+ * - meds: "none" or list of medications
+ * - injuries_limitations: "none" or description
+ * - red_lines: "none" or things user won't do
+ * - doctor_restrictions: "none" or restrictions
+ */
+export interface SafetyJson {
+  privacy_ack?: boolean
+  diagnoses?: string | string[]
+  meds?: string | string[]
+  injuries_limitations?: string
+  red_lines?: string
+  doctor_restrictions?: string
+}
+
+/**
+ * Identity JSON structure (v2)
+ * - dob: date of birth (optional if age provided)
+ * - age: age in years (optional if dob provided)
+ * - sex_at_birth: "male" | "female"
+ * - height: number (in cm or inches based on units)
+ * - weight: number (in kg or lbs based on units)
+ * - units: "metric" | "imperial"
+ * - data_sources: optional metadata about imported data
+ */
+export interface IdentityJson {
+  dob?: string | null
+  age?: number | null
+  sex_at_birth?: 'male' | 'female' | null
+  height?: number | null
+  weight?: number | null
+  units?: 'metric' | 'imperial' | null
+  data_sources?: {
+    appleHealthImportId?: string
+  }
+}
+
+/**
+ * Eden User State - stored in eden_user_state table
+ */
 export interface EdenUserState {
   user_id: string
   onboarding_status: OnboardingStatus
   onboarding_step: number
-  goals_json?: Record<string, any> | null
-  identity_json?: Record<string, any> | null
-  safety_json?: Record<string, any> | null
-  behaviors_json?: Record<string, any> | null
-  coaching_json?: Record<string, any> | null
+  goals_json?: GoalsJson | null
+  identity_json?: IdentityJson | null
+  safety_json?: SafetyJson | null
+  // Legacy fields (kept for backwards compatibility but not used in v2)
+  behaviors_json?: Record<string, unknown> | null
+  coaching_json?: Record<string, unknown> | null
   created_at: string
   updated_at: string
 }
@@ -76,6 +132,7 @@ export function getRedirectPath(userState: EdenUserState): string {
   if (userState.onboarding_status === 'completed') {
     return '/chat'
   }
-  return `/onboarding/${userState.onboarding_step}`
+  // Start at step 1 if not started, otherwise continue where they left off
+  const step = userState.onboarding_step || 1
+  return `/onboarding/${Math.max(1, step)}`
 }
-

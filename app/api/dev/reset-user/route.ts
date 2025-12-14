@@ -106,7 +106,17 @@ export async function POST() {
       console.error('reset-user: eden_plans delete error', plansDeleteError)
     }
 
-    // 3) snapshots and metrics
+    // 3) scorecards (new) and legacy snapshots
+    const { error: scorecardsDeleteError } = await supabase
+      .from('eden_user_scorecards')
+      .delete()
+      .eq('user_id', userId)
+
+    if (scorecardsDeleteError) {
+      console.error('reset-user: eden_user_scorecards delete error', scorecardsDeleteError)
+    }
+
+    // Keep legacy snapshot deletion for cleanup (table still exists, just unused)
     const { error: snapshotsDeleteError } = await supabase
       .from('eden_user_snapshots')
       .delete()
@@ -116,6 +126,7 @@ export async function POST() {
       console.error('reset-user: eden_user_snapshots delete error', snapshotsDeleteError)
     }
 
+    // 4) metrics
     const { error: metricsDeleteError } = await supabase
       .from('eden_metric_values')
       .delete()
@@ -125,7 +136,7 @@ export async function POST() {
       console.error('reset-user: eden_metric_values delete error', metricsDeleteError)
     }
 
-    // 4) profile and persona
+    // 5) profile and persona
     const { error: profileDeleteError } = await supabase
       .from('eden_user_profile')
       .delete()
@@ -144,7 +155,7 @@ export async function POST() {
       console.error('reset-user: eden_user_personas delete error', personaDeleteError)
     }
 
-    // 5) Apple Health imports
+    // 6) Apple Health imports
     const { error: appleDeleteError } = await supabase
       .from('apple_health_imports')
       .delete()
@@ -154,7 +165,45 @@ export async function POST() {
       console.error('reset-user: apple_health_imports delete error', appleDeleteError)
     }
 
-    // 6) Reset eden_user_state (v2 onboarding)
+    // 6b) Body photos - delete from storage first, then DB
+    try {
+      // Get list of photo records to find storage paths
+      const { data: photos } = await supabase
+        .from('eden_photo_uploads')
+        .select('id, file_path')
+        .eq('user_id', userId)
+
+      if (photos && photos.length > 0) {
+        // Delete files from storage
+        const storagePaths = photos
+          .map(p => p.file_path)
+          .filter(Boolean) as string[]
+        
+        if (storagePaths.length > 0) {
+          const { error: storageDeleteError } = await supabase.storage
+            .from('body_photos')
+            .remove(storagePaths)
+          
+          if (storageDeleteError) {
+            console.error('reset-user: storage delete error', storageDeleteError)
+          }
+        }
+
+        // Delete DB records
+        const { error: photosDeleteError } = await supabase
+          .from('eden_photo_uploads')
+          .delete()
+          .eq('user_id', userId)
+
+        if (photosDeleteError) {
+          console.error('reset-user: eden_photo_uploads delete error', photosDeleteError)
+        }
+      }
+    } catch (photoErr) {
+      console.error('reset-user: photo cleanup error', photoErr)
+    }
+
+    // 7) Reset eden_user_state (v2 onboarding)
     const { error: stateResetError } = await supabase
       .from('eden_user_state')
       .update({
@@ -165,7 +214,7 @@ export async function POST() {
         safety_json: {},
         behaviors_json: {},
         coaching_json: {},
-        latest_snapshot_id: null,
+        latest_scorecard_id: null,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)

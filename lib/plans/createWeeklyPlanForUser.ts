@@ -2,9 +2,16 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { buildEdenContext } from '@/lib/context/buildEdenContext'
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy initialization to avoid build-time errors when env var isn't set
+let openai: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  }
+  return openai
+}
 
 export type EdenPlanAction = {
   title: string
@@ -47,7 +54,7 @@ const PLAN_SYSTEM_PROMPT = `You are Eden, a health & performance coach focused o
 
 You will receive EDEN_CONTEXT with:
 - profile: user's basic info (age, sex, height, weight, goals, constraints)
-- snapshot: current health metrics across heart, frame, metabolism, recovery, mind
+- metricsContext: current health metrics across heart, frame, metabolism, recovery, mind
 - plan: previous plan if any (will be null for first-time users)
 
 Your job is to create a focused weekly plan with 3-5 concrete actions.
@@ -80,7 +87,13 @@ export async function createWeeklyPlanForUser(
   // 1. Build context using the shared helper
   const { edenContext } = await buildEdenContext(supabase, userId)
 
-  if (!edenContext.snapshot && !edenContext.profile) {
+  // Check if we have enough context to create a plan
+  // Need at least essentials OR a scorecard OR profile data
+  const hasEssentials = edenContext.essentials.age || edenContext.essentials.sex_at_birth
+  const hasScorecard = edenContext.hasScorecard
+  const hasProfile = !!edenContext.profile
+  
+  if (!hasEssentials && !hasScorecard && !hasProfile) {
     throw new Error('CONTEXT_UNAVAILABLE')
   }
 
@@ -115,7 +128,7 @@ export async function createWeeklyPlanForUser(
   }
 
   // 4. Call OpenAI
-  const completion = await openai.chat.completions.create({
+  const completion = await getOpenAI().chat.completions.create({
     model: 'gpt-4.1-mini',
     response_format: { type: 'json_object' },
     messages: [

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { EdenUserState } from '@/lib/onboarding/getUserState'
-import UploadCard from '@/components/uploads/UploadCard'
+import { FOCUS_OPTIONS } from '@/lib/onboarding/steps'
 import AppleHealthUpload from '@/components/uploads/AppleHealthUpload'
 import PhotoUpload from '@/components/uploads/PhotoUpload'
 
@@ -12,13 +12,28 @@ interface OnboardingStepClientProps {
   state: EdenUserState
 }
 
-// Domain options for behaviors
-const DOMAINS = [
-  { key: 'exercise', label: 'Exercise & Movement' },
-  { key: 'nutrition', label: 'Nutrition' },
-  { key: 'sleep', label: 'Sleep' },
-  { key: 'stress', label: 'Stress & Recovery' },
-  { key: 'social', label: 'Social Connection' },
+// Intro carousel slides
+const INTRO_SLIDES = [
+  {
+    title: 'Welcome to Eden',
+    description: 'Your personal AI health coach, focused on extending your primespan — the years you feel strong, clear, and capable.',
+    icon: '🌿',
+  },
+  {
+    title: 'Five Dimensions of Health',
+    description: 'We track Heart, Frame, Metabolism, Recovery, and Mind to give you a complete picture of your wellbeing.',
+    icon: '⭐',
+  },
+  {
+    title: 'Data-Driven Insights',
+    description: "Import your Apple Health data and we'll build a personalized Prime Scorecard showing where you stand.",
+    icon: '📊',
+  },
+  {
+    title: 'Coaching That Adapts',
+    description: 'Eden learns your goals, constraints, and preferences to give actionable advice that fits your life.',
+    icon: '🎯',
+  },
 ]
 
 export default function OnboardingStepClient({ step, state }: OnboardingStepClientProps) {
@@ -26,121 +41,109 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Step 2: Goals
-  const [goalCategory, setGoalCategory] = useState(state.goals_json?.goalCategory || '')
-  const [horizon, setHorizon] = useState<number>(state.goals_json?.horizon || 0)
-  const [priorityDomains, setPriorityDomains] = useState<string[]>(state.goals_json?.priorityDomains || [])
+  // Step 1: Intro carousel
+  const [currentSlide, setCurrentSlide] = useState(0)
 
-  const [uploadSkipped, setUploadSkipped] = useState(false)
-  const [importId, setImportId] = useState<string | null>(state.identity_json?.data_sources?.appleHealthImportId || null)
+  // Step 2: Focus selection
+  const [focusPrimary, setFocusPrimary] = useState<string | null>(state.goals_json?.focus_primary || null)
+  const [focusSecondary, setFocusSecondary] = useState<string | null>(state.goals_json?.focus_secondary || null)
 
-  // Fetch latest import ID from status on mount
+  // Step 3: Privacy acknowledgment
+  const [privacyAck, setPrivacyAck] = useState(state.safety_json?.privacy_ack || false)
+
+  // Step 4: Uploads (tracked via uploads component, we just track skip state)
+  const [uploadsSkipped, setUploadsSkipped] = useState(state.goals_json?.uploads_skipped || false)
+
+  // Step 5: Safety rails
+  const [diagnoses, setDiagnoses] = useState<string>(
+    formatSafetyField(state.safety_json?.diagnoses)
+  )
+  const [meds, setMeds] = useState<string>(
+    formatSafetyField(state.safety_json?.meds)
+  )
+  const [injuriesLimitations, setInjuriesLimitations] = useState<string>(
+    state.safety_json?.injuries_limitations || ''
+  )
+  const [redLines, setRedLines] = useState<string>(
+    state.safety_json?.red_lines || ''
+  )
+  const [doctorRestrictions, setDoctorRestrictions] = useState<string>(
+    state.safety_json?.doctor_restrictions || ''
+  )
+
+  // Step 6: Essentials
+  const [useAge, setUseAge] = useState(!state.identity_json?.dob) // true = age input, false = DOB input
+  const [age, setAge] = useState<number | ''>(state.identity_json?.age || '')
+  const [dob, setDob] = useState<string>(state.identity_json?.dob || '')
+  const [sexAtBirth, setSexAtBirth] = useState<string>(state.identity_json?.sex_at_birth || '')
+  const [height, setHeight] = useState<number | ''>(state.identity_json?.height || '')
+  const [weight, setWeight] = useState<number | ''>(state.identity_json?.weight || '')
+  const [units, setUnits] = useState<'metric' | 'imperial'>(state.identity_json?.units || 'metric')
+
+  // Upload status for transition screen
+  const [uploadStatus, setUploadStatus] = useState<{
+    appleHealth: { latest: { status: string } | null; completed: number }
+    photos: { total: number }
+  } | null>(null)
+
+  // Poll upload status for step 7
   useEffect(() => {
-    if (step === 3) {
-      fetch('/api/uploads/status')
-        .then(res => res.json())
-        .then(data => {
-          if (data?.appleHealth?.latest?.id) {
-            setImportId(data.appleHealth.latest.id)
+    if (step === 7) {
+      const loadStatus = async () => {
+        try {
+          const res = await fetch('/api/uploads/status')
+          if (res.ok) {
+            const data = await res.json()
+            setUploadStatus({
+              appleHealth: {
+                latest: data.appleHealth?.latest || null,
+                completed: data.appleHealth?.completed || 0,
+              },
+              photos: {
+                total: data.photos?.total || 0,
+              },
+            })
           }
-        })
-        .catch(console.error)
+        } catch (e) {
+          console.error('Failed to load upload status', e)
+        }
+      }
+      loadStatus()
+      const interval = setInterval(loadStatus, 3000)
+      return () => clearInterval(interval)
     }
   }, [step])
 
-  // Step 4: Identity
-  const [age, setAge] = useState<number | ''>(state.identity_json?.age || '')
-  const [sexAtBirth, setSexAtBirth] = useState(state.identity_json?.sexAtBirth || '')
-  const [heightCm, setHeightCm] = useState<number | ''>(state.identity_json?.heightCm || '')
-  const [weightKg, setWeightKg] = useState<number | ''>(state.identity_json?.weightKg || '')
-  const [timezone, setTimezone] = useState(state.identity_json?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
-  const [location, setLocation] = useState(state.identity_json?.location || '')
-  const [workStyle, setWorkStyle] = useState(state.identity_json?.workStyle || '')
-  const [freeTimeWindows, setFreeTimeWindows] = useState<string[]>(state.identity_json?.freeTimeWindows || [])
-
-  // Step 5: Safety - show "none" if array is empty, otherwise join
-  const formatArrayOrNone = (arr: string[] | undefined | null): string => {
-    if (!arr) return ''
-    if (arr.length === 0) return 'none'
-    return arr.join(', ')
-  }
-  const [diagnoses, setDiagnoses] = useState<string>(formatArrayOrNone(state.safety_json?.diagnoses))
-  const [meds, setMeds] = useState<string>(formatArrayOrNone(state.safety_json?.meds))
-  const [injuriesYesNo, setInjuriesYesNo] = useState<'yes' | 'no' | ''>(state.safety_json?.injuriesYesNo || '')
-  const [injuryDetails, setInjuryDetails] = useState(state.safety_json?.injuryDetails || '')
-  const [redLines, setRedLines] = useState(state.safety_json?.redLines === null ? 'none' : (state.safety_json?.redLines || ''))
-  const [doctorRestrictionsYesNo, setDoctorRestrictionsYesNo] = useState<'yes' | 'no' | ''>(state.safety_json?.doctorRestrictionsYesNo || '')
-  const [doctorRestrictionDetails, setDoctorRestrictionDetails] = useState(state.safety_json?.doctorRestrictionDetails || '')
-
-  // Step 6: Behaviors
-  const [domainSelections, setDomainSelections] = useState<Record<string, string>>(state.behaviors_json?.domainSelections || {})
-  const [timeBudget, setTimeBudget] = useState(state.behaviors_json?.timeBudget || '')
-
-  // Step 7: Coaching
-  const [tone, setTone] = useState(state.coaching_json?.tone || '')
-  const [cadence, setCadence] = useState(state.coaching_json?.cadence || '')
-  const [nudgeStyle, setNudgeStyle] = useState(state.coaching_json?.nudgeStyle || '')
-  const [commitment, setCommitment] = useState<number>(state.coaching_json?.commitment || 5)
-  const [whyNow, setWhyNow] = useState(state.coaching_json?.whyNow || '')
-
-  const togglePriorityDomain = (domain: string) => {
-    setPriorityDomains(prev => {
-      if (prev.includes(domain)) {
-        return prev.filter(d => d !== domain)
-      }
-      if (prev.length < 2) {
-        return [...prev, domain]
-      }
-      return prev
-    })
-  }
-
-  const toggleFreeTimeWindow = (window: string) => {
-    setFreeTimeWindows(prev => {
-      if (prev.includes(window)) {
-        return prev.filter(w => w !== window)
-      }
-      return [...prev, window]
-    })
+  function formatSafetyField(value: string | string[] | undefined | null): string {
+    if (!value) return ''
+    if (Array.isArray(value)) {
+      return value.length === 0 ? 'none' : value.join(', ')
+    }
+    return value
   }
 
   const validateStep = (): string | null => {
     switch (step) {
-      case 2:
-        if (!goalCategory) return 'Please select a goal category'
-        if (!horizon) return 'Please select a time horizon'
-        if (priorityDomains.length < 1 || priorityDomains.length > 2) return 'Please select 1-2 priority domains'
-        break
-      case 4:
-        if (!age) return 'Please enter your age'
-        if (!sexAtBirth) return 'Please select sex at birth'
-        if (!heightCm) return 'Please enter your height'
-        if (!weightKg) return 'Please enter your weight'
-        if (!timezone) return 'Please select your timezone'
-        if (!location) return 'Please enter your location'
-        if (!workStyle) return 'Please select your work style'
-        if (freeTimeWindows.length === 0) return 'Please select at least one free time window'
+      case 3:
+        if (!privacyAck) return 'Please acknowledge the privacy policy to continue'
         break
       case 5:
-        if (!diagnoses) return 'Please enter diagnoses or "none"'
-        if (!meds) return 'Please enter medications or "none"'
-        if (!injuriesYesNo) return 'Please indicate if you have injuries'
-        if (injuriesYesNo === 'yes' && !injuryDetails) return 'Please describe your injuries'
-        if (!redLines) return 'Please enter red lines or "none"'
-        if (!doctorRestrictionsYesNo) return 'Please indicate if you have doctor restrictions'
-        if (doctorRestrictionsYesNo === 'yes' && !doctorRestrictionDetails) return 'Please describe your restrictions'
+        if (!diagnoses.trim()) return 'Please enter diagnoses or "none"'
+        if (!meds.trim()) return 'Please enter medications or "none"'
+        if (!injuriesLimitations.trim()) return 'Please enter injuries/limitations or "none"'
+        if (!redLines.trim()) return 'Please enter red lines or "none"'
+        if (!doctorRestrictions.trim()) return 'Please enter doctor restrictions or "none"'
         break
       case 6:
-        for (const domain of DOMAINS) {
-          if (!domainSelections[domain.key]) return `Please answer for ${domain.label}`
+        if (useAge) {
+          if (!age || age < 1 || age > 120) return 'Please enter a valid age'
+        } else {
+          if (!dob) return 'Please enter your date of birth'
         }
-        if (!timeBudget) return 'Please select your time budget'
-        break
-      case 7:
-        if (!tone) return 'Please select a coaching tone'
-        if (!cadence) return 'Please select a check-in cadence'
-        if (!nudgeStyle) return 'Please select a nudge style'
-        if (!whyNow) return 'Please share what brought you here (or select "prefer not to say")'
+        if (!sexAtBirth) return 'Please select sex at birth'
+        if (!height || height <= 0) return 'Please enter your height'
+        if (!weight || weight <= 0) return 'Please enter your weight'
+        if (!units) return 'Please select your preferred units'
         break
     }
     return null
@@ -152,59 +155,54 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
         return {}
       case 2:
         return {
-          goals_json: { goalCategory, horizon, priorityDomains }
-        }
-      case 3:
-        if (importId) {
-          return {
-            identity_json: {
-              data_sources: { appleHealthImportId: importId }
-            }
+          goals_json: {
+            focus_primary: focusPrimary,
+            focus_secondary: focusSecondary,
           }
         }
-        return {}
+      case 3:
+        return {
+          safety_json: {
+            privacy_ack: privacyAck,
+          }
+        }
       case 4:
         return {
-          identity_json: {
-            age: Number(age),
-            sexAtBirth,
-            heightCm: Number(heightCm),
-            weightKg: Number(weightKg),
-            timezone,
-            location,
-            workStyle,
-            freeTimeWindows,
-            ...(importId ? { data_sources: { appleHealthImportId: importId } } : {})
+          goals_json: {
+            uploads_skipped: uploadsSkipped,
           }
         }
       case 5:
         return {
           safety_json: {
-            diagnoses: diagnoses.toLowerCase() === 'none' ? [] : diagnoses.split(',').map(s => s.trim()).filter(Boolean),
-            meds: meds.toLowerCase() === 'none' ? [] : meds.split(',').map(s => s.trim()).filter(Boolean),
-            injuriesYesNo,
-            injuryDetails: injuriesYesNo === 'yes' ? injuryDetails : null,
-            redLines: redLines.toLowerCase() === 'none' ? null : redLines,
-            doctorRestrictionsYesNo,
-            doctorRestrictionDetails: doctorRestrictionsYesNo === 'yes' ? doctorRestrictionDetails : null,
+            diagnoses: diagnoses.toLowerCase() === 'none' ? 'none' : diagnoses.trim(),
+            meds: meds.toLowerCase() === 'none' ? 'none' : meds.trim(),
+            injuries_limitations: injuriesLimitations.toLowerCase() === 'none' ? 'none' : injuriesLimitations.trim(),
+            red_lines: redLines.toLowerCase() === 'none' ? 'none' : redLines.trim(),
+            doctor_restrictions: doctorRestrictions.toLowerCase() === 'none' ? 'none' : doctorRestrictions.trim(),
           }
         }
       case 6:
         return {
-          behaviors_json: { domainSelections, timeBudget }
+          identity_json: {
+            dob: useAge ? null : dob,
+            age: useAge ? Number(age) : null,
+            sex_at_birth: sexAtBirth,
+            height: Number(height),
+            weight: Number(weight),
+            units: units,
+          }
         }
       case 7:
-        return {
-          coaching_json: { tone, cadence, nudgeStyle, commitment, whyNow }
-        }
+        return {} // No data to save on transition screen
       default:
         return {}
     }
   }
 
   const handleNext = async () => {
-    // Step 1 doesn't need validation
-    if (step > 1) {
+    // Steps that need validation
+    if ([3, 5, 6].includes(step)) {
       const validationError = validateStep()
       if (validationError) {
         setError(validationError)
@@ -221,7 +219,7 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           step,
-          onboarding_status: step === 7 ? 'profile_complete' : 'in_progress',
+          onboarding_status: 'in_progress',
           patch: buildPatch(),
         }),
       })
@@ -231,7 +229,6 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
         throw new Error(data.error || 'Failed to save')
       }
 
-      // Navigate to next step
       router.push(`/onboarding/${step + 1}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -244,610 +241,709 @@ export default function OnboardingStepClient({ step, state }: OnboardingStepClie
     router.push(`/onboarding/${step - 1}`)
   }
 
-  const handleSkipStep3 = async () => {
+  const handleSkip = async () => {
     setSaving(true)
     try {
+      const patch: Record<string, unknown> = {}
+      
+      if (step === 2) {
+        patch.goals_json = { focus_primary: null, focus_secondary: null }
+      } else if (step === 4) {
+        patch.goals_json = { uploads_skipped: true }
+        setUploadsSkipped(true)
+      }
+
       await fetch('/api/onboarding/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          step: 3,
+          step,
           onboarding_status: 'in_progress',
-          patch: {},
+          patch,
         }),
       })
-      router.push('/onboarding/4')
+      router.push(`/onboarding/${step + 1}`)
     } finally {
       setSaving(false)
     }
   }
 
+  // Helper to set "none" for safety fields
+  const setNone = (setter: (val: string) => void) => () => setter('none')
+
   return (
     <div className="space-y-6">
-      {/* Step 1: Welcome */}
+      {/* Step 1: Intro Carousel */}
       {step === 1 && (
-        <div className="text-center py-8">
-          <div className="w-20 h-20 rounded-2xl bg-[#007AFF] flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <span className="text-3xl font-bold text-white">E</span>
+        <div className="space-y-6">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#007AFF]/10 to-[#34C759]/10 p-8">
+            <div className="text-center">
+              <div className="text-6xl mb-4">{INTRO_SLIDES[currentSlide].icon}</div>
+              <h2 className="text-[22px] font-bold text-black mb-3">
+                {INTRO_SLIDES[currentSlide].title}
+              </h2>
+              <p className="text-[17px] text-[#3C3C43] leading-relaxed">
+                {INTRO_SLIDES[currentSlide].description}
+              </p>
+            </div>
           </div>
-          <p className="text-[17px] text-[#3C3C43] mb-4">
-            Welcome! Eden is your personal health coach, powered by AI and guided by your data.
-          </p>
-          <p className="text-[15px] text-[#8E8E93]">
-            Over the next few steps, we&apos;ll learn about you so we can provide truly personalized coaching from day one.
-          </p>
+
+          {/* Dots */}
+          <div className="flex justify-center gap-2">
+            {INTRO_SLIDES.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setCurrentSlide(idx)}
+                className={`w-2.5 h-2.5 rounded-full transition-colors ${
+                  idx === currentSlide ? 'bg-[#007AFF]' : 'bg-[#E5E5EA]'
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-4 border-t border-[#E5E5EA]">
+            {currentSlide > 0 ? (
+              <button
+                onClick={() => setCurrentSlide(currentSlide - 1)}
+                className="text-[17px] text-[#007AFF] font-semibold hover:opacity-70 transition-opacity"
+              >
+                Back
+              </button>
+            ) : (
+              <div />
+            )}
+
+            {currentSlide < INTRO_SLIDES.length - 1 ? (
+              <button
+                onClick={() => setCurrentSlide(currentSlide + 1)}
+                className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] transition-colors"
+              >
+                Next
+              </button>
+            ) : (
+              <button
+                onClick={handleNext}
+                disabled={saving}
+                className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
+              >
+                {saving ? 'Saving…' : 'Get Started'}
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Step 2: Goals */}
+      {/* Step 2: Focus Selection */}
       {step === 2 && (
         <div className="space-y-6">
           <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              What&apos;s your main goal?
+            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-3">
+              Primary Focus
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              {['Longevity', 'Performance', 'Weight Loss', 'Energy', 'Mental Health', 'General Wellness'].map(cat => (
+            <div className="grid gap-3">
+              {FOCUS_OPTIONS.map(opt => (
                 <button
-                  key={cat}
+                  key={opt.key}
                   type="button"
-                  onClick={() => setGoalCategory(cat)}
-                  className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    goalCategory === cat
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
+                  onClick={() => {
+                    // If clicking on current primary, deselect it
+                    if (focusPrimary === opt.key) {
+                      // Promote secondary to primary if it exists
+                      setFocusPrimary(focusSecondary)
+                      setFocusSecondary(null)
+                    } 
+                    // If clicking on current secondary, deselect it
+                    else if (focusSecondary === opt.key) {
+                      setFocusSecondary(null)
+                    }
+                    // If no primary set, this becomes primary
+                    else if (!focusPrimary) {
+                      setFocusPrimary(opt.key)
+                    }
+                    // If primary is set but no secondary, this becomes secondary
+                    else if (!focusSecondary) {
+                      setFocusSecondary(opt.key)
+                    }
+                    // Both slots filled: replace secondary with new selection
+                    else {
+                      setFocusSecondary(opt.key)
+                    }
+                  }}
+                  className={`w-full p-4 rounded-xl text-left transition-all border-2 ${
+                    focusPrimary === opt.key
+                      ? 'bg-[#007AFF]/10 border-[#007AFF]'
+                      : focusSecondary === opt.key
+                      ? 'bg-[#34C759]/10 border-[#34C759]'
+                      : 'bg-[#F2F2F7] border-transparent hover:bg-[#E5E5EA]'
                   }`}
                 >
-                  {cat}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-[17px] font-semibold text-black">{opt.label}</span>
+                      <p className="text-[15px] text-[#8E8E93] mt-0.5">{opt.description}</p>
+                    </div>
+                    {focusPrimary === opt.key && (
+                      <span className="text-[13px] font-medium text-[#007AFF] bg-[#007AFF]/20 px-2 py-0.5 rounded-full">
+                        Primary
+                      </span>
+                    )}
+                    {focusSecondary === opt.key && (
+                      <span className="text-[13px] font-medium text-[#34C759] bg-[#34C759]/20 px-2 py-0.5 rounded-full">
+                        Secondary
+                      </span>
+                    )}
+                  </div>
                 </button>
               ))}
             </div>
           </div>
 
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Time horizon
-            </label>
-            <div className="flex gap-3">
-              {[3, 6, 12].map(months => (
-                <button
-                  key={months}
-                  type="button"
-                  onClick={() => setHorizon(months)}
-                  className={`flex-1 p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    horizon === months
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {months} months
-                </button>
-              ))}
+          {focusPrimary && !focusSecondary && (
+            <div className="p-3 bg-[#34C759]/10 rounded-xl">
+              <p className="text-[15px] text-[#34C759]">
+                💡 Tap another option to add a secondary focus (optional)
+              </p>
             </div>
-          </div>
+          )}
 
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Priority domains (select 1-2)
-            </label>
-            <div className="space-y-2">
-              {DOMAINS.map(domain => (
-                <button
-                  key={domain.key}
-                  type="button"
-                  onClick={() => togglePriorityDomain(domain.key)}
-                  className={`w-full p-3 rounded-xl text-left text-[15px] font-medium transition-all ${
-                    priorityDomains.includes(domain.key)
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {domain.label}
-                </button>
-              ))}
+          {focusPrimary && focusSecondary && (
+            <div className="p-3 bg-[#F2F2F7] rounded-xl">
+              <p className="text-[15px] text-[#8E8E93]">
+                ✓ Primary and secondary focus selected. Tap to change or deselect.
+              </p>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-4 border-t border-[#E5E5EA]">
+            <button
+              onClick={handleBack}
+              className="text-[17px] text-[#007AFF] font-semibold hover:opacity-70 transition-opacity"
+            >
+              Back
+            </button>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSkip}
+                disabled={saving}
+                className="text-[17px] text-[#8E8E93] font-medium hover:text-[#3C3C43] transition-colors"
+              >
+                Skip
+              </button>
+              <button
+                onClick={handleNext}
+                disabled={saving}
+                className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
+              >
+                {saving ? 'Saving…' : 'Next'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Step 3: Data Upload */}
+      {/* Step 3: Privacy & Trust */}
       {step === 3 && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          <div className="bg-[#F2F2F7] rounded-xl p-5 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#007AFF] flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-[17px] font-semibold text-black">Your Data is Private</h3>
+                <p className="text-[15px] text-[#3C3C43] mt-1">
+                  Your health data is encrypted and never shared without your explicit consent. 
+                  We use it only to provide personalized coaching.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#34C759] flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-[17px] font-semibold text-black">Confidence Labels</h3>
+                <p className="text-[15px] text-[#3C3C43] mt-1">
+                  Each insight shows a confidence level based on how much data we have. 
+                  More data = more accurate recommendations.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#FF9500] flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-[17px] font-semibold text-black">Not Medical Advice</h3>
+                <p className="text-[15px] text-[#3C3C43] mt-1">
+                  Eden is a coaching tool, not a medical service. Always consult healthcare 
+                  professionals for medical decisions.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <label className="flex items-start gap-3 p-4 bg-white border-2 border-[#E5E5EA] rounded-xl cursor-pointer hover:border-[#007AFF] transition-colors">
+            <input
+              type="checkbox"
+              checked={privacyAck}
+              onChange={(e) => setPrivacyAck(e.target.checked)}
+              className="w-6 h-6 rounded-md border-2 border-[#C6C6C8] text-[#007AFF] focus:ring-[#007AFF] mt-0.5"
+            />
+            <span className="text-[17px] text-[#3C3C43]">
+              I understand how Eden handles my data and that insights include confidence labels
+            </span>
+          </label>
+
+          {error && (
+            <div className="p-4 rounded-xl bg-[#FF3B30]/10 text-[#FF3B30] text-[15px]">
+              {error}
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-4 border-t border-[#E5E5EA]">
+            <button
+              onClick={handleBack}
+              className="text-[17px] text-[#007AFF] font-semibold hover:opacity-70 transition-opacity"
+            >
+              Back
+            </button>
+
+            <button
+              onClick={handleNext}
+              disabled={saving || !privacyAck}
+              className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
+            >
+              {saving ? 'Saving…' : 'Next'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: Uploads */}
+      {step === 4 && (
+        <div className="space-y-6">
           <p className="text-[15px] text-[#8E8E93]">
-            Import your Apple Health data and upload a photo to improve your snapshot quality.
+            Import your health data for a more accurate Prime Scorecard. You can always add more later.
           </p>
 
-          <UploadCard
-            title="Apple Health"
-            subtitle="Upload your Apple Health export (.zip)"
-            icon={
-              <svg className="w-6 h-6 text-[#FF2D55]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-              </svg>
-            }
-            footer={
-              <p className="text-[13px] text-[#8E8E93]">
-                On iPhone: Health → Profile → Export All Health Data
-              </p>
-            }
-          >
-            <AppleHealthUpload source="onboarding" />
-          </UploadCard>
+          <div className="space-y-4">
+            <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#FF2D55]/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#FF2D55]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-[17px] font-semibold text-black">Apple Health</h3>
+                  <p className="text-[13px] text-[#8E8E93]">Export from iPhone: Health → Profile → Export All</p>
+                </div>
+              </div>
+              <AppleHealthUpload source="onboarding" />
+            </div>
 
-          <UploadCard
-            title="Body Photos"
-            subtitle="Upload a recent photo for better personalization"
-            icon={
-              <svg className="w-6 h-6 text-[#5856D6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.75 10.5L19.5 6.75m-4.5 0L19.5 10.5m-8.25 1.125l-2.955 2.955a2.25 2.25 0 11-3.182-3.182l7.5-7.5a2.25 2.25 0 113.182 3.182L10.5 10.5zm0 0L12 12" />
-              </svg>
-            }
-          >
-            <PhotoUpload source="onboarding" />
-          </UploadCard>
+            <div className="bg-white border border-[#E5E5EA] rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-[#5856D6]/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#5856D6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-[17px] font-semibold text-black">Body Photos</h3>
+                  <p className="text-[13px] text-[#8E8E93]">Upload progress photos securely</p>
+                </div>
+              </div>
+              <PhotoUpload source="onboarding" />
+            </div>
+          </div>
 
-          <div className="flex items-center justify-between bg-[#FFF8E5] border border-[#FFD60A]/60 text-[#8E8E93] text-[13px] rounded-xl px-3 py-2">
+          <div className="flex items-center justify-between bg-[#FFF8E5] border border-[#FFD60A]/60 text-[#8E8E93] text-[14px] rounded-xl px-4 py-3">
             <span>Not ready to upload?</span>
             <button
               type="button"
-              className="text-[#FF9500] font-medium"
-              onClick={() => setUploadSkipped(true)}
+              onClick={handleSkip}
+              disabled={saving}
+              className="text-[#FF9500] font-semibold hover:opacity-70 transition-opacity"
             >
               Skip for now
             </button>
           </div>
 
-          {uploadSkipped && (
-            <div className="p-3 rounded-xl bg-[#FFF4E5] text-[#C85D00] text-[14px]">
-              Snapshot will be low confidence until you upload data. You can continue and upload later.
+          {uploadsSkipped && (
+            <div className="p-4 rounded-xl bg-[#FF9500]/10 text-[#C85D00] text-[15px]">
+              ⚠️ Your Prime Scorecard will have lower confidence until you upload data.
             </div>
           )}
-        </div>
-      )}
 
-      {/* Step 4: Identity */}
-      {step === 4 && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-                Age
-              </label>
-              <input
-                type="number"
-                value={age}
-                onChange={e => setAge(e.target.value ? Number(e.target.value) : '')}
-                className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-                placeholder="30"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-                Sex at birth
-              </label>
-              <select
-                value={sexAtBirth}
-                onChange={e => setSexAtBirth(e.target.value)}
-                className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-              >
-                <option value="">Select</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-                Height (cm)
-              </label>
-              <input
-                type="number"
-                value={heightCm}
-                onChange={e => setHeightCm(e.target.value ? Number(e.target.value) : '')}
-                className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-                placeholder="175"
-              />
-            </div>
-            <div>
-              <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-                Weight (kg)
-              </label>
-              <input
-                type="number"
-                value={weightKg}
-                onChange={e => setWeightKg(e.target.value ? Number(e.target.value) : '')}
-                className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-                placeholder="70"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Timezone
-            </label>
-            <select
-              value={timezone}
-              onChange={e => setTimezone(e.target.value)}
-              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-            >
-              {Intl.supportedValuesOf('timeZone').map(tz => (
-                <option key={tz} value={tz}>{tz}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Location (City, Country)
-            </label>
-            <input
-              type="text"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-              placeholder="London, UK"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Work style
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {['Remote', 'Office', 'Hybrid'].map(style => (
-                <button
-                  key={style}
-                  type="button"
-                  onClick={() => setWorkStyle(style)}
-                  className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    workStyle === style
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {style}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Free time windows (select all that apply)
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {['Early Morning', 'Morning', 'Lunch', 'Afternoon', 'Evening', 'Night'].map(window => (
-                <button
-                  key={window}
-                  type="button"
-                  onClick={() => toggleFreeTimeWindow(window)}
-                  className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    freeTimeWindows.includes(window)
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {window}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Step 5: Safety */}
-      {step === 5 && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Diagnosed conditions (comma-separated, or &quot;none&quot;)
-            </label>
-            <input
-              type="text"
-              value={diagnoses}
-              onChange={e => setDiagnoses(e.target.value)}
-              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-              placeholder="none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Current medications (comma-separated, or &quot;none&quot;)
-            </label>
-            <input
-              type="text"
-              value={meds}
-              onChange={e => setMeds(e.target.value)}
-              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-              placeholder="none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Do you have any injuries or physical limitations?
-            </label>
-            <div className="flex gap-3">
-              {(['yes', 'no'] as const).map(opt => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setInjuriesYesNo(opt)}
-                  className={`flex-1 p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    injuriesYesNo === opt
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {opt === 'yes' ? 'Yes' : 'No'}
-                </button>
-              ))}
-            </div>
-            {injuriesYesNo === 'yes' && (
-              <textarea
-                value={injuryDetails}
-                onChange={e => setInjuryDetails(e.target.value)}
-                className="mt-3 w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none resize-none"
-                rows={2}
-                placeholder="Please describe..."
-              />
-            )}
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Red lines (things you absolutely won&apos;t do, or &quot;none&quot;)
-            </label>
-            <input
-              type="text"
-              value={redLines}
-              onChange={e => setRedLines(e.target.value)}
-              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
-              placeholder="none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Do you have any doctor restrictions?
-            </label>
-            <div className="flex gap-3">
-              {(['yes', 'no'] as const).map(opt => (
-                <button
-                  key={opt}
-                  type="button"
-                  onClick={() => setDoctorRestrictionsYesNo(opt)}
-                  className={`flex-1 p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    doctorRestrictionsYesNo === opt
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {opt === 'yes' ? 'Yes' : 'No'}
-                </button>
-              ))}
-            </div>
-            {doctorRestrictionsYesNo === 'yes' && (
-              <textarea
-                value={doctorRestrictionDetails}
-                onChange={e => setDoctorRestrictionDetails(e.target.value)}
-                className="mt-3 w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none resize-none"
-                rows={2}
-                placeholder="Please describe..."
-              />
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Step 6: Behaviors */}
-      {step === 6 && (
-        <div className="space-y-4">
-          <p className="text-[15px] text-[#8E8E93] mb-4">
-            Tell us about your current habits in each domain.
-          </p>
-
-          {DOMAINS.map(domain => (
-            <div key={domain.key}>
-              <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-                {domain.label}
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {['None', 'Some', 'Regular'].map(level => (
-                  <button
-                    key={level}
-                    type="button"
-                    onClick={() => setDomainSelections(prev => ({ ...prev, [domain.key]: level }))}
-                    className={`p-3 rounded-xl text-[14px] font-medium transition-all ${
-                      domainSelections[domain.key] === level
-                        ? 'bg-[#007AFF] text-white'
-                        : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                    }`}
-                  >
-                    {level}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Weekly time budget for health activities
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {['< 2 hours', '2-5 hours', '5-10 hours', '10+ hours'].map(budget => (
-                <button
-                  key={budget}
-                  type="button"
-                  onClick={() => setTimeBudget(budget)}
-                  className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    timeBudget === budget
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {budget}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Step 7: Coaching */}
-      {step === 7 && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Preferred coaching tone
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {['Supportive', 'Direct', 'Challenging'].map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTone(t)}
-                  className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    tone === t
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Check-in cadence
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {['Daily', 'Every few days', 'Weekly'].map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCadence(c)}
-                  className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    cadence === c
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Nudge style
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {['Gentle', 'Persistent', 'Aggressive'].map(n => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setNudgeStyle(n)}
-                  className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
-                    nudgeStyle === n
-                      ? 'bg-[#007AFF] text-white'
-                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              Commitment level (1-10)
-            </label>
-            <div className="flex items-center gap-4">
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={commitment}
-                onChange={e => setCommitment(Number(e.target.value))}
-                className="flex-1 h-2 bg-[#E5E5EA] rounded-lg appearance-none cursor-pointer accent-[#007AFF]"
-              />
-              <span className="text-[22px] font-bold text-black tabular-nums w-8 text-center">{commitment}</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-              What brought you here today?
-            </label>
-            <textarea
-              value={whyNow}
-              onChange={e => setWhyNow(e.target.value)}
-              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none resize-none"
-              rows={3}
-              placeholder="Share your motivation..."
-            />
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-4 border-t border-[#E5E5EA]">
             <button
-              type="button"
-              onClick={() => setWhyNow('prefer not to say')}
-              className="mt-2 text-[13px] text-[#8E8E93] hover:text-[#007AFF]"
+              onClick={handleBack}
+              className="text-[17px] text-[#007AFF] font-semibold hover:opacity-70 transition-opacity"
             >
-              Prefer not to say
+              Back
+            </button>
+
+            <button
+              onClick={handleNext}
+              disabled={saving}
+              className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
+            >
+              {saving ? 'Saving…' : 'Next'}
             </button>
           </div>
         </div>
       )}
 
-      {/* Error message */}
-      {error && (
-        <div className="p-4 rounded-xl bg-[#FF3B30]/10 text-[#FF3B30] text-[15px]">
-          {error}
+      {/* Step 5: Safety Rails */}
+      {step === 5 && (
+        <div className="space-y-5">
+          <p className="text-[15px] text-[#8E8E93]">
+            Help us keep you safe by sharing any health considerations. Type &quot;none&quot; if not applicable.
+          </p>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">
+                Diagnosed Conditions
+              </label>
+              <button onClick={setNone(setDiagnoses)} className="text-[13px] text-[#007AFF]">
+                Set &quot;none&quot;
+              </button>
+            </div>
+            <input
+              type="text"
+              value={diagnoses}
+              onChange={e => setDiagnoses(e.target.value)}
+              placeholder="e.g., diabetes, hypertension, or 'none'"
+              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">
+                Current Medications
+              </label>
+              <button onClick={setNone(setMeds)} className="text-[13px] text-[#007AFF]">
+                Set &quot;none&quot;
+              </button>
+            </div>
+            <input
+              type="text"
+              value={meds}
+              onChange={e => setMeds(e.target.value)}
+              placeholder="e.g., metformin, lisinopril, or 'none'"
+              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">
+                Injuries or Limitations
+              </label>
+              <button onClick={setNone(setInjuriesLimitations)} className="text-[13px] text-[#007AFF]">
+                Set &quot;none&quot;
+              </button>
+            </div>
+            <input
+              type="text"
+              value={injuriesLimitations}
+              onChange={e => setInjuriesLimitations(e.target.value)}
+              placeholder="e.g., bad knee, back pain, or 'none'"
+              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">
+                Red Lines (things you won&apos;t do)
+              </label>
+              <button onClick={setNone(setRedLines)} className="text-[13px] text-[#007AFF]">
+                Set &quot;none&quot;
+              </button>
+            </div>
+            <input
+              type="text"
+              value={redLines}
+              onChange={e => setRedLines(e.target.value)}
+              placeholder="e.g., no fasting, no running, or 'none'"
+              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide">
+                Doctor Restrictions
+              </label>
+              <button onClick={setNone(setDoctorRestrictions)} className="text-[13px] text-[#007AFF]">
+                Set &quot;none&quot;
+              </button>
+            </div>
+            <input
+              type="text"
+              value={doctorRestrictions}
+              onChange={e => setDoctorRestrictions(e.target.value)}
+              placeholder="e.g., no heavy lifting, or 'none'"
+              className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+            />
+          </div>
+
+          {error && (
+            <div className="p-4 rounded-xl bg-[#FF3B30]/10 text-[#FF3B30] text-[15px]">
+              {error}
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-4 border-t border-[#E5E5EA]">
+            <button
+              onClick={handleBack}
+              className="text-[17px] text-[#007AFF] font-semibold hover:opacity-70 transition-opacity"
+            >
+              Back
+            </button>
+
+            <button
+              onClick={handleNext}
+              disabled={saving}
+              className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
+            >
+              {saving ? 'Saving…' : 'Next'}
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between gap-4 pt-4 border-t border-[#E5E5EA]">
-        {step > 1 ? (
-          <button
-            onClick={handleBack}
-            className="text-[17px] text-[#007AFF] font-semibold hover:opacity-70 transition-opacity"
-          >
-            Back
-          </button>
-        ) : (
-          <div />
-        )}
+      {/* Step 6: Essentials */}
+      {step === 6 && (
+        <div className="space-y-5">
+          <div>
+            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
+              {useAge ? 'Age' : 'Date of Birth'}
+            </label>
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setUseAge(true)}
+                className={`px-4 py-2 rounded-lg text-[15px] font-medium transition-all ${
+                  useAge ? 'bg-[#007AFF] text-white' : 'bg-[#F2F2F7] text-[#3C3C43]'
+                }`}
+              >
+                Enter Age
+              </button>
+              <button
+                type="button"
+                onClick={() => setUseAge(false)}
+                className={`px-4 py-2 rounded-lg text-[15px] font-medium transition-all ${
+                  !useAge ? 'bg-[#007AFF] text-white' : 'bg-[#F2F2F7] text-[#3C3C43]'
+                }`}
+              >
+                Enter DOB
+              </button>
+            </div>
+            {useAge ? (
+              <input
+                type="number"
+                value={age}
+                onChange={e => setAge(e.target.value ? Number(e.target.value) : '')}
+                placeholder="30"
+                min="1"
+                max="120"
+                className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+              />
+            ) : (
+              <input
+                type="date"
+                value={dob}
+                onChange={e => setDob(e.target.value)}
+                className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+              />
+            )}
+          </div>
 
-        {step !== 3 && (
-          <button
-            onClick={handleNext}
-            disabled={saving}
-            className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] disabled:cursor-not-allowed transition-colors ml-auto"
-          >
-            {saving ? 'Saving…' : step === 7 ? 'Continue' : 'Next'}
-          </button>
-        )}
+          <div>
+            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
+              Sex at Birth
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { value: 'male', label: 'Male' },
+                { value: 'female', label: 'Female' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSexAtBirth(opt.value)}
+                  className={`p-3 rounded-xl text-[17px] font-medium transition-all ${
+                    sexAtBirth === opt.value
+                      ? 'bg-[#007AFF] text-white'
+                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {step === 3 && (
-          <button
-            onClick={handleNext}
-            disabled={saving}
-            className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] disabled:cursor-not-allowed transition-colors ml-auto"
-          >
-            {saving ? 'Saving…' : 'Next'}
-          </button>
-        )}
-      </div>
+          <div>
+            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
+              Measurement Units
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { value: 'metric', label: 'Metric (cm, kg)' },
+                { value: 'imperial', label: 'Imperial (ft, lbs)' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setUnits(opt.value as 'metric' | 'imperial')}
+                  className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
+                    units === opt.value
+                      ? 'bg-[#007AFF] text-white'
+                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
+                Height ({units === 'metric' ? 'cm' : 'inches'})
+              </label>
+              <input
+                type="number"
+                value={height}
+                onChange={e => setHeight(e.target.value ? Number(e.target.value) : '')}
+                placeholder={units === 'metric' ? '175' : '70'}
+                className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
+                Weight ({units === 'metric' ? 'kg' : 'lbs'})
+              </label>
+              <input
+                type="number"
+                value={weight}
+                onChange={e => setWeight(e.target.value ? Number(e.target.value) : '')}
+                placeholder={units === 'metric' ? '70' : '154'}
+                className="w-full px-4 py-3 text-[17px] text-black bg-[#F2F2F7] border border-[#C6C6C8] rounded-xl focus:border-[#007AFF] focus:ring-0 outline-none"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-4 rounded-xl bg-[#FF3B30]/10 text-[#FF3B30] text-[15px]">
+              {error}
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-4 border-t border-[#E5E5EA]">
+            <button
+              onClick={handleBack}
+              className="text-[17px] text-[#007AFF] font-semibold hover:opacity-70 transition-opacity"
+            >
+              Back
+            </button>
+
+            <button
+              onClick={handleNext}
+              disabled={saving}
+              className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
+            >
+              {saving ? 'Saving…' : 'Next'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 7: Transition / Building Scorecard */}
+      {step === 7 && (
+        <div className="space-y-6">
+          <div className="text-center py-8">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#007AFF] to-[#34C759] flex items-center justify-center mx-auto mb-6 animate-pulse">
+              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h2 className="text-[22px] font-bold text-black mb-3">Building Your Prime Scorecard</h2>
+            <p className="text-[17px] text-[#3C3C43]">
+              We&apos;re analyzing your data to create a personalized health picture.
+            </p>
+          </div>
+
+          {/* Upload Status */}
+          <div className="bg-[#F2F2F7] rounded-xl p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] text-[#3C3C43]">Apple Health</span>
+              {uploadStatus?.appleHealth?.latest ? (
+                <span className={`text-[13px] font-medium px-2.5 py-1 rounded-full ${
+                  uploadStatus.appleHealth.latest.status === 'completed'
+                    ? 'bg-[#34C759]/10 text-[#34C759]'
+                    : uploadStatus.appleHealth.latest.status === 'processing'
+                    ? 'bg-[#FF9500]/10 text-[#FF9500]'
+                    : 'bg-[#007AFF]/10 text-[#007AFF]'
+                }`}>
+                  {uploadStatus.appleHealth.latest.status === 'completed' ? '✓ Imported' : 
+                   uploadStatus.appleHealth.latest.status === 'processing' ? 'Processing...' : 'Pending'}
+                </span>
+              ) : (
+                <span className="text-[13px] text-[#8E8E93]">Not uploaded</span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-[15px] text-[#3C3C43]">Body Photos</span>
+              <span className="text-[13px] text-[#8E8E93]">
+                {uploadStatus?.photos?.total || 0} uploaded
+              </span>
+            </div>
+          </div>
+
+          {/* Navigation */}
+          <div className="flex items-center justify-between pt-4 border-t border-[#E5E5EA]">
+            <button
+              onClick={handleBack}
+              className="text-[17px] text-[#007AFF] font-semibold hover:opacity-70 transition-opacity"
+            >
+              Back
+            </button>
+
+            <button
+              onClick={handleNext}
+              disabled={saving}
+              className="bg-[#007AFF] text-white py-3 px-6 rounded-xl text-[17px] font-semibold hover:bg-[#0066DD] active:bg-[#0055CC] disabled:bg-[#C7C7CC] transition-colors"
+            >
+              {saving ? 'Saving…' : 'Continue'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
-

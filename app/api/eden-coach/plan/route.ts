@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
 
     // Map known errors to user-friendly messages
     const errorMap: Record<string, { msg: string; status: number }> = {
-      SNAPSHOT_UNAVAILABLE: {
-        msg: 'Unable to build your profile snapshot. Please ensure you have some metrics or profile data.',
+      CONTEXT_UNAVAILABLE: {
+        msg: 'Unable to build your context. Please ensure you have some metrics or profile data.',
         status: 400,
       },
       LLM_NO_RESPONSE: {

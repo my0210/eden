@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { buildEdenContext, EdenContext } from '@/lib/context/buildEdenContext'
-import { deriveUserProfileFromMessages } from '@/lib/context/deriveUserProfileFromMessages'
+import { buildEdenContext, EdenContext, summarizeContextForCoach } from '@/lib/context/buildEdenContext'
+import { domainDisplay } from '@/lib/prime-scorecard/metrics'
+import { PRIME_DOMAINS } from '@/lib/prime-scorecard/types'
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy initialization to avoid build-time errors when env var isn't set
+let openai: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  }
+  return openai
+}
 
 // Create Supabase client for this route handler
 async function getSupabase() {
@@ -39,17 +47,26 @@ type CoachRequestBody = {
   channel?: 'web' | 'whatsapp'
 }
 
-const SYSTEM_PROMPT = `You are **Eden**, an expert health & performance coach focused on extending a person's **primespan** – the years where they actually feel strong, clear, and able to do what they care about, not just how long they live or what their lab numbers are.
+const SYSTEM_PROMPT = `You are **Eden**, an expert health & performance coach focused on extending a person's **primespan** – the years where they actually feel strong, clear, and able to do what they care about.
 
 ### Your job
 - Help the user figure out **what matters most right now** and **what to actually do about it**.
 - Keep things practical, realistic, and humane. You are not a doctor, you are a coach.
 
 ### Context you receive
-You'll receive a brief summary of what Eden knows about this person. Use it as background – don't recite it back unless it helps explain your thinking. The context includes:
-- **Profile**: basics like age, goals, constraints, time available.
-- **Health snapshot**: their current state across Heart, Frame, Metabolism, Recovery, and Mind.
-- **Weekly plan**: if one exists, it's a focus they're working on this week.
+You'll receive a structured summary of what Eden knows about this person. This includes:
+- **Essentials**: age, sex, height, weight
+- **Focus**: their primary/secondary health focus areas
+- **Safety Rails**: any conditions, medications, injuries, or restrictions
+- **Prime Scorecard**: their current health score across 5 domains (Heart, Frame, Metabolism, Recovery, Mind) with confidence levels
+- **Uploads**: what data they've imported
+
+### Critical Rules
+1. **Never claim a metric exists unless it appears in the Prime Scorecard evidence.**
+2. **If confidence is low, use cautious language** ("based on limited data", "we don't have much visibility into...").
+3. **Do NOT ask for more data in your first message.** Provide value with what you have.
+4. **Honor safety rails absolutely.** If they have injuries, restrictions, or red lines, respect them.
+5. **Focus on their stated focus area** when making suggestions.
 
 ### How to coach
 - Sound like a thoughtful human, not a chatbot. Short paragraphs, natural language.
@@ -60,8 +77,7 @@ You'll receive a brief summary of what Eden knows about this person. Use it as b
 
 ### On weekly plans
 - If there's a plan, use it as a reference point – but don't keep re-printing it.
-- If there's no plan yet, that's fine. Get to know them first. A plan can come later when it makes sense.
-- Never rush someone into a plan. Understanding their situation matters more.
+- If there's no plan yet, that's fine. Get to know them first.
 
 ### Safety
 - You're not a doctor. Don't diagnose. If something sounds medical, suggest they see a professional.
@@ -72,55 +88,120 @@ You'll receive a brief summary of what Eden knows about this person. Use it as b
 - Specific beats vague: "20-min walk after lunch 3x/week" > "move more"
 - When unsure, say so and ask.`
 
-// Build a natural language context summary instead of raw JSON
-function summarizeContext(ctx: EdenContext): string {
+/**
+ * Generate a deterministic first message based on the context.
+ * This is grounded in the scorecard and focus - no data requests.
+ */
+function generateFirstMessage(ctx: EdenContext): string {
   const parts: string[] = []
+  
+  // Greeting
+  parts.push("Welcome to Eden! I'm here to help you optimize your health and extend your primespan. 🌿")
+  parts.push("")
 
-  // Profile summary (from the profile record, not snapshot)
-  if (ctx.profile) {
-    const p = ctx.profile as Record<string, unknown>
-    const profileBits: string[] = []
-    if (p.first_name) profileBits.push(`Name: ${p.first_name}`)
-    if (p.age) profileBits.push(`${p.age} years old`)
-    if (p.sex_at_birth) profileBits.push(`${p.sex_at_birth}`)
-    if (p.height_cm) profileBits.push(`${p.height_cm}cm`)
-    if (p.weight_kg) profileBits.push(`${p.weight_kg}kg`)
-    if (p.primary_goal) profileBits.push(`Goal: ${p.primary_goal}`)
+  // Acknowledge what we know
+  if (ctx.scorecard) {
+    const sc = ctx.scorecard
+    const confLabel = sc.prime_confidence >= 80 ? 'high' : sc.prime_confidence >= 50 ? 'moderate' : 'limited'
     
-    if (profileBits.length > 0) {
-      parts.push(`**Profile**: ${profileBits.join(', ')}`)
+    if (sc.prime_score !== null) {
+      parts.push(`**Your Prime Scorecard** shows a score of **${sc.prime_score}** with ${confLabel} confidence, based on ${sc.evidence_summary.total_metrics} metrics across ${sc.evidence_summary.domains_with_data} domain${sc.evidence_summary.domains_with_data !== 1 ? 's' : ''}.`)
     } else {
-      parts.push(`**Profile**: Not much known yet.`)
+      parts.push(`I've set up your **Prime Scorecard**, though we don't have enough data yet to calculate an overall score.`)
     }
-  } else {
-    parts.push(`**Profile**: New user, nothing known yet.`)
-  }
+    parts.push("")
 
-  // Health snapshot summary
-  if (ctx.snapshot?.metrics && ctx.snapshot.metrics.length > 0) {
-    const metricSummaries: string[] = []
-    for (const m of ctx.snapshot.metrics) {
-      if (m.latestValue !== null) {
-        const unit = m.unit ? ` ${m.unit}` : ''
-        metricSummaries.push(`${m.metricCode}: ${m.latestValue}${unit}`)
+    // Domain observations (only those with data)
+    const observations: string[] = []
+    for (const domain of PRIME_DOMAINS) {
+      const score = sc.domain_scores[domain]
+      const conf = sc.domain_confidence[domain]
+      const label = domainDisplay[domain].label
+      
+      if (score !== null) {
+        if (score >= 70) {
+          observations.push(`Your **${label}** looks strong at ${score}`)
+        } else if (score >= 50) {
+          observations.push(`Your **${label}** is moderate at ${score}`)
+        } else {
+          observations.push(`Your **${label}** could use attention at ${score}`)
+        }
       }
     }
-    if (metricSummaries.length > 0) {
-      parts.push(`**Health data**: ${metricSummaries.join(', ')}`)
+
+    if (observations.length > 0) {
+      parts.push("**What I'm seeing:**")
+      for (const obs of observations) {
+        parts.push(`• ${obs}`)
+      }
+      parts.push("")
+    }
+
+    // Note what's missing (but don't ask for it)
+    const missingDomains = PRIME_DOMAINS.filter(d => sc.domain_scores[d] === null)
+    if (missingDomains.length > 0 && missingDomains.length < 5) {
+      const missingLabels = missingDomains.map(d => domainDisplay[d].label).join(', ')
+      parts.push(`*We don't have data yet for ${missingLabels}, so those scores aren't calculated yet.*`)
+      parts.push("")
     }
   } else {
-    parts.push(`**Health data**: None uploaded yet.`)
+    parts.push("I don't have much health data yet, so I'll start with some universal foundations that help everyone.")
+    parts.push("")
   }
 
-  // Plan summary
-  if (ctx.plan && ctx.hasPlan) {
-    const actionTitles = ctx.plan.actions.map(a => a.title).join('; ')
-    parts.push(`**This week's focus**: ${ctx.plan.focusSummary || 'No summary'}. Actions: ${actionTitles || 'none'}`)
+  // Focus-aligned suggestion
+  const focus = ctx.focus.primary || 'overall health'
+  
+  parts.push("**Let's get started:**")
+  
+  if (ctx.scorecard && ctx.scorecard.prime_score !== null) {
+    // Tailor to their focus and weakest domain
+    const weakestDomain = PRIME_DOMAINS
+      .filter(d => ctx.scorecard!.domain_scores[d] !== null)
+      .sort((a, b) => (ctx.scorecard!.domain_scores[a] ?? 100) - (ctx.scorecard!.domain_scores[b] ?? 100))[0]
+    
+    if (weakestDomain) {
+      const weakLabel = domainDisplay[weakestDomain].label
+      parts.push(`Based on your focus on **${focus}** and your ${weakLabel} score, here are 2-3 things that could make a real difference:`)
+      parts.push("")
+      
+      // Give conservative, universal suggestions based on weakest domain
+      switch (weakestDomain) {
+        case 'heart':
+          parts.push("1. **Add 20 minutes of zone 2 cardio** (brisk walking, easy cycling) 3x/week")
+          parts.push("2. **Practice nasal breathing** during low-intensity exercise to improve efficiency")
+          break
+        case 'frame':
+          parts.push("1. **Start with 2 strength sessions per week** focusing on compound movements")
+          parts.push("2. **Add daily mobility work** – even 5 minutes of stretching helps")
+          break
+        case 'metabolism':
+          parts.push("1. **Focus on protein at every meal** – aim for palm-sized portions")
+          parts.push("2. **Add a 10-min walk after meals** to improve glucose response")
+          break
+        case 'recovery':
+          parts.push("1. **Set a consistent sleep schedule** – same bed/wake time ±30 min")
+          parts.push("2. **Create a wind-down routine** – dim lights, no screens 1hr before bed")
+          break
+        case 'mind':
+          parts.push("1. **Add 5 minutes of morning stillness** – meditation, journaling, or just sitting")
+          parts.push("2. **Take short breaks** every 90 minutes during focused work")
+          break
+      }
+    }
   } else {
-    parts.push(`**Weekly plan**: None yet.`)
+    // No scorecard data - give universal safe foundations
+    parts.push(`Since we're just getting started, here are foundational habits that benefit everyone focusing on **${focus}**:`)
+    parts.push("")
+    parts.push("1. **Sleep consistency** – same bed/wake time, 7-8 hours")
+    parts.push("2. **Daily movement** – even a 20-min walk makes a difference")
+    parts.push("3. **Protein with each meal** – supports energy and recovery")
   }
+  
+  parts.push("")
+  parts.push("What would you like to focus on first? Or tell me what's on your mind – I'm here to help.")
 
-  return parts.join('\n')
+  return parts.join("\n")
 }
 
 export async function POST(req: NextRequest) {
@@ -144,6 +225,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Get or create conversation
     let conversationId: string
+    let isNewConversation = false
 
     const { data: existingConversation } = await supabase
       .from('eden_conversations')
@@ -172,9 +254,18 @@ export async function POST(req: NextRequest) {
       }
 
       conversationId = newConversation.id
+      isNewConversation = true
     }
 
-    // 4. Insert user message FIRST (so deriveProfile can see it)
+    // 4. Check if this is the first message in the conversation
+    const { count: existingMessageCount } = await supabase
+      .from('eden_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+
+    const isFirstMessage = isNewConversation || (existingMessageCount ?? 0) === 0
+
+    // 5. Insert user message
     const { error: insertMsgError } = await supabase
       .from('eden_messages')
       .insert({
@@ -188,15 +279,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Internal error' }, { status: 500 })
     }
 
-    // 5. Extract profile info from conversation BEFORE building context
-    try {
-      await deriveUserProfileFromMessages(supabase, user.id)
-    } catch (e) {
-      console.error('deriveUserProfileFromMessages failed:', e)
-      // Continue anyway - not critical
-    }
-
-    // 6. Build Eden context (now with potentially updated profile)
+    // 6. Build Eden context (read-only, includes Prime Scorecard + focus)
+    // NOTE: deriveUserProfileFromMessages is DISABLED - onboarding essentials are the source of truth
     const { edenContext } = await buildEdenContext(supabase, user.id)
 
     // 7. Fetch last ~10 messages for context (most recent, then reverse for chronological order)
@@ -204,7 +288,7 @@ export async function POST(req: NextRequest) {
       .from('eden_messages')
       .select('role, content')
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false }) // newest first
+      .order('created_at', { ascending: false })
       .limit(10)
     
     // Reverse to get chronological order (oldest to newest)
@@ -219,15 +303,46 @@ export async function POST(req: NextRequest) {
       content: SYSTEM_PROMPT,
     })
 
-    // Context as a natural language summary (not raw JSON)
-    const contextSummary = summarizeContext(edenContext)
+    // Context summary (v2: includes Prime Scorecard + focus)
+    const contextSummary = summarizeContextForCoach(edenContext)
     openaiMessages.push({
       role: 'system',
       content: `Here's what Eden knows about this person:\n\n${contextSummary}`,
     })
 
-    // Add conversation history
-    if (recentMessages.length > 0) {
+    // If first message, add the deterministic first assistant message as context
+    // This ensures the AI knows what was already said and doesn't repeat it
+    if (isFirstMessage) {
+      const firstMessage = generateFirstMessage(edenContext)
+      
+      // Insert the first message into the database
+      await supabase
+        .from('eden_messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: firstMessage,
+        })
+
+      // Add it to OpenAI context
+      openaiMessages.push({
+        role: 'assistant',
+        content: firstMessage,
+      })
+
+      // Add the user's message (already in recentMessages, but ensure it's after the assistant)
+      openaiMessages.push({
+        role: 'user',
+        content: body.message,
+      })
+
+      // Special instruction for follow-up
+      openaiMessages.push({
+        role: 'system',
+        content: `You just gave the user their first welcome message with initial observations and suggestions. Now respond naturally to their reply. Do NOT repeat the welcome or scorecard summary. Do NOT ask for more data. Build on what you started.`,
+      })
+    } else {
+      // Add conversation history
       for (const msg of recentMessages) {
         openaiMessages.push({
           role: msg.role === 'user' ? 'user' : 'assistant',
@@ -237,7 +352,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 9. Call OpenAI
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: openaiMessages,
       temperature: 0.7,
@@ -245,17 +360,32 @@ export async function POST(req: NextRequest) {
 
     const replyText = completion.choices[0]?.message?.content || 'I apologize, I could not generate a response.'
 
-    // 10. Insert assistant reply
-    const { error: insertReplyError } = await supabase
-      .from('eden_messages')
-      .insert({
-        conversation_id: conversationId,
-        role: 'assistant',
-        content: replyText,
-      })
+    // 10. Insert assistant reply (unless it was the first message which we already inserted)
+    if (!isFirstMessage) {
+      const { error: insertReplyError } = await supabase
+        .from('eden_messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: replyText,
+        })
 
-    if (insertReplyError) {
-      console.error('Failed to insert assistant reply:', insertReplyError)
+      if (insertReplyError) {
+        console.error('Failed to insert assistant reply:', insertReplyError)
+      }
+    } else {
+      // For first message, insert the OpenAI follow-up response
+      const { error: insertReplyError } = await supabase
+        .from('eden_messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: replyText,
+        })
+
+      if (insertReplyError) {
+        console.error('Failed to insert assistant reply:', insertReplyError)
+      }
     }
 
     // 11. Update conversation's last_message_at
@@ -264,7 +394,15 @@ export async function POST(req: NextRequest) {
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    // 12. Return reply
+    // 12. Return reply (for first message, return the first message + the follow-up)
+    if (isFirstMessage) {
+      const firstMessage = generateFirstMessage(edenContext)
+      return NextResponse.json({ 
+        reply: replyText,
+        firstMessage: firstMessage 
+      })
+    }
+
     return NextResponse.json({ reply: replyText })
 
   } catch (err) {
