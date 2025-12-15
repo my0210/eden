@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       ok: true, 
-      message: 'Import reset to pending. It will be processed by the next cron job.' 
+      message: 'Import reset to pending. The Railway worker will process it shortly.' 
     })
   } catch (error) {
     console.error('Error retrying import:', error)

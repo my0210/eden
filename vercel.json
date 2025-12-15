@@ -1,9 +1,2 @@
-{
-  "crons": [
-    {
-      "path": "/api/jobs/process-imports",
-      "schedule": "*/3 * * * *"
-    }
-  ]
-}
+{}
 

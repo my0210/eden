@@ -26,6 +26,10 @@ interface Props {
 // Files larger than 4MB use direct-to-storage upload (bypasses Vercel limits)
 const DIRECT_UPLOAD_THRESHOLD = 4 * 1024 * 1024
 
+// Polling intervals
+const POLL_INTERVAL_ACTIVE = 3000 // 3s when queued/processing
+const POLL_INTERVAL_IDLE = 10000 // 10s when completed/failed
+
 type UploadPhase = 'idle' | 'preparing' | 'uploading' | 'confirming'
 
 export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 4000 }: Props) {
@@ -36,8 +40,33 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
   const [message, setMessage] = useState<string | null>(null)
   const [latestImport, setLatestImport] = useState<AppleHealthImport | null>(null)
   const [statusCounts, setStatusCounts] = useState({ pending: 0, processing: 0, completed: 0, failed: 0 })
+  const [scorecardUpdated, setScorecardUpdated] = useState(false)
+  const [previousStatus, setPreviousStatus] = useState<ImportStatus | null>(null)
+  const [previousProcessedAt, setPreviousProcessedAt] = useState<string | null>(null)
   
   const isUploading = uploadPhase !== 'idle'
+
+  // Format date for display
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return 'N/A'
+    try {
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffMs = now.getTime() - date.getTime()
+      const diffMins = Math.floor(diffMs / 60000)
+      const diffHours = Math.floor(diffMs / 3600000)
+      const diffDays = Math.floor(diffMs / 86400000)
+
+      if (diffMins < 1) return 'just now'
+      if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`
+      if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`
+      if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`
+      
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch {
+      return dateString
+    }
+  }
 
   const loadStatus = async () => {
     try {
@@ -47,24 +76,48 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       }
       const data = await res.json()
       if (data?.appleHealth) {
-        setLatestImport(data.appleHealth.latest || null)
+        const newLatest = data.appleHealth.latest || null
+        setLatestImport(newLatest)
         setStatusCounts({
           pending: data.appleHealth.pending ?? 0,
           processing: data.appleHealth.processing ?? 0,
           completed: data.appleHealth.completed ?? 0,
           failed: data.appleHealth.failed ?? 0,
         })
+
+        // Check if status changed from processing to completed
+        if (
+          previousStatus === 'processing' && 
+          newLatest?.status === 'completed' &&
+          newLatest.processed_at !== previousProcessedAt
+        ) {
+          setScorecardUpdated(true)
+          // Clear message after 10 seconds
+          setTimeout(() => setScorecardUpdated(false), 10000)
+        }
+
+        setPreviousStatus(newLatest?.status || null)
+        setPreviousProcessedAt(newLatest?.processed_at || null)
       }
     } catch (err) {
       console.error(err)
     }
   }
 
+  // Dynamic polling: faster when queued/processing
   useEffect(() => {
+    // Initial load
     loadStatus()
-    const timer = setInterval(loadStatus, pollIntervalMs)
+    
+    // Determine polling interval based on current status
+    const status = latestImport?.status
+    const interval = (status === 'pending' || status === 'processing' || status === 'uploaded')
+      ? POLL_INTERVAL_ACTIVE
+      : POLL_INTERVAL_IDLE
+
+    const timer = setInterval(loadStatus, interval)
     return () => clearInterval(timer)
-  }, [pollIntervalMs])
+  }, [latestImport?.status]) // Re-run when status changes to adjust polling
 
   const handlePickFile = () => fileInputRef.current?.click()
 
@@ -209,6 +262,7 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
 
       if (success) {
         setMessage('✓ Upload complete! Processing will begin shortly.')
+        setScorecardUpdated(false)
         await loadStatus()
       }
     } catch (err) {
@@ -218,6 +272,33 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       setUploadPhase('idle')
       setUploadProgress(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRetry = async () => {
+    if (!latestImport || latestImport.status !== 'failed') return
+
+    setError(null)
+    setMessage(null)
+
+    try {
+      const res = await fetch('/api/apple-health/retry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importId: latestImport.id }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to retry import')
+        return
+      }
+
+      setMessage('✓ Import reset to pending. Processing will begin shortly.')
+      await loadStatus()
+    } catch (err) {
+      console.error(err)
+      setError('Failed to retry import')
     }
   }
 
@@ -232,7 +313,7 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
       status === 'completed' ? 'Completed' :
       status === 'processing' ? 'Processing' :
       status === 'failed' ? 'Failed' :
-      'Uploaded'
+      'Queued'
     return (
       <span className={`text-[13px] font-medium px-2.5 py-1 rounded-full ${color}`}>
         {label}
@@ -303,24 +384,49 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
         </div>
       )}
 
+      {scorecardUpdated && latestImport?.status === 'completed' && (
+        <div className="p-3 rounded-xl bg-[#007AFF]/10 text-[#007AFF] text-[15px] flex items-center gap-2">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Prime Scorecard updated
+        </div>
+      )}
+
       <div className="bg-[#F2F2F7] rounded-lg p-3 space-y-2">
         <div className="flex items-center justify-between text-[15px] text-[#3C3C43]">
           <span>Latest</span>
           {statusBadge(latestImport?.status)}
         </div>
         {latestImport ? (
-          <div className="text-[13px] text-[#8E8E93] space-y-0.5">
+          <div className="text-[13px] text-[#8E8E93] space-y-1">
             <div>File: {latestImport.file_path.split('/').pop()}</div>
             <div>Size: {Math.round((latestImport.file_size || 0) / 1024 / 1024 * 10) / 10} MB</div>
-            <div>Uploaded: {latestImport.uploaded_at || latestImport.created_at}</div>
+            <div>Uploaded: {formatDate(latestImport.uploaded_at || latestImport.created_at)}</div>
+            {latestImport.processed_at && (
+              <div className="text-[#34C759]">
+                Processed: {formatDate(latestImport.processed_at)}
+              </div>
+            )}
             {latestImport.error_message && (
-              <div className="text-[#FF3B30]">Error: {latestImport.error_message}</div>
+              <div className="text-[#FF3B30] mt-2 p-2 bg-[#FF3B30]/10 rounded-lg">
+                <div className="font-medium mb-1">Error:</div>
+                <div>{latestImport.error_message}</div>
+                {latestImport.status === 'failed' && (
+                  <button
+                    onClick={handleRetry}
+                    className="mt-2 px-3 py-1.5 text-[13px] font-medium text-white bg-[#007AFF] rounded-lg hover:bg-[#0066DD] active:bg-[#0055CC] transition-colors"
+                  >
+                    Retry Processing
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ) : (
           <div className="text-[13px] text-[#8E8E93]">No uploads yet</div>
         )}
-        <div className="text-[13px] text-[#8E8E93] flex gap-3">
+        <div className="text-[13px] text-[#8E8E93] flex gap-3 flex-wrap">
           <span>Queued: {statusCounts.pending}</span>
           <span>Processing: {statusCounts.processing}</span>
           <span>Done: {statusCounts.completed}</span>
