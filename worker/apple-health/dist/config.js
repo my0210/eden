@@ -24,5 +24,8 @@ exports.config = {
     workerConcurrency: parseInt(optionalEnv('WORKER_CONCURRENCY', '1'), 10),
     // Logging
     logLevel: optionalEnv('LOG_LEVEL', 'info'),
+    // Vercel app integration (optional - scorecard generation)
+    edenAppUrl: optionalEnv('EDEN_APP_URL', ''),
+    workerSecret: optionalEnv('WORKER_SECRET', ''),
 };
 //# sourceMappingURL=config.js.map

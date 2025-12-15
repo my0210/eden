@@ -92,6 +92,8 @@ async function runWorker(): Promise<void> {
     poll_interval_ms: config.pollIntervalMs,
     concurrency: config.workerConcurrency,
     supabase_host: supabaseHost,
+    eden_app_url_configured: !!config.edenAppUrl,
+    worker_secret_configured: !!config.workerSecret,
   })
 
   // Test connection before starting

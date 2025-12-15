@@ -26,6 +26,10 @@ export const config = {
 
   // Logging
   logLevel: optionalEnv('LOG_LEVEL', 'info'),
+
+  // Vercel app integration (optional - scorecard generation)
+  edenAppUrl: optionalEnv('EDEN_APP_URL', ''),
+  workerSecret: optionalEnv('WORKER_SECRET', ''),
 }
 
 export type Config = typeof config

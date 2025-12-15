@@ -80,6 +80,8 @@ async function runWorker() {
         poll_interval_ms: config_1.config.pollIntervalMs,
         concurrency: config_1.config.workerConcurrency,
         supabase_host: supabaseHost,
+        eden_app_url_configured: !!config_1.config.edenAppUrl,
+        worker_secret_configured: !!config_1.config.workerSecret,
     });
     // Test connection before starting
     await testSupabaseConnection();

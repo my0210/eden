@@ -8,6 +8,8 @@ export declare const config: {
     pollIntervalMs: number;
     workerConcurrency: number;
     logLevel: string;
+    edenAppUrl: string;
+    workerSecret: string;
 };
 export type Config = typeof config;
 //# sourceMappingURL=config.d.ts.map

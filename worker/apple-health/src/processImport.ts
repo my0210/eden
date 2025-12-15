@@ -11,6 +11,7 @@ import { downloadZip, cleanupZipFile } from './download'
 import { findExportXmlStream } from './unzip'
 import { parseExportXmlStream, formatParseSummaryForLog, ParseSummary } from './parseExportXml'
 import { writeMetrics, WriteResult } from './writeMetrics'
+import { triggerScorecardGeneration } from './triggerScorecardGeneration'
 
 export interface ProcessResult {
   success: boolean
@@ -113,6 +114,16 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
     if (updateError) {
       throw new Error(`Failed to update status: ${updateError.message}`)
     }
+
+    // Trigger scorecard generation (non-blocking, failures don't affect import success)
+    triggerScorecardGeneration(userId)
+      .catch(err => {
+        log.warn('Scorecard generation failed (non-fatal)', {
+          import_id: importId,
+          user_id: userId,
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
 
     const durationMs = Date.now() - startTime
     const durationSec = Math.round(durationMs / 100) / 10

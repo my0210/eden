@@ -13,6 +13,7 @@ const download_1 = require("./download");
 const unzip_1 = require("./unzip");
 const parseExportXml_1 = require("./parseExportXml");
 const writeMetrics_1 = require("./writeMetrics");
+const triggerScorecardGeneration_1 = require("./triggerScorecardGeneration");
 /**
  * Process an Apple Health import
  *
@@ -96,6 +97,15 @@ async function processImport(importRow) {
         if (updateError) {
             throw new Error(`Failed to update status: ${updateError.message}`);
         }
+        // Trigger scorecard generation (non-blocking, failures don't affect import success)
+        (0, triggerScorecardGeneration_1.triggerScorecardGeneration)(userId)
+            .catch(err => {
+            logger_1.log.warn('Scorecard generation failed (non-fatal)', {
+                import_id: importId,
+                user_id: userId,
+                error: err instanceof Error ? err.message : String(err),
+            });
+        });
         const durationMs = Date.now() - startTime;
         const durationSec = Math.round(durationMs / 100) / 10;
         logger_1.log.info('Import completed successfully', {
