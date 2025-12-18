@@ -52,13 +52,7 @@ export default function Step8ScorecardReveal({
           const data = await generateRes.json()
           setScorecard(data.scorecard)
         } else {
-          // Check if it's because there are no metrics
-          const errorData = await generateRes.json().catch(() => ({}))
-          if (generateRes.status === 400 && errorData.error?.includes('No metrics')) {
-            setError('No health data available yet. Import your Apple Health data first.')
-          } else {
-            setError('Failed to generate scorecard')
-          }
+          setError('Failed to generate scorecard')
         }
       } else {
         setError('Failed to load scorecard')
