@@ -26,8 +26,23 @@ export default function DashboardScorecard() {
         const data = await res.json()
         setScorecard(data.scorecard)
       } else if (res.status === 404) {
-        // No scorecard exists yet
-        setScorecard(null)
+        // No scorecard exists yet - try to auto-generate if metrics are available
+        try {
+          const generateRes = await fetch('/api/prime-scorecard/generate', {
+            method: 'POST',
+          })
+          
+          if (generateRes.ok) {
+            const generateData = await generateRes.json()
+            setScorecard(generateData.scorecard)
+          } else {
+            // No metrics available or generation failed
+            setScorecard(null)
+          }
+        } catch {
+          // Generation failed, show empty state
+          setScorecard(null)
+        }
       } else {
         setError('Failed to load scorecard')
       }
