@@ -169,6 +169,22 @@ export async function loadScorecardInputs(
           unit: 'mmHg',
           measured_at: newerTimestamp,
           source: 'apple_health',
+          import_id: bpSystolic.import_id || bpDiastolic.import_id,
+        })
+      }
+
+      // === Map body_fat_percentage to body_composition ===
+      // Worker writes body_fat_percentage, but scorecard expects body_composition
+      const bodyFatPercent = latestByCode.get('body_fat_percentage')
+      if (bodyFatPercent && typeof bodyFatPercent.value_raw === 'number') {
+        // Use body fat percentage as body_composition value
+        latestByCode.set('body_composition', {
+          metric_code: 'body_composition',
+          value_raw: bodyFatPercent.value_raw, // Body fat % is what we score
+          unit: '%',
+          measured_at: bodyFatPercent.measured_at,
+          source: 'apple_health',
+          import_id: bodyFatPercent.import_id,
         })
       }
 
