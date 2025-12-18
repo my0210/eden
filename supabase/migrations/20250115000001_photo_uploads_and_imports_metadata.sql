@@ -47,3 +47,4 @@ create index if not exists idx_eden_photo_uploads_user_id on public.eden_photo_u
 create index if not exists idx_eden_photo_uploads_status on public.eden_photo_uploads(status);
 create index if not exists idx_eden_photo_uploads_created_at on public.eden_photo_uploads(created_at desc);
 
+

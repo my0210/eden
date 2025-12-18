@@ -46,7 +46,7 @@ async function triggerScorecardGeneration(userId) {
                     user_id: userId,
                     attempt: attempt + 1,
                     scorecard_id: data.scorecard_id,
-                    prime_score: data.prime_score,
+                    generated_at: data.generated_at,
                 });
                 return true;
             }

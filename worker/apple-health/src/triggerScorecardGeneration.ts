@@ -45,14 +45,15 @@ export async function triggerScorecardGeneration(userId: string): Promise<boolea
 
       if (response.ok) {
         const data = (await response.json().catch(() => ({}))) as {
+          ok?: boolean
           scorecard_id?: string
-          prime_score?: number
+          generated_at?: string
         }
         log.info('Scorecard generation triggered successfully', {
           user_id: userId,
           attempt: attempt + 1,
           scorecard_id: data.scorecard_id,
-          prime_score: data.prime_score,
+          generated_at: data.generated_at,
         })
         return true
       }

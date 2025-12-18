@@ -109,9 +109,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ 
-      success: true,
+      ok: true,
       scorecard_id: insertedRow.id,
-      prime_score: scorecard.prime_score,
       generated_at: scorecard.generated_at,
     })
 
