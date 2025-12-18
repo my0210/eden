@@ -21,6 +21,7 @@ export type MetricInput = {
   unit?: string
   measured_at: string
   source: EvidenceSource
+  import_id?: string // Apple Health import ID (for provenance)
 }
 
 /**
@@ -117,6 +118,7 @@ export async function loadScorecardInputs(
         metric_id,
         value,
         measured_at,
+        import_id,
         eden_metric_definitions (
           metric_code,
           unit
@@ -146,6 +148,7 @@ export async function loadScorecardInputs(
           unit: def.unit || undefined,
           measured_at: row.measured_at,
           source: 'apple_health', // Currently all metrics come from Apple Health
+          import_id: (row as { import_id?: string }).import_id,
         })
       }
 

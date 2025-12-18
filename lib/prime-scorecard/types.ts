@@ -49,6 +49,8 @@ export type ScorecardEvidence = {
   subscore?: number
   /** Optional note explaining special handling */
   note?: string
+  /** Source batch ID (e.g., apple_health_imports.id) for provenance */
+  source_batch_id?: string
 }
 
 /**

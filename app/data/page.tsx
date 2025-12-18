@@ -4,6 +4,7 @@ import ProfileMenu from '../dashboard/ProfileMenu'
 import ResetUserDataCard from './ResetUserDataCard'
 import UploadCard from '@/components/uploads/UploadCard'
 import AppleHealthUpload from '@/components/uploads/AppleHealthUpload'
+import AppleHealthImportsList from '@/components/uploads/AppleHealthImportsList'
 // TODO: Re-enable when OpenAI body composition analysis is ready
 // import PhotoUpload from '@/components/uploads/PhotoUpload'
 
@@ -44,6 +45,9 @@ export default async function DataPage() {
           >
             <AppleHealthUpload source="data" />
           </UploadCard>
+
+          {/* Apple Health Imports List */}
+          <AppleHealthImportsList />
 
           {/* TODO: Re-enable Body Photos when OpenAI body composition analysis is ready
           <UploadCard

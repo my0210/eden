@@ -117,6 +117,7 @@ export default function AppleHealthUpload({ source = 'data', pollIntervalMs = 40
 
     const timer = setInterval(loadStatus, interval)
     return () => clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestImport?.status]) // Re-run when status changes to adjust polling
 
   const handlePickFile = () => fileInputRef.current?.click()

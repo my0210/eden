@@ -133,6 +133,7 @@ function buildEvidence(inputs: ScorecardInputs): ScorecardEvidence[] {
         measured_at: metric.measured_at,
         value_raw: metric.value_raw,
         unit: metric.unit,
+        source_batch_id: metric.import_id, // PR9D: Track which import this came from
       })
     }
   }

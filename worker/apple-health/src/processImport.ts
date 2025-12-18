@@ -85,7 +85,7 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
     }
 
     if (rows.length > 0) {
-      writeResult = await writeMetrics(supabase, userId, rows)
+      writeResult = await writeMetrics(supabase, userId, rows, importId)
       
       log.info('Metrics written', {
         import_id: importId,

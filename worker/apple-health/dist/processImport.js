@@ -70,7 +70,7 @@ async function processImport(importRow) {
             errors: [],
         };
         if (rows.length > 0) {
-            writeResult = await (0, writeMetrics_1.writeMetrics)(supabase, userId, rows);
+            writeResult = await (0, writeMetrics_1.writeMetrics)(supabase, userId, rows, importId);
             logger_1.log.info('Metrics written', {
                 import_id: importId,
                 user_id: userId,

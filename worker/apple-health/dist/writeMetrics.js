@@ -35,14 +35,15 @@ async function loadMetricIdCache(supabase) {
 /**
  * Write metric rows to eden_metric_values with idempotency.
  *
- * Uses batched inserts with ON CONFLICT DO NOTHING on (user_id, metric_id, measured_at).
+ * Uses batched inserts with ON CONFLICT DO NOTHING on (import_id, metric_id, measured_at).
  *
  * @param supabase - Supabase client with service role
  * @param userId - User ID to write metrics for
  * @param rows - Metric rows from parser
+ * @param importId - Apple Health import ID (required for linking)
  * @param batchSize - Number of rows per batch (default 500)
  */
-async function writeMetrics(supabase, userId, rows, batchSize = 500) {
+async function writeMetrics(supabase, userId, rows, importId, batchSize = 500) {
     const result = {
         inserted: 0,
         skipped: 0,
@@ -71,6 +72,7 @@ async function writeMetrics(supabase, userId, rows, batchSize = 500) {
             value: row.value_raw,
             measured_at: row.measured_at,
             source: row.source,
+            import_id: importId,
         });
     }
     if (unknownCodes.size > 0) {
@@ -95,10 +97,11 @@ async function writeMetrics(supabase, userId, rows, batchSize = 500) {
         const totalBatches = Math.ceil(dbRows.length / batchSize);
         try {
             // Use upsert with ignoreDuplicates: true for ON CONFLICT DO NOTHING behavior
+            // New unique constraint: (import_id, metric_id, measured_at)
             const { data, error } = await supabase
                 .from('eden_metric_values')
                 .upsert(batch, {
-                onConflict: 'user_id,metric_id,measured_at',
+                onConflict: 'import_id,metric_id,measured_at',
                 ignoreDuplicates: true,
             })
                 .select('id');
