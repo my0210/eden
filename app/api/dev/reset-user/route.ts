@@ -128,7 +128,17 @@ export async function POST() {
       console.error('reset-user: eden_plans delete error', plansDeleteError)
     }
 
-    // 3) scorecards (new) and legacy snapshots
+    // 3) scorecards - MUST clear latest_scorecard_id FIRST (FK constraint)
+    const { error: clearScorecardRefError } = await supabase
+      .from('eden_user_state')
+      .update({ latest_scorecard_id: null })
+      .eq('user_id', userId)
+
+    if (clearScorecardRefError) {
+      console.error('reset-user: clear latest_scorecard_id error', clearScorecardRefError)
+    }
+
+    // Now safe to delete scorecards
     const { error: scorecardsDeleteError } = await supabase
       .from('eden_user_scorecards')
       .delete()
@@ -177,7 +187,35 @@ export async function POST() {
       console.error('reset-user: eden_user_personas delete error', personaDeleteError)
     }
 
-    // 6) Apple Health imports
+    // 6) Apple Health imports - delete from storage first, then DB
+    try {
+      // Get list of import records to find storage paths
+      const { data: imports } = await supabase
+        .from('apple_health_imports')
+        .select('id, file_path')
+        .eq('user_id', userId)
+
+      if (imports && imports.length > 0) {
+        // Delete files from storage
+        const storagePaths = imports
+          .map(i => i.file_path)
+          .filter(Boolean) as string[]
+        
+        if (storagePaths.length > 0) {
+          const { error: storageDeleteError } = await supabase.storage
+            .from('apple_health_uploads')
+            .remove(storagePaths)
+          
+          if (storageDeleteError) {
+            console.error('reset-user: apple_health storage delete error', storageDeleteError)
+          }
+        }
+      }
+    } catch (ahStorageErr) {
+      console.error('reset-user: apple_health storage cleanup error', ahStorageErr)
+    }
+
+    // Delete Apple Health import records
     const { error: appleDeleteError } = await supabase
       .from('apple_health_imports')
       .delete()
