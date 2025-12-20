@@ -101,8 +101,44 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
       })
     }
 
-    // Step 5: Mark import as completed
+    // Step 5: Mark import as completed or failed based on write results
     const now = new Date().toISOString()
+    
+    // If any writes failed, mark import as failed
+    if (writeResult.failed > 0) {
+      const errorMessage = writeResult.errors.length > 0
+        ? writeResult.errors[0].slice(0, 500)
+        : `Failed to write ${writeResult.failed} metric rows`
+      
+      log.error('Import failed due to write errors', {
+        import_id: importId,
+        user_id: userId,
+        failed: writeResult.failed,
+        first_error: errorMessage,
+      })
+      
+      const { error: updateError } = await supabase
+        .from('apple_health_imports')
+        .update({
+          status: 'failed',
+          failed_at: now,
+          error_message: errorMessage,
+        })
+        .eq('id', importId)
+
+      if (updateError) {
+        throw new Error(`Failed to update failed status: ${updateError.message}`)
+      }
+
+      return {
+        success: false,
+        errorMessage,
+        summary,
+        writeResult,
+      }
+    }
+
+    // All writes succeeded - mark as completed
     const { error: updateError } = await supabase
       .from('apple_health_imports')
       .update({
@@ -115,7 +151,7 @@ export async function processImport(importRow: AppleHealthImport): Promise<Proce
       throw new Error(`Failed to update status: ${updateError.message}`)
     }
 
-    // Trigger scorecard generation (non-blocking, failures don't affect import success)
+    // Trigger scorecard generation only when import completed successfully
     triggerScorecardGeneration(userId)
       .catch(err => {
         log.warn('Scorecard generation failed (non-fatal)', {
