@@ -61,9 +61,16 @@ export async function DELETE(
     }
 
     // 4. Delete all user's scorecards and clear latest_scorecard_id
-    // Use service role client for admin operations
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    // Use service role client for admin operations (REQUIRED - no fallback)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing Supabase configuration: SUPABASE_SERVICE_ROLE_KEY required')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+    }
+    
+    console.log('Using service role client for delete operations', { user_id: user.id })
     
     const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
