@@ -85,6 +85,16 @@ export function computePrimeScorecard(
     scorecard.domain_scores[domain] = result.score
     scorecard.domain_confidence[domain] = result.confidence
     scorecard.how_calculated[domain] = result.how_calculated
+    
+    // Update evidence items with their subscores
+    for (const { metric_code, contribution } of result.contributions) {
+      const evidenceItem = scorecard.evidence.find(
+        e => e.domain === domain && e.metric_code === metric_code
+      )
+      if (evidenceItem) {
+        evidenceItem.subscore = contribution.contribution
+      }
+    }
   }
 
   // 4. Compute prime score (average of non-null domain scores)
