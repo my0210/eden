@@ -43,15 +43,16 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Create Supabase client with service role key (bypasses RLS)
-    // Use service role key if available, otherwise use anon key
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    // Service role key is REQUIRED for this endpoint
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     
     if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('Missing Supabase configuration')
+      console.error('Missing Supabase configuration: SUPABASE_SERVICE_ROLE_KEY required')
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
+    // Create admin client with service role key (bypasses RLS)
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
@@ -59,11 +60,19 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // 4. Verify user exists
+    console.log('Using service role client for scorecard generation', {
+      user_id: userId,
+      has_service_key: !!supabaseServiceKey,
+    })
+
+    // 4. Verify user exists (optional check, but good for validation)
     const { data: user, error: userError } = await supabase.auth.admin.getUserById(userId)
     if (userError || !user) {
-      // If admin API not available, just proceed (anon key with RLS will work)
-      console.warn('Could not verify user via admin API, proceeding anyway')
+      console.warn('Could not verify user via admin API', {
+        user_id: userId,
+        error: userError?.message,
+      })
+      // Continue anyway - user might exist but admin API might have issues
     }
 
     const nowIso = new Date().toISOString()
