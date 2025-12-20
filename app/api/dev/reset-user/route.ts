@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-// Create Supabase client for this route handler (same pattern as eden-coach/message)
-async function getSupabase() {
+// Create Supabase client for auth only
+async function getAuthSupabase() {
   const cookieStore = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,13 +28,30 @@ async function getSupabase() {
   )
 }
 
+// Create admin client with service role key for data operations
+function getAdminSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY')
+  }
+  
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  })
+}
+
 export async function POST() {
-  const supabase = await getSupabase()
+  const authSupabase = await getAuthSupabase()
 
   const {
     data: { user },
     error: authError,
-  } = await supabase.auth.getUser()
+  } = await authSupabase.auth.getUser()
 
   if (authError || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -42,6 +60,10 @@ export async function POST() {
   const userId = user.id
 
   try {
+    // Use service role client for all data operations (bypasses RLS)
+    const supabase = getAdminSupabase()
+    console.log('reset-user: using service role client for user', userId)
+    
     // 1) conversations + messages
     const { data: conversations, error: convSelectError } = await supabase
       .from('eden_conversations')
