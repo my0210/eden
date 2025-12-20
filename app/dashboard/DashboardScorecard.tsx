@@ -10,13 +10,34 @@ export default function DashboardScorecard() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastScorecardId, setLastScorecardId] = useState<string | null>(null)
+  const [justUpdated, setJustUpdated] = useState(false)
 
   useEffect(() => {
     loadScorecard()
+    
+    // Poll for scorecard updates every 5 seconds
+    const interval = setInterval(() => {
+      loadScorecard(true) // silent refresh
+    }, 5000)
+    
+    return () => clearInterval(interval)
   }, [])
 
-  async function loadScorecard() {
-    setLoading(true)
+  // Listen for scorecard update events from other components
+  useEffect(() => {
+    const handleScorecardUpdate = () => {
+      loadScorecard(true)
+    }
+    
+    window.addEventListener('scorecard-updated', handleScorecardUpdate)
+    return () => window.removeEventListener('scorecard-updated', handleScorecardUpdate)
+  }, [])
+
+  async function loadScorecard(silent = false) {
+    if (!silent) {
+      setLoading(true)
+    }
     setError(null)
 
     try {
@@ -24,18 +45,33 @@ export default function DashboardScorecard() {
       
       if (res.ok) {
         const data = await res.json()
-        setScorecard(data.scorecard)
+        const newScorecard = data.scorecard
+        const newScorecardId = data.scorecard_id
+        
+        // Check if this is a new/updated scorecard
+        if (lastScorecardId && newScorecardId && newScorecardId !== lastScorecardId) {
+          setJustUpdated(true)
+          setTimeout(() => setJustUpdated(false), 5000) // Show for 5 seconds
+        }
+        
+        setScorecard(newScorecard)
+        setLastScorecardId(newScorecardId)
       } else if (res.status === 404) {
         // No scorecard exists yet
         setScorecard(null)
+        setLastScorecardId(null)
       } else {
         setError('Failed to load scorecard')
       }
     } catch (err) {
       console.error('Scorecard load error:', err)
-      setError('Network error')
+      if (!silent) {
+        setError('Network error')
+      }
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }
 
@@ -158,13 +194,23 @@ export default function DashboardScorecard() {
             <p className="text-[13px] text-[#8E8E93]">Your health across 5 dimensions</p>
           </div>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          className="text-[13px] text-[#007AFF] font-medium hover:opacity-70 disabled:opacity-50"
-        >
-          {generating ? 'Updating...' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-2">
+          {justUpdated && (
+            <div className="px-2 py-1 rounded-full bg-[#34C759]/10 text-[#34C759] text-[11px] font-medium flex items-center gap-1">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Updated
+            </div>
+          )}
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="text-[13px] text-[#007AFF] font-medium hover:opacity-70 disabled:opacity-50"
+          >
+            {generating ? 'Updating...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       <ScorecardView scorecard={scorecard} showHowCalculated={true} compact={false} />
