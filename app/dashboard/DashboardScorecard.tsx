@@ -22,6 +22,7 @@ export default function DashboardScorecard() {
     }, 5000)
     
     return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Listen for scorecard update events from other components
@@ -32,6 +33,7 @@ export default function DashboardScorecard() {
     
     window.addEventListener('scorecard-updated', handleScorecardUpdate)
     return () => window.removeEventListener('scorecard-updated', handleScorecardUpdate)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadScorecard(silent = false) {
@@ -134,7 +136,7 @@ export default function DashboardScorecard() {
           </div>
         </div>
         <button
-          onClick={loadScorecard}
+          onClick={() => loadScorecard()}
           className="text-[#007AFF] font-semibold text-[15px]"
         >
           Try Again
