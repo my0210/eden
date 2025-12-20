@@ -33,7 +33,9 @@ export async function requireOnboardedUser() {
   const userState = await getUserState(supabase, user.id)
 
   if (userState.onboarding_status !== 'completed') {
-    redirect(getRedirectPath(userState))
+    // Redirect to onboarding step if not completed
+    const step = userState.onboarding_step || 1
+    redirect(`/onboarding/${Math.max(1, step)}`)
   }
 
   return { user, userState }
