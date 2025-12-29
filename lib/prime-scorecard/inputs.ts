@@ -249,7 +249,7 @@ export async function loadScorecardInputs(
 
     // Load prime_check_json if present (onboarding v3)
     if (userState?.prime_check_json) {
-      inputs.prime_check = userState.prime_check_json as PrimeCheckData
+      inputs.prime_check = userState.prime_check_json as PrimeCheckJson
     }
   } catch (e) {
     console.error('loadScorecardInputs: Failed to load self-report essentials', e)
