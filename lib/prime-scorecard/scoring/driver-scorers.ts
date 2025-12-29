@@ -22,7 +22,7 @@ import {
  * Evaluates value against bands in order
  */
 function scoreLadder(
-  value: number | string,
+  value: number | string | boolean,
   config: LadderConfig
 ): { score: number; label?: string } {
   // Ladder method requires numeric values
@@ -47,7 +47,7 @@ function scoreLadder(
  * Maps categorical values to scores
  */
 function scoreProxyMap(
-  value: number | string,
+  value: number | string | boolean,
   config: ProxyMapConfig
 ): { score: number } {
   const stringValue = String(value)
@@ -65,7 +65,7 @@ function scoreProxyMap(
  * Uses age/sex percentile tables (simplified for v1)
  */
 function scorePercentile(
-  value: number | string,
+  value: number | string | boolean,
   config: PercentileConfig,
   userAge?: number,
   userSex?: string

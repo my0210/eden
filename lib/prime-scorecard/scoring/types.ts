@@ -63,8 +63,8 @@ export const SOURCE_QUALITY_MULTIPLIERS: Record<SourceType, number> = {
 export interface Observation {
   /** The driver this observation is for */
   driver_key: string
-  /** The value (numeric or categorical) */
-  value: number | string
+  /** The value (numeric, categorical, or boolean) */
+  value: number | string | boolean
   /** Unit of measurement (optional for categorical values) */
   unit?: string
   /** When the measurement was taken (ISO timestamp) */
@@ -209,7 +209,7 @@ export interface DriverScoringResult {
   driver_score: number
   source_type: SourceType
   measured_at: string
-  value: number | string
+  value: number | string | boolean
   unit?: string
   conflict_flag?: boolean
   freshness_score: number
