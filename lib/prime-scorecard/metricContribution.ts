@@ -171,7 +171,7 @@ const BODY_FAT_BANDS = {
  */
 export function toContribution(
   metric_code: string,
-  value_raw: number | string,
+  value_raw: number | string | boolean,
   unit?: string,
   sex?: 'male' | 'female'
 ): ContributionResult | null {

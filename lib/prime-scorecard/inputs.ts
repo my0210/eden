@@ -18,7 +18,7 @@ import type { PrimeCheckJson } from '@/lib/onboarding/types'
  */
 export type MetricInput = {
   metric_code: string
-  value_raw: number | string
+  value_raw: number | string | boolean
   unit?: string
   measured_at: string
   source: EvidenceSource

@@ -41,8 +41,8 @@ export type ScorecardEvidence = {
   source: EvidenceSource
   /** When the underlying measurement was taken (ISO timestamp) */
   measured_at: string
-  /** Raw value from the source (number or string for categorical) */
-  value_raw?: number | string
+  /** Raw value from the source (number, string for categorical, or boolean) */
+  value_raw?: number | string | boolean
   /** Unit of measurement */
   unit?: string
   /** Computed subscore for this evidence (0-100) */
