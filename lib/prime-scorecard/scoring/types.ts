@@ -181,8 +181,8 @@ export interface DriverConfig {
   stability_requirement?: number
   /** UI text for "what's missing" when driver has no observation */
   missing_copy: string
-  /** Map of source_type to UI chip label */
-  evidence_label_map?: Record<SourceType, string>
+  /** Map of source_type to UI chip label (only needs entries for sources used by this driver) */
+  evidence_label_map?: Partial<Record<SourceType, string>>
 }
 
 /**
