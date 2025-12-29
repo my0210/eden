@@ -242,7 +242,7 @@ export interface DomainEvidenceSummary {
  */
 export interface DomainDerivedAtoms {
   // Heart
-  bp_category?: 'normal' | 'elevated' | 'stage1' | 'stage2' | 'crisis' | 'unknown'
+  bp_category?: 'optimal' | 'normal' | 'elevated' | 'stage1' | 'stage2' | 'crisis' | 'unknown'
   bp_crisis_flag?: boolean
   cardio_self_rating_bucket?: string
   rhr_bucket?: string
