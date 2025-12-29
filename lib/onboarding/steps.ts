@@ -1,16 +1,21 @@
 import { EdenUserState } from './getUserState'
+import { PrimeCheckJson } from './types'
 
 /**
- * Onboarding Step Definitions (v2 - Bevel-inspired flow)
+ * Onboarding Step Definitions (v3 - Prime Check flow)
  * 
+ * New 6-step flow:
  * Step 1: Intro carousel (no inputs)
- * Step 2: Focus selection (optional, allow skip)
- * Step 3: Privacy/Trust (required checkbox)
- * Step 4: Uploads (Apple Health + photos, skippable)
- * Step 5: Safety rails (required, "none" allowed)
- * Step 6: Essentials (required: DOB/age, sex, height, weight, units)
- * Step 7: Transition "Building scorecard" (no inputs)
- * Step 8: Prime Scorecard reveal + CTA
+ * Step 2: Privacy/Trust (required checkbox)
+ * Step 3: Identity Essentials (required: age, sex, height, weight)
+ * Step 4: Apple Health Upload (optional)
+ * Step 5: Prime Check (5 domain cards with quick checks)
+ * Step 6: Scorecard Reveal (full scorecard with confidence)
+ * 
+ * Removed from v2:
+ * - Focus selection (moved to coach chat)
+ * - Safety rails (collected by coach when creating a plan)
+ * - Building scorecard transition (loading shown in Step 6)
  */
 
 export interface OnboardingStep {
@@ -29,14 +34,14 @@ export const ONBOARDING_STEPS: Record<number, OnboardingStep> = {
   },
   2: {
     number: 2,
-    title: 'What matters most?',
-    subtitle: 'Choose your primary focus (or skip)',
-    required: false,
+    title: 'Privacy & Trust',
+    subtitle: 'How we handle your data',
+    required: true,
   },
   3: {
     number: 3,
-    title: 'Privacy & Trust',
-    subtitle: 'How we handle your data',
+    title: 'The Essentials',
+    subtitle: 'Basic info for personalized coaching',
     required: true,
   },
   4: {
@@ -47,109 +52,80 @@ export const ONBOARDING_STEPS: Record<number, OnboardingStep> = {
   },
   5: {
     number: 5,
-    title: 'Safety First',
-    subtitle: 'Help us keep you safe',
+    title: 'Prime Check',
+    subtitle: 'Quick health assessment',
     required: true,
   },
   6: {
     number: 6,
-    title: 'The Essentials',
-    subtitle: 'Basic info for personalized coaching',
-    required: true,
-  },
-  7: {
-    number: 7,
-    title: 'Building Your Scorecard',
-    subtitle: 'Analyzing your data',
-    required: false,
-  },
-  8: {
-    number: 8,
     title: 'Your Prime Scorecard',
     subtitle: 'Ready to start your journey',
     required: false,
   },
 }
 
-export const TOTAL_STEPS = 8
-
-/**
- * Focus options for Step 2
- */
-export const FOCUS_OPTIONS = [
-  { key: 'longevity', label: 'Live Longer', description: 'Extend your healthspan and lifespan' },
-  { key: 'performance', label: 'Perform Better', description: 'Optimize physical and mental performance' },
-  { key: 'weight', label: 'Lose Weight', description: 'Sustainable body composition changes' },
-  { key: 'energy', label: 'More Energy', description: 'Feel more vibrant and alert daily' },
-  { key: 'recovery', label: 'Better Recovery', description: 'Improve sleep and stress resilience' },
-  { key: 'prevention', label: 'Prevent Disease', description: 'Reduce chronic disease risk' },
-] as const
+export const TOTAL_STEPS = 6
 
 /**
  * Validates the user state and returns the first missing step number.
  * Returns null if all required steps are complete.
  * 
- * Required fields by step (v2):
- * - Step 3: safety_json.privacy_ack === true
- * - Step 5: safety_json (diagnoses, meds, injuries_limitations, red_lines, doctor_restrictions)
- * - Step 6: identity_json (dob OR age, sex_at_birth, height, weight, units)
- * 
- * NOT required (removed from v1):
- * - time horizon
- * - weekly time budget
- * - coaching preferences (tone, cadence, nudge style, commitment, "why now")
- * - focus selection (optional)
- * - uploads (optional)
+ * Required fields by step (v3):
+ * - Step 2: safety_json.privacy_ack === true
+ * - Step 3: identity_json (age, sex_at_birth, height, weight, units)
+ * - Step 5: prime_check_json (at least schema_version present)
  */
 export function getFirstMissingStep(state: EdenUserState): number | null {
-  // Step 3: Privacy acknowledgment is REQUIRED
+  // Step 2: Privacy acknowledgment is REQUIRED
   if (!state.safety_json?.privacy_ack) {
+    return 2
+  }
+  
+  // Step 3: Identity Essentials are REQUIRED
+  const identity = state.identity_json
+  if (!identity) {
     return 3
   }
   
-  // Step 5: Safety rails are REQUIRED (each field can be "none" but must be present)
-  const safety = state.safety_json
-  if (!safety) {
-    return 5
-  }
-  
-  // Check each safety field exists (can be "none", empty array, or actual values)
-  const hasDiagnoses = safety.diagnoses !== undefined
-  const hasMeds = safety.meds !== undefined
-  const hasInjuries = safety.injuries_limitations !== undefined
-  const hasRedLines = safety.red_lines !== undefined
-  const hasDoctorRestrictions = safety.doctor_restrictions !== undefined
-  
-  if (!hasDiagnoses || !hasMeds || !hasInjuries || !hasRedLines || !hasDoctorRestrictions) {
-    return 5
-  }
-  
-  // Step 6: Essentials are REQUIRED
-  const identity = state.identity_json
-  if (!identity) {
-    return 6
-  }
-  
-  // Must have either dob OR age
+  // Must have age (age field directly, not DOB anymore for simplicity)
   const hasAge = identity.age !== undefined && identity.age !== null
-  const hasDob = identity.dob !== undefined && identity.dob !== null && identity.dob !== ''
-  if (!hasAge && !hasDob) {
-    return 6
+  if (!hasAge) {
+    return 3
   }
   
   // Must have sex_at_birth
   if (!identity.sex_at_birth) {
-    return 6
+    return 3
   }
   
   // Must have height and weight
   if (!identity.height || !identity.weight) {
-    return 6
+    return 3
   }
   
   // Must have units preference
   if (!identity.units) {
-    return 6
+    return 3
+  }
+  
+  // Step 4 (Apple Health) is optional - skip validation
+  
+  // Step 5: Prime Check is REQUIRED
+  const primeCheck = state.prime_check_json as PrimeCheckJson | null | undefined
+  if (!primeCheck || !primeCheck.schema_version) {
+    return 5
+  }
+  
+  // Check that at least one domain has data
+  const hasAnyData = 
+    primeCheck.heart?.cardio_self_rating ||
+    primeCheck.frame?.pushup_capability ||
+    primeCheck.metabolism?.diagnoses?.length ||
+    primeCheck.recovery?.sleep_duration ||
+    primeCheck.mind?.focus_stability
+  
+  if (!hasAnyData) {
+    return 5
   }
   
   // All required steps are complete
@@ -158,15 +134,15 @@ export function getFirstMissingStep(state: EdenUserState): number | null {
 
 /**
  * Check if user can proceed to a specific step
- * Steps 1-2 are always accessible
- * Step 3+ requires previous required steps to be complete
+ * Step 1 is always accessible
+ * Step 2+ requires previous required steps to be complete
  */
 export function canAccessStep(state: EdenUserState, stepNumber: number): boolean {
-  if (stepNumber <= 2) {
+  if (stepNumber <= 1) {
     return true
   }
   
-  // For step 3+, check if we're past it in the flow
+  // For step 2+, check if we're past it in the flow
   const currentStep = state.onboarding_step || 1
   
   // User can always go back to previous steps
@@ -201,4 +177,24 @@ export function getStep(stepNumber: number): OnboardingStep | null {
  */
 export function isOnboardingComplete(state: EdenUserState): boolean {
   return getFirstMissingStep(state) === null
+}
+
+/**
+ * Get the next step number (for navigation)
+ */
+export function getNextStep(currentStep: number): number | null {
+  if (currentStep >= TOTAL_STEPS) {
+    return null
+  }
+  return currentStep + 1
+}
+
+/**
+ * Get the previous step number (for navigation)
+ */
+export function getPreviousStep(currentStep: number): number | null {
+  if (currentStep <= 1) {
+    return null
+  }
+  return currentStep - 1
 }

@@ -1,0 +1,616 @@
+---
+name: Eden v3 Onboarding - Complete Prime Scorecard
+overview: Rearchitect onboarding to 5 steps that guarantee a complete Prime Scorecard. Reuses existing components where possible. Step 1 (Intro), Step 3 (Privacy), Step 4 (Apple Health upload) are kept as-is. Step 2 (Identity) adapts from current Step 6. Step 4.5 (Prime Check) is the new domain questions. Step 5 (Scorecard Reveal) reuses existing with modifications.
+todos:
+  - id: db_migration
+    content: Create migration for new prime_check_json field in eden_user_state
+    status: completed
+  - id: types
+    content: Define TypeScript types for PrimeCheckJson, Observation, DriverConfig
+    status: completed
+  - id: driver_registry
+    content: Create driver-registry.json with all drivers, weights, scoring methods
+    status: completed
+  - id: scoring_engine
+    content: Build scoring engine (resolve-observations, driver-scorers, domain-score, domain-confidence)
+    status: completed
+  - id: step_reorder
+    content: Reorder steps (Privacy→2, Identity→3) in steps.ts and OnboardingStepClient
+    status: completed
+  - id: step5_primecheck
+    content: Build Step 5 Prime Check with 5 domain cards showing Apple Health data + inputs
+    status: completed
+  - id: domain_cards
+    content: Build 5 domain card components (Heart, Frame, Metabolism, Recovery, Mind)
+    status: completed
+  - id: step6_adapt
+    content: Adapt Scorecard Reveal with evidence chips, confidence labels, missing actions
+    status: completed
+  - id: onboarding_flow
+    content: Update routing and validation for new 6-step flow
+    status: completed
+  - id: cleanup
+    content: Remove old onboarding code (focus selection, safety rails, building transition)
+    status: completed
+---
+
+# Eden v3 Onboarding - Complete Prime Scorecard
+
+## Overview
+
+Rearchitect onboarding from 8 steps to 6 steps that guarantee every user gets a complete Prime Scorecard with:
+
+- All 5 domain scores (0-100, never null)
+- A prime score (0-100, never null)
+- Confidence labels per domain (Low/Medium/High)
+- Evidence chips showing data sources
+
+**Key principle**: Reuse existing components where possible to minimize implementation effort.
+
+## Current State vs. New Architecture
+
+### Current (8 steps)
+
+1. Intro carousel ✅ KEEP → Step 1
+2. Focus selection ❌ REMOVE
+3. Privacy/Trust (required) ✅ KEEP → Step 2
+4. Data uploads (optional) ✅ KEEP → Step 4
+5. Safety rails (required) ❌ REMOVE
+6. Essentials (required) ✅ ADAPT → Step 3
+7. Building scorecard (transition) ❌ REMOVE
+8. Scorecard reveal ✅ ADAPT → Step 6
+
+### New (6 steps)
+
+1. **Intro Carousel** - Welcome slides (REUSE existing Step 1)
+2. **Privacy/Trust** - Privacy checkbox (REUSE existing Step 3)
+3. **Identity Essentials** - Age, sex, height, weight (ADAPT from current Step 6)
+4. **Apple Health Upload** - Optional data upload (REUSE existing Step 4)
+5. **Prime Check** - 5 domain cards with quick checks + optional measurements (NEW)
+6. **Scorecard Reveal** - Full scorecard with confidence and evidence (ADAPT from current Step 8)
+
+## Removed/Deferred Features
+
+- **Focus selection**: Moved to coach chat later
+- **Safety rails** (red lines, doctor restrictions): Collected by coach when creating a plan
+- **Building scorecard transition**: Removed (show loading in Step 6)
+- **Mind Focus Check (PVT-lite)**: Deferred, use fallback questions only
+- **Lab PDF upload/parsing**: Deferred, manual entry only
+
+---
+
+## Step 1 - Intro Carousel (REUSE EXISTING)
+
+**No changes needed** - Keep existing `OnboardingStepClient.tsx` Step 1 logic.Welcome slides introducing Eden. User swipes through (or taps "Next").---
+
+## Step 2 - Privacy/Trust (REUSE EXISTING)
+
+**Minimal changes** - Keep existing Step 3 logic.
+
+- Privacy acknowledgment checkbox (required)
+- Store `privacy_ack: true` in `eden_user_state.safety_json`
+
+---
+
+## Step 3 - Identity Essentials (ADAPT FROM CURRENT STEP 6)
+
+### Fields
+
+| Code | Field | Type | Required ||------|-------|------|----------|| G1 | Age | numeric (years) | Yes || G2 | Sex at birth | segmented: Female / Male / Intersex / Prefer not to say | Yes || G3 | Height | numeric + unit (cm/ft-in) | Yes || G4 | Weight | numeric + unit (kg/lbs) | Yes |
+
+### Storage
+
+Store in `eden_user_state.identity_json` (same as current Step 6):
+
+```typescript
+type IdentityJson = {
+  age: number
+  sex_at_birth: 'female' | 'male' | 'intersex' | 'prefer_not_to_say'
+  height: number // always stored in cm
+  weight: number // always stored in kg
+  units: 'metric' | 'imperial'
+}
+```
+
+
+
+### Implementation
+
+- Reuse existing Step 6 UI from `OnboardingStepClient.tsx`
+- Move to position 3 in the flow
+
+---
+
+## Step 4 - Apple Health Upload (REUSE EXISTING)
+
+**No changes needed** - Keep existing Step 4 logic.
+
+- Apple Health .zip upload (optional)
+- Show "Skip for now" option
+- If upload started, show processing status
+
+---
+
+## Step 5 - Prime Check (NEW)
+
+Single scrollable screen with 5 domain cards. Each card has:
+
+1. Quick Check (required, 1 interaction)
+2. Add a measurement (optional)
+3. Connect/Upload (optional)
+
+### Apple Health Data Display
+
+If Apple Health was uploaded in Step 4, each domain card shows relevant extracted data:
+
+- **Heart**: Shows resting HR, HRV if available
+- **Frame**: Shows body mass data if available
+- **Recovery**: Shows sleep duration, HRV if available
+- **Metabolism/Mind**: Shows relevant data if available
+
+**Manual entries are additional observations, not overrides**:
+
+- If user enters BP manually and Apple Health has BP, both are stored as separate observations
+- Scoring engine picks the "best observation" per driver based on source priority
+- Conflict flag set if values differ significantly (for coach context)
+
+### Heart Domain
+
+**Quick Check** - Required (unless skipped)
+
+- H2 Cardio fitness self-rating:
+- Prompt: "Compared to others your age, my cardio fitness is…"
+- Options:
+    - Below average
+    - Slightly below average
+    - About average
+    - Slightly above average
+    - Above average
+    - Not sure
+
+**Add a measurement** - Optional
+
+- H1 Blood pressure:
+- "Do you know your blood pressure?"
+- If yes: SYS (mmHg), DIA (mmHg), date (YYYY-MM)
+- If no: skip
+- H3 Resting heart rate (collapsed under "Add more accuracy"):
+- "Do you know your resting heart rate?"
+- Enter bpm OR select range: <55 / 55–64 / 65–74 / 75–84 / 85+ / Don't know
+- Date (YYYY-MM) - optional
+- Source: Wearable / Doctor / Other - optional
+
+**Connect/Upload (Best evidence)** - Optional
+
+- Apple Health connect/upload
+
+**Derived Fields** (computed, not asked):
+
+- `cardio_self_rating_bucket`: from H2 (below_avg / slightly_below / average / slightly_above / above_avg / not_sure)
+- `bp_category`: normal / elevated / stage1 / stage2 / crisis / unknown
+- `bp_crisis_flag`: boolean (if BP in crisis range, trigger safety messaging in chat - don't block onboarding)
+- `rhr_bucket`: from H3 if entered
+- `heart_missing_top_action`: computed suggestion for improving accuracy
+- If no BP and no Apple Health: "Add blood pressure"
+- Else if Apple Health not connected: "Connect Apple Health"
+- Else: null
+
+**Confidence Rules** (Heart only):
+
+- Only H2 answered (self-rating): confidence capped at Low (~45)
+- BP entered with date OR RHR entered: can reach Medium (~70)
+- Apple Health connected with objective heart metrics: can reach High (~85-90)
+
+**Evidence Chips**:
+
+- Self-report: H2 cardio self-rating
+- Measured self-report: BP/RHR manual entries
+- Device data: Apple Health
+
+---
+
+### Frame Domain
+
+**Quick Check** - Required
+
+- F2 Push-up capability:
+- Options: 0–5 / 6–15 / 16–30 / 31+ / Not possible
+
+**Add a measurement** - Optional
+
+- F1 Waist circumference:
+- numeric (cm)
+- checkbox: "Measured at navel, relaxed"
+
+**Context** - Required
+
+- F3 Pain/limitation:
+- Options: None / Mild / Moderate / Severe
+
+**Connect/Upload** - Optional
+
+- Body photos upload (front + side) - with explicit consent
+
+**Derived Fields**:
+
+- `waist_to_height`: number (if waist entered)
+- `strength_bucket`: from F2
+- `limitation_flag`: boolean (Moderate/Severe)
+
+---
+
+### Metabolism Domain
+
+**Add labs** - Optional (but primary value path)
+
+- Manual entry:
+- ApoB (mg/dL) - preferred
+- HbA1c (%)
+- hs-CRP (mg/L)
+- Test date (YYYY-MM)
+- Optional: ALT, AST, GGT
+
+**Quick Check** - Required
+
+- M1 Diagnoses (multi-select):
+- None / Unsure
+- Prediabetes / Diabetes
+- High cholesterol / ApoB / LDL
+- Fatty liver
+- Diagnosed high blood pressure
+
+**Quick Check** - Required
+
+- M2 Family history (multi-select):
+- Early heart disease
+- Type 2 diabetes
+- None / Unsure
+
+**Context** - Required
+
+- M3 Medications (multi-select):
+- None
+- Statin
+- Metformin
+- GLP-1
+- Other
+
+**Hard Rule**: Without biomarker values, Metabolism confidence capped at Low (≤40)**Derived Fields**:
+
+- `labs_present`: boolean
+- `met_risk_flags`: from M1/M2
+- `managed_with_meds`: boolean tag from M3
+
+---
+
+### Recovery Domain
+
+**Quick Check** - Required
+
+- R1 Sleep duration (weekday average):
+- Options: <6h / 6–7h / 7–8h / 8h+
+
+**Quick Check** - Required
+
+- R2 Sleep regularity:
+- "Do you go to bed and wake up at roughly the same time each day?"
+- Options: Yes / No
+
+**Quick Check** - Required
+
+- R3 Insomnia frequency:
+- Options: <1 night/week / 1–2 nights/week / 3–4 nights/week / 5+ nights/week
+
+**Connect/Upload** - Optional
+
+- Apple Health / wearable connect (sleep + HRV/RHR)
+
+**Derived Fields**:
+
+- `sleep_bucket`: from R1
+- `regularity_flag`: boolean
+- `insomnia_bucket`: from R3
+
+---
+
+### Mind Domain
+
+**Quick Check** - Required (fallback, since PVT-lite deferred)
+
+- N1 Focus stability:
+- Options: Very unstable / Somewhat unstable / Mostly stable / Very stable
+
+**Quick Check** - Required
+
+- N2 Brain fog:
+- Options: Rarely / Sometimes / Often
+
+**Hard Rule**: Without objective test, Mind confidence capped at Low (≤35)**Derived Fields**:
+
+- `mind_test_present`: false (always, until PVT-lite implemented)
+- `focus_bucket`: from N1
+- `fog_bucket`: from N2
+
+---
+
+## Step 6 - Scorecard Reveal (ADAPT FROM CURRENT STEP 8)
+
+### Display Elements
+
+- **Prime Score** (0-100) with overall confidence
+- **5 Domain Cards** each showing:
+- Domain score (0-100)
+- Confidence label (Low/Medium/High)
+- Evidence chips: Measurement / Device / Labs / Self-report / Estimated / Pending
+
+### Confidence Labels (displayed to user)
+
+- **Low**: "Estimated from quick checks"
+- **Medium**: "Based on measurements you provided"
+- **High**: "Based on device, lab, or test data"
+
+### "Fastest way to improve accuracy"
+
+Show 1 actionable suggestion per domain based on missing data:
+
+- Heart: "Connect Apple Health" or "Add blood pressure"
+- Frame: "Add waist measurement"
+- Metabolism: "Add recent lab results"
+- Recovery: "Connect a sleep tracker"
+- Mind: "Take the 60-second Focus Check" (future)
+
+### Acceptance Criteria
+
+- Snapshot always renders 5 domains even if all quick checks skipped (show low confidence)
+- Metabolism cannot exceed Low confidence without biomarker values
+- Mind cannot exceed Low confidence without Focus Check (currently always Low)
+- Upload/Connect never blocks onboarding; show "Processing" chip and proceed
+
+---
+
+## Data Storage
+
+### New Field: `eden_user_state.prime_check_json`
+
+```typescript
+type PrimeCheckJson = {
+  heart: {
+    // Quick check
+    cardio_self_rating?: 'below_avg' | 'slightly_below' | 'average' | 'slightly_above' | 'above_avg' | 'not_sure'
+    // Measurements (optional)
+    blood_pressure?: {
+      systolic: number
+      diastolic: number
+      measured_date: string // YYYY-MM
+    }
+    resting_heart_rate?: {
+      bpm?: number // exact value if known
+      range?: '<55' | '55-64' | '65-74' | '75-84' | '85+' // range if exact unknown
+      measured_date?: string // YYYY-MM, optional
+      source?: 'wearable' | 'doctor' | 'other' // optional
+    }
+  }
+  frame: {
+    // Quick check
+    pushup_capability: '0-5' | '6-15' | '16-30' | '31+' | 'not_possible'
+    pain_limitation: 'none' | 'mild' | 'moderate' | 'severe'
+    // Measurement
+    waist_cm?: number
+    waist_measured_correctly?: boolean
+  }
+  metabolism: {
+    // Quick checks
+    diagnoses: string[] // multi-select
+    family_history: string[] // multi-select
+    medications: string[] // multi-select
+    // Labs (manual entry)
+    labs?: {
+      apob_mg_dl?: number
+      hba1c_percent?: number
+      hscrp_mg_l?: number
+      alt?: number
+      ast?: number
+      ggt?: number
+      test_date?: string // YYYY-MM
+    }
+  }
+  recovery: {
+    // Quick checks
+    sleep_duration: '<6h' | '6-7h' | '7-8h' | '8h+'
+    sleep_regularity: boolean
+    insomnia_frequency: '<1' | '1-2' | '3-4' | '5+'
+  }
+  mind: {
+    // Quick checks (fallback)
+    focus_stability: 'very_unstable' | 'somewhat_unstable' | 'mostly_stable' | 'very_stable'
+    brain_fog: 'rarely' | 'sometimes' | 'often'
+  }
+  // Metadata
+  schema_version: number // e.g., 1 - increment when questions change
+  completed_at?: string
+}
+```
+
+---
+
+## Scoring Engine (Config-Driven)
+
+**Renamed from "estimation"** - This is a deterministic scoring engine, not estimation.
+
+### Core Concepts
+
+| Term | Definition ||------|------------|| **Domain** | One of: Heart, Frame, Metabolism, Recovery, Mind || **Driver** | A metric within a domain (e.g., Heart has: bp, vo2max, rhr). Each driver has a weight. || **Observation** | A single evidence record for a driver with: value, unit, measured_at, source_type, metadata || **Best Observation** | At score-time, exactly ONE observation is picked per driver using source priority |
+
+### Source Types (Priority Order)
+
+```javascript
+lab > test > device > measured_self_report > self_report_proxy > prior
+```
+
+
+
+- **lab**: Lab results (HbA1c, ApoB, etc.)
+- **test**: Objective test (PVT-lite when implemented)
+- **device**: Apple Health, wearables
+- **measured_self_report**: User-entered with numeric value + date (BP, RHR)
+- **self_report_proxy**: Quick check answers (cardio self-rating, pushup bucket)
+- **prior**: Population prior when nothing else available
+
+### File: `lib/prime-scorecard/scoring/driver-registry.json`
+
+Config-driven registry defining all scoring behavior:
+
+```typescript
+type DriverConfig = {
+  domain: 'heart' | 'frame' | 'metabolism' | 'recovery' | 'mind'
+  driver_key: string // e.g., 'bp', 'vo2max', 'rhr'
+  weight: number // 0..1, domain weights sum to 1
+  scoring_method: 'ladder' | 'percentile' | 'trend' | 'proxy_map'
+  dominance_cap: number // 0..1, max weight share after reallocation
+  source_priority: string[] // ordered list of source_types
+  freshness_half_life_days: number
+  stability_requirement?: number // min_days_baseline for time-series
+  missing_copy: string // UI text for "what's missing"
+  evidence_label_map: Record<string, string> // source_type → UI chip label
+}
+```
+
+
+
+### Observation Resolution Rules
+
+Per driver, choose ONE best observation:
+
+1. Prefer higher-tier source (lab > device > self_report)
+2. Within same tier, prefer most recent
+3. If lower-tier conflicts with higher-tier, keep higher-tier as canonical, set `conflict_flag`
+
+### Driver Score Calculation (0-100)
+
+Based on `scoring_method`:
+
+- **ladder**: Map clinical categories to fixed bands (BP, HbA1c, ApoB)
+- **percentile**: Map age/sex percentile to 0-100 (VO2max when available)
+- **proxy_map**: Map discrete answers to score bands (pushup bucket, focus stability)
+- **trend**: Baseline-relative for time series (future, not v1)
+
+**If driver has no observation → no DriverScore (don't fabricate)**
+
+### Domain Score Formula
+
+```javascript
+Let A = set of drivers with DriverScore present
+
+Case 1: A is non-empty
+  1) Raw reallocation: w_i_tmp = w_i / sum(w_j for j in A)
+  2) Apply dominance cap: w_i_capped = min(w_i_tmp, cap_i)
+  3) Renormalize: w_i_final = w_i_capped / sum(w_k_capped for k in A)
+  4) DomainScore = sum(w_i_final * s_i for i in A)
+
+Case 2: A is empty (user skipped + no device/labs)
+  DomainScore = PriorDomainScore(domain, age, sex) ≈ 50
+  Evidence marked: source_type = prior
+  Confidence = Low
+```
+
+
+
+### Domain Confidence Formula
+
+```javascript
+Confidence = 100 * (0.35*Coverage + 0.25*Quality + 0.25*Freshness + 0.15*Stability)
+
+Where:
+- Coverage = sum(w_i for i in A) // configured weights
+- Quality = weighted mean of source quality multipliers
+    lab=1.0, test=0.9, device=0.8, measured_self_report=0.7, proxy=0.4, prior=0.2
+- Freshness = weighted mean of exp(-ln(2) * age_days / half_life_days_i)
+- Stability = 0.0 for v1 (no time-series baseline yet)
+```
+
+**Confidence Labels**:
+
+- Low: < 40 → "Estimated from quick checks"
+- Medium: 40-69 → "Based on measurements you provided"
+- High: ≥ 70 → "Based on device, lab, or test data"
+
+**Hard Caps**:
+
+- Metabolism: if no biomarker values exist, cap ≤ 40
+- Mind: if no focus test present, cap ≤ 35
+
+### Prime Score Formula
+
+```javascript
+PrimeScore = sum(DomainWeight[d] * DomainScore[d])
+DomainWeight = 0.2 each (equal weighting)
+PrimeConfidence = average of domain confidences
+```
+
+
+
+### Output Payload (for UI + Coach)
+
+Per domain:
+
+- `domain_score` (0-100)
+- `domain_confidence` (0-100) + label
+- `evidence_summary`: list of drivers_used (driver_key, source_type, measured_at)
+- `missing_drivers`: from registry where no observation
+- `fastest_upgrade_action`: single CTA string
+- `risk_flags`: bp_crisis_flag, severe_pain_flag, diabetes_flag
+- `derived_atoms`: coach-friendly semantics (bp_category, rhr_bucket, sleep_bucket, etc.)
+
+Global:
+
+- `prime_score` + `prime_confidence`
+- `how_calculated` data for progressive disclosure
+
+### Files to Create for Scoring Engine
+
+| File | Purpose ||------|---------|| `lib/prime-scorecard/scoring/driver-registry.json` | Config defining all drivers, weights, methods || `lib/prime-scorecard/scoring/types.ts` | Observation, DriverConfig, ScoringResult types || `lib/prime-scorecard/scoring/resolve-observations.ts` | Pick best observation per driver || `lib/prime-scorecard/scoring/driver-scorers.ts` | ladder, proxy_map, percentile implementations || `lib/prime-scorecard/scoring/domain-score.ts` | Reallocation + dominance cap logic || `lib/prime-scorecard/scoring/domain-confidence.ts` | Coverage, quality, freshness calculation || `lib/prime-scorecard/scoring/index.ts` | Main entry: computeScorecard() |---
+
+## Files to Create
+
+| File | Purpose ||------|---------|| `supabase/migrations/[timestamp]_onboarding_v3.sql `| Add prime_check_json column to eden_user_state || `lib/onboarding/types.ts` | PrimeCheckJson type definition || `lib/prime-scorecard/scoring/driver-registry.json` | Config defining all drivers, weights, methods || `lib/prime-scorecard/scoring/types.ts` | Observation, DriverConfig, ScoringResult types || `lib/prime-scorecard/scoring/resolve-observations.ts` | Pick best observation per driver || `lib/prime-scorecard/scoring/driver-scorers.ts` | ladder, proxy_map implementations || `lib/prime-scorecard/scoring/domain-score.ts` | Reallocation + dominance cap logic || `lib/prime-scorecard/scoring/domain-confidence.ts` | Coverage, quality, freshness calculation || `lib/prime-scorecard/scoring/index.ts` | Main entry: computeScorecard() || `components/onboarding/Step5PrimeCheck.tsx` | Step 5 Prime Check with domain cards || `components/onboarding/domain-cards/HeartCard.tsx` | Heart domain card component || `components/onboarding/domain-cards/FrameCard.tsx` | Frame domain card component || `components/onboarding/domain-cards/MetabolismCard.tsx` | Metabolism domain card component || `components/onboarding/domain-cards/RecoveryCard.tsx` | Recovery domain card component || `components/onboarding/domain-cards/MindCard.tsx` | Mind domain card component |
+
+## Files to Modify
+
+| File | Changes ||------|---------|| `lib/onboarding/steps.ts` | Update to 6 steps, remove focus/safety/building steps || `lib/onboarding/getUserState.ts` | Add PrimeCheckJson type, update validation for new flow || `app/onboarding/[step]/page.tsx `| Update routing for 6 steps || `components/onboarding/OnboardingStepClient.tsx` | Add Step 5 (Prime Check), reorder existing steps || `lib/prime-scorecard/compute.ts` | Integrate new scoring engine, remove old computation logic || `lib/prime-scorecard/inputs.ts` | Load prime_check_json data || `app/api/onboarding/save/route.ts` | Save prime_check_json || `components/scorecard/ScorecardView.tsx` | Add evidence chips, confidence labels || `components/onboarding/Step8ScorecardReveal.tsx` | Adapt for new Step 6 with evidence chips |
+
+## Files to Delete/Deprecate
+
+| File | Reason ||------|--------|| Focus selection logic in OnboardingStepClient | Removed - moved to coach chat || Safety rails logic in OnboardingStepClient | Removed - collected by coach later || Step 7 (Building scorecard) transition | Removed - loading shown in Step 6 |---
+
+## Implementation Order
+
+1. **Database Migration**: Add `prime_check_json` column to eden_user_state
+2. **Types**: Define PrimeCheckJson, Observation, DriverConfig, ScoringResult types
+3. **Driver Registry**: Create driver-registry.json with all domain drivers and weights
+4. **Scoring Engine Core**: Build observation resolver, driver scorers, domain score/confidence calculators
+5. **Step Reorder**: Swap Privacy (→2) and Identity (→3) in steps.ts
+6. **Domain Cards**: Build 5 domain card components that show Apple Health data + collect inputs
+7. **Step 5 UI**: Assemble Prime Check screen with domain cards
+8. **Step 6 Adapt**: Update scorecard reveal with evidence chips, confidence labels, upgrade actions
+9. **Integration**: Wire scoring engine into onboarding completion flow
+10. **Routing Update**: Update page.tsx routing for 6 steps
+11. **Cleanup**: Remove focus selection, safety rails, building transition code
+12. **Tests**: Unit tests for scoring engine (all skipped, partial data, mixed sources, conflicts)
+
+---
+
+## Test Matrix (Unit Tests)
+
+| Scenario | Expected Outcome ||----------|-----------------|| All Prime Check skipped, no Apple Health | All domains get prior scores (~50), Low confidence || Partial Apple Health (only HR data) | Heart uses device data, other domains use priors || Mixed sources (device BP + manual BP entry) | Device wins as canonical, conflict_flag set || Metabolism with labs entered | Confidence can exceed Low cap || Metabolism without labs | Confidence capped at ≤40 || Mind without PVT-lite test | Confidence capped at ≤35 || BP in crisis range | bp_crisis_flag = true, score still computed || All questions answered + full Apple Health | High confidence across domains |---
+
+## Success Criteria
+
+- After onboarding completion, 100% of users have a Prime Scorecard with:
+- All 5 domain scores (0-100, never null)
+- A prime score (0-100, never null)
+- Confidence labels accurately reflect data quality
+- Metabolism confidence capped at Low without lab values
+- Mind confidence capped at Low (until PVT-lite implemented)
+- Heart confidence: Low (self-rating only) → Medium (with BP/RHR) → High (with Apple Health)
+- Uploads/connects don't block onboarding progress
+- Single scrollable Prime Check screen (Step 5) with all 5 domains

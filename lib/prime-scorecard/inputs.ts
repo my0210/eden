@@ -56,6 +56,54 @@ export type SelfReportEssentials = {
 }
 
 /**
+ * Prime Check data from onboarding (v3)
+ */
+export type PrimeCheckData = {
+  heart?: {
+    cardio_self_rating?: string
+    blood_pressure?: {
+      systolic: number
+      diastolic: number
+      measured_date: string
+    }
+    resting_heart_rate?: {
+      bpm?: number
+      range?: string
+      measured_date?: string
+      source?: string
+    }
+  }
+  frame?: {
+    pushup_capability?: string
+    pain_limitation?: string
+    waist_cm?: number
+    waist_measured_correctly?: boolean
+  }
+  metabolism?: {
+    diagnoses?: string[]
+    family_history?: string[]
+    medications?: string[]
+    labs?: {
+      apob_mg_dl?: number
+      hba1c_percent?: number
+      hscrp_mg_l?: number
+      test_date?: string
+    }
+  }
+  recovery?: {
+    sleep_duration?: string
+    sleep_regularity?: boolean
+    insomnia_frequency?: string
+  }
+  mind?: {
+    focus_stability?: string
+    brain_fog?: string
+  }
+  schema_version?: number
+  completed_at?: string
+}
+
+/**
  * All inputs needed to compute a scorecard
  */
 export type ScorecardInputs = {
@@ -68,6 +116,8 @@ export type ScorecardInputs = {
   }
   /** Self-reported essentials from onboarding */
   self_report: SelfReportEssentials
+  /** Prime Check data from onboarding v3 */
+  prime_check?: PrimeCheckData
   /** When inputs were loaded */
   loaded_at: string
 }
@@ -106,6 +156,7 @@ export async function loadScorecardInputs(
       photos: { count: 0 },
     },
     self_report: {},
+    prime_check: undefined,
     loaded_at,
   }
 
@@ -219,11 +270,11 @@ export async function loadScorecardInputs(
     console.error('loadScorecardInputs: Failed to load photos', e)
   }
 
-  // 4. Load self-reported essentials from eden_user_state
+  // 4. Load self-reported essentials and prime_check from eden_user_state
   try {
     const { data: userState } = await supabase
       .from('eden_user_state')
-      .select('identity_json')
+      .select('identity_json, prime_check_json')
       .eq('user_id', userId)
       .maybeSingle()
 
@@ -237,6 +288,11 @@ export async function loadScorecardInputs(
         weight: identity.weight as number | undefined,
         units: identity.units as string | undefined,
       }
+    }
+
+    // Load prime_check_json if present (onboarding v3)
+    if (userState?.prime_check_json) {
+      inputs.prime_check = userState.prime_check_json as PrimeCheckData
     }
   } catch (e) {
     console.error('loadScorecardInputs: Failed to load self-report essentials', e)

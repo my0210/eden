@@ -3,14 +3,19 @@
  * 
  * Deterministic computation of Prime Scorecard from inputs.
  * This is the core scoring logic.
+ * 
+ * v3: Now integrates with the new config-driven scoring engine when
+ * prime_check_json data is present (onboarding v3 flow).
  */
 
 import { PrimeScorecard, PrimeDomain, PRIME_DOMAINS, ScorecardEvidence, EvidenceSource } from './types'
 import { emptyScorecard } from './contract'
 import { validateScorecard } from './validate'
 import { expectedMetricsByDomain, metricDisplay, MetricCode } from './metrics'
-import { ScorecardInputs, MetricInput } from './inputs'
+import { ScorecardInputs, MetricInput, PrimeCheckData } from './inputs'
 import { toContribution, ContributionResult } from './metricContribution'
+import { computeScorecard as computeScorecardV3, Observation, SourceType } from './scoring'
+import { convertPrimeCheckToObservations } from './scoring/prime-check-converter'
 
 // =============================================================================
 // TYPES
@@ -48,11 +53,14 @@ const FRESHNESS_WEIGHT = 0.3
  * Compute a Prime Scorecard from inputs.
  * 
  * This function:
- * 1. Builds evidence array from all inputs (metrics, uploads, self-report)
- * 2. Computes domain scores from metric contributions
- * 3. Calculates confidence based on coverage and freshness
- * 4. Generates how_calculated explanations
- * 5. Validates output before returning
+ * 1. Checks if prime_check_json is present (onboarding v3)
+ *    - If so, uses the new config-driven scoring engine
+ * 2. Otherwise, uses the legacy scoring approach:
+ *    a. Builds evidence array from all inputs (metrics, uploads, self-report)
+ *    b. Computes domain scores from metric contributions
+ *    c. Calculates confidence based on coverage and freshness
+ *    d. Generates how_calculated explanations
+ * 3. Validates output before returning
  * 
  * @param inputs - ScorecardInputs from loadScorecardInputs
  * @param nowIso - Current timestamp (ISO string) for consistency
@@ -60,6 +68,198 @@ const FRESHNESS_WEIGHT = 0.3
  * @returns PrimeScorecard - validated scorecard object
  */
 export function computePrimeScorecard(
+  inputs: ScorecardInputs,
+  nowIso: string,
+  scoringRevision: string
+): PrimeScorecard {
+  // Use new scoring engine if prime_check_json is present
+  if (inputs.prime_check && inputs.prime_check.schema_version) {
+    return computeScorecardV3Flow(inputs, nowIso, scoringRevision)
+  }
+
+  // Legacy scoring flow for users without prime_check_json
+  return computeLegacyScorecard(inputs, nowIso, scoringRevision)
+}
+
+/**
+ * Compute scorecard using the new v3 scoring engine
+ */
+function computeScorecardV3Flow(
+  inputs: ScorecardInputs,
+  nowIso: string,
+  scoringRevision: string
+): PrimeScorecard {
+  const now = new Date(nowIso)
+  
+  // Convert prime_check_json to observations
+  const primeCheckObservations = convertPrimeCheckToObservations(
+    inputs.prime_check as PrimeCheckData,
+    {
+      height: inputs.self_report.height,
+      weight: inputs.self_report.weight,
+      age: inputs.self_report.age,
+      sex: inputs.self_report.sex_at_birth,
+    }
+  )
+
+  // Convert Apple Health metrics to observations
+  const metricObservations = convertMetricsToObservations(inputs.metrics)
+
+  // Merge observations (device data takes priority)
+  const allObservations = [...primeCheckObservations, ...metricObservations]
+
+  // Compute scorecard using new engine
+  const v3Result = computeScorecardV3(
+    allObservations,
+    {
+      age: inputs.self_report.age,
+      sex: inputs.self_report.sex_at_birth,
+    },
+    now
+  )
+
+  // Convert v3 result to PrimeScorecard format
+  const scorecard = emptyScorecard(nowIso, scoringRevision)
+
+  // Fill in scores (always present in v3)
+  scorecard.prime_score = Math.round(v3Result.prime_score)
+  scorecard.prime_confidence = v3Result.prime_confidence
+
+  for (const domain of PRIME_DOMAINS) {
+    const domainResult = v3Result.domain_results[domain]
+    scorecard.domain_scores[domain] = Math.round(domainResult.domain_score)
+    scorecard.domain_confidence[domain] = domainResult.domain_confidence
+    scorecard.how_calculated[domain] = v3Result.how_calculated[domain]
+  }
+
+  // Build evidence array from v3 results
+  scorecard.evidence = buildEvidenceFromV3(v3Result, inputs)
+
+  // Validate before returning
+  const validation = validateScorecard(scorecard)
+  if (!validation.valid) {
+    console.error('computePrimeScorecard (v3): Invalid scorecard generated', validation.errors)
+  }
+
+  return scorecard
+}
+
+/**
+ * Convert metrics from eden_metric_values to Observations
+ */
+function convertMetricsToObservations(metrics: MetricInput[]): Observation[] {
+  const observations: Observation[] = []
+
+  for (const metric of metrics) {
+    // Map metric_code to driver_key
+    const driverKey = mapMetricCodeToDriver(metric.metric_code)
+    if (!driverKey) continue
+
+    observations.push({
+      driver_key: driverKey,
+      value: metric.value_raw,
+      unit: metric.unit,
+      measured_at: metric.measured_at,
+      source_type: mapSourceToSourceType(metric.source),
+      metadata: {
+        source_batch_id: metric.import_id,
+        original_metric_code: metric.metric_code,
+      },
+    })
+  }
+
+  return observations
+}
+
+/**
+ * Map metric_code to driver_key
+ */
+function mapMetricCodeToDriver(metricCode: string): string | null {
+  const mapping: Record<string, string> = {
+    'resting_heart_rate': 'rhr',
+    'resting_hr': 'rhr',
+    'resting_hr_and_recovery': 'rhr',
+    'hrv': 'hrv',
+    'heart_rate_variability': 'hrv',
+    'blood_pressure': 'bp',
+    'bp_systolic': 'bp',
+    'vo2max': 'cardio_fitness',
+    'weight': 'bmi', // Will need height to calculate
+    'body_mass': 'bmi',
+    'sleep': 'sleep_duration',
+    'sleep_efficiency_and_duration': 'sleep_duration',
+    'sleep_duration': 'sleep_duration',
+  }
+
+  return mapping[metricCode] || null
+}
+
+/**
+ * Map evidence source to source type
+ */
+function mapSourceToSourceType(source: EvidenceSource): SourceType {
+  switch (source) {
+    case 'apple_health':
+      return 'device'
+    case 'photo':
+      return 'measured_self_report'
+    case 'self_report':
+      return 'self_report_proxy'
+    default:
+      return 'self_report_proxy'
+  }
+}
+
+/**
+ * Build evidence array from v3 results
+ */
+function buildEvidenceFromV3(
+  v3Result: ReturnType<typeof computeScorecardV3>,
+  inputs: ScorecardInputs
+): ScorecardEvidence[] {
+  const evidence: ScorecardEvidence[] = []
+
+  for (const domain of PRIME_DOMAINS) {
+    const domainResult = v3Result.domain_results[domain]
+    
+    for (const driverResult of domainResult.driver_results) {
+      evidence.push({
+        domain,
+        metric_code: driverResult.driver_key,
+        source: mapSourceTypeToSource(driverResult.source_type),
+        measured_at: driverResult.measured_at,
+        value_raw: driverResult.value,
+        unit: driverResult.unit,
+        subscore: driverResult.driver_score,
+      })
+    }
+  }
+
+  return evidence
+}
+
+/**
+ * Map source type back to evidence source
+ */
+function mapSourceTypeToSource(sourceType: SourceType): EvidenceSource {
+  switch (sourceType) {
+    case 'device':
+      return 'apple_health'
+    case 'lab':
+    case 'test':
+      return 'self_report' // We don't have a "lab" evidence source
+    case 'measured_self_report':
+    case 'self_report_proxy':
+    case 'prior':
+    default:
+      return 'self_report'
+  }
+}
+
+/**
+ * Legacy computation function (for users without prime_check_json)
+ */
+function computeLegacyScorecard(
   inputs: ScorecardInputs,
   nowIso: string,
   scoringRevision: string

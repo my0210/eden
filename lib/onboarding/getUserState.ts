@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { PrimeCheckJson } from './types'
 
 export type OnboardingStatus = 'not_started' | 'in_progress' | 'completed'
 
@@ -64,6 +65,8 @@ export interface EdenUserState {
   goals_json?: GoalsJson | null
   identity_json?: IdentityJson | null
   safety_json?: SafetyJson | null
+  /** Prime Check answers from onboarding v3 (Step 5) */
+  prime_check_json?: PrimeCheckJson | null
   // Legacy fields (kept for backwards compatibility but not used in v2)
   behaviors_json?: Record<string, unknown> | null
   coaching_json?: Record<string, unknown> | null

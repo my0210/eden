@@ -1,0 +1,455 @@
+{
+  "version": 1,
+  "domain_weights": {
+    "heart": 0.2,
+    "frame": 0.2,
+    "metabolism": 0.2,
+    "recovery": 0.2,
+    "mind": 0.2
+  },
+  "drivers": {
+    "bp": {
+      "domain": "heart",
+      "driver_key": "bp",
+      "display_name": "Blood Pressure",
+      "weight": 0.35,
+      "dominance_cap": 0.5,
+      "freshness_half_life_days": 90,
+      "missing_copy": "Add blood pressure",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 120, "score": 100, "label": "optimal" },
+          { "min": 120, "max": 130, "score": 85, "label": "normal" },
+          { "min": 130, "max": 140, "score": 65, "label": "elevated" },
+          { "min": 140, "max": 160, "score": 45, "label": "stage1" },
+          { "min": 160, "max": 180, "score": 25, "label": "stage2" },
+          { "min": 180, "score": 10, "label": "crisis" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "test": "Test",
+        "device": "Device",
+        "measured_self_report": "Measurement",
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "rhr": {
+      "domain": "heart",
+      "driver_key": "rhr",
+      "display_name": "Resting Heart Rate",
+      "weight": 0.25,
+      "dominance_cap": 0.4,
+      "freshness_half_life_days": 30,
+      "missing_copy": "Add resting heart rate",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 50, "score": 100, "label": "excellent" },
+          { "min": 50, "max": 60, "score": 90, "label": "great" },
+          { "min": 60, "max": 70, "score": 75, "label": "good" },
+          { "min": 70, "max": 80, "score": 55, "label": "average" },
+          { "min": 80, "max": 90, "score": 35, "label": "below_average" },
+          { "min": 90, "score": 20, "label": "poor" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "test": "Test",
+        "device": "Device",
+        "measured_self_report": "Measurement",
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "hrv": {
+      "domain": "heart",
+      "driver_key": "hrv",
+      "display_name": "Heart Rate Variability",
+      "weight": 0.15,
+      "dominance_cap": 0.3,
+      "freshness_half_life_days": 14,
+      "missing_copy": "Connect Apple Health for HRV",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "min": 70, "score": 100, "label": "excellent" },
+          { "min": 50, "max": 70, "score": 80, "label": "good" },
+          { "min": 30, "max": 50, "score": 60, "label": "average" },
+          { "min": 20, "max": 30, "score": 40, "label": "below_average" },
+          { "max": 20, "score": 25, "label": "poor" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "device": "Device",
+        "prior": "Estimated"
+      }
+    },
+    "cardio_fitness": {
+      "domain": "heart",
+      "driver_key": "cardio_fitness",
+      "display_name": "Cardio Fitness",
+      "weight": 0.25,
+      "dominance_cap": 0.4,
+      "freshness_half_life_days": 180,
+      "missing_copy": "Rate your cardio fitness",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "below_avg": 30,
+          "slightly_below": 45,
+          "average": 60,
+          "slightly_above": 75,
+          "above_avg": 90,
+          "not_sure": 50
+        },
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "test": "VO2max Test",
+        "device": "Device",
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "pushups": {
+      "domain": "frame",
+      "driver_key": "pushups",
+      "display_name": "Push-up Capability",
+      "weight": 0.30,
+      "dominance_cap": 0.45,
+      "freshness_half_life_days": 90,
+      "missing_copy": "Estimate your push-up capability",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "0-5": 30,
+          "6-15": 50,
+          "16-30": 70,
+          "31+": 90,
+          "not_possible": 15
+        },
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "test": "Test",
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "waist_to_height": {
+      "domain": "frame",
+      "driver_key": "waist_to_height",
+      "display_name": "Waist-to-Height Ratio",
+      "weight": 0.35,
+      "dominance_cap": 0.5,
+      "freshness_half_life_days": 60,
+      "missing_copy": "Add waist measurement",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 0.4, "score": 100, "label": "excellent" },
+          { "min": 0.4, "max": 0.5, "score": 80, "label": "healthy" },
+          { "min": 0.5, "max": 0.55, "score": 60, "label": "moderate" },
+          { "min": 0.55, "max": 0.6, "score": 40, "label": "elevated" },
+          { "min": 0.6, "score": 25, "label": "high_risk" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "measured_self_report": "Measurement",
+        "device": "Device",
+        "prior": "Estimated"
+      }
+    },
+    "pain_limitation": {
+      "domain": "frame",
+      "driver_key": "pain_limitation",
+      "display_name": "Pain/Limitations",
+      "weight": 0.20,
+      "dominance_cap": 0.35,
+      "freshness_half_life_days": 30,
+      "missing_copy": "Rate your pain level",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "none": 100,
+          "mild": 70,
+          "moderate": 40,
+          "severe": 15
+        },
+        "default_score": 70
+      },
+      "evidence_label_map": {
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "bmi": {
+      "domain": "frame",
+      "driver_key": "bmi",
+      "display_name": "Body Mass Index",
+      "weight": 0.15,
+      "dominance_cap": 0.3,
+      "freshness_half_life_days": 60,
+      "missing_copy": "Add height and weight",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 18.5, "score": 60, "label": "underweight" },
+          { "min": 18.5, "max": 25, "score": 100, "label": "normal" },
+          { "min": 25, "max": 30, "score": 70, "label": "overweight" },
+          { "min": 30, "max": 35, "score": 45, "label": "obese1" },
+          { "min": 35, "max": 40, "score": 30, "label": "obese2" },
+          { "min": 40, "score": 15, "label": "obese3" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "device": "Device",
+        "measured_self_report": "Measurement",
+        "prior": "Estimated"
+      }
+    },
+    "hba1c": {
+      "domain": "metabolism",
+      "driver_key": "hba1c",
+      "display_name": "HbA1c",
+      "weight": 0.30,
+      "dominance_cap": 0.45,
+      "freshness_half_life_days": 90,
+      "missing_copy": "Add HbA1c from recent labs",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 5.0, "score": 100, "label": "optimal" },
+          { "min": 5.0, "max": 5.7, "score": 85, "label": "normal" },
+          { "min": 5.7, "max": 6.5, "score": 55, "label": "prediabetic" },
+          { "min": 6.5, "max": 7.5, "score": 35, "label": "diabetic_controlled" },
+          { "min": 7.5, "score": 20, "label": "diabetic_poor" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "prior": "Estimated"
+      }
+    },
+    "apob": {
+      "domain": "metabolism",
+      "driver_key": "apob",
+      "display_name": "ApoB",
+      "weight": 0.30,
+      "dominance_cap": 0.45,
+      "freshness_half_life_days": 180,
+      "missing_copy": "Add ApoB from recent labs",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 70, "score": 100, "label": "optimal" },
+          { "min": 70, "max": 90, "score": 80, "label": "good" },
+          { "min": 90, "max": 110, "score": 60, "label": "borderline" },
+          { "min": 110, "max": 130, "score": 40, "label": "elevated" },
+          { "min": 130, "score": 25, "label": "high" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "prior": "Estimated"
+      }
+    },
+    "hscrp": {
+      "domain": "metabolism",
+      "driver_key": "hscrp",
+      "display_name": "hs-CRP",
+      "weight": 0.15,
+      "dominance_cap": 0.3,
+      "freshness_half_life_days": 90,
+      "missing_copy": "Add hs-CRP from recent labs",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 1, "score": 100, "label": "low_risk" },
+          { "min": 1, "max": 3, "score": 65, "label": "average_risk" },
+          { "min": 3, "score": 30, "label": "high_risk" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "prior": "Estimated"
+      }
+    },
+    "metabolic_risk": {
+      "domain": "metabolism",
+      "driver_key": "metabolic_risk",
+      "display_name": "Metabolic Risk Factors",
+      "weight": 0.25,
+      "dominance_cap": 0.4,
+      "freshness_half_life_days": 365,
+      "missing_copy": "Answer metabolic health questions",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "no_risk": 90,
+          "family_history_only": 70,
+          "prediabetes": 50,
+          "one_condition": 45,
+          "diabetes": 35,
+          "multiple_conditions": 30
+        },
+        "default_score": 70
+      },
+      "evidence_label_map": {
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "sleep_duration": {
+      "domain": "recovery",
+      "driver_key": "sleep_duration",
+      "display_name": "Sleep Duration",
+      "weight": 0.35,
+      "dominance_cap": 0.5,
+      "freshness_half_life_days": 14,
+      "missing_copy": "Add sleep duration",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "<6h": 30,
+          "6-7h": 60,
+          "7-8h": 95,
+          "8h+": 85
+        },
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "device": "Device",
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "sleep_regularity": {
+      "domain": "recovery",
+      "driver_key": "sleep_regularity",
+      "display_name": "Sleep Regularity",
+      "weight": 0.25,
+      "dominance_cap": 0.4,
+      "freshness_half_life_days": 14,
+      "missing_copy": "Rate your sleep regularity",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "true": 90,
+          "false": 45
+        },
+        "default_score": 60
+      },
+      "evidence_label_map": {
+        "device": "Device",
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "insomnia": {
+      "domain": "recovery",
+      "driver_key": "insomnia",
+      "display_name": "Insomnia Frequency",
+      "weight": 0.25,
+      "dominance_cap": 0.4,
+      "freshness_half_life_days": 30,
+      "missing_copy": "Rate insomnia frequency",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "<1": 95,
+          "1-2": 70,
+          "3-4": 45,
+          "5+": 20
+        },
+        "default_score": 60
+      },
+      "evidence_label_map": {
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "recovery_hrv": {
+      "domain": "recovery",
+      "driver_key": "recovery_hrv",
+      "display_name": "Recovery HRV",
+      "weight": 0.15,
+      "dominance_cap": 0.3,
+      "freshness_half_life_days": 7,
+      "missing_copy": "Connect Apple Health for HRV",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "min": 70, "score": 100, "label": "excellent" },
+          { "min": 50, "max": 70, "score": 80, "label": "good" },
+          { "min": 30, "max": 50, "score": 60, "label": "average" },
+          { "min": 20, "max": 30, "score": 40, "label": "below_average" },
+          { "max": 20, "score": 25, "label": "poor" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "device": "Device",
+        "prior": "Estimated"
+      }
+    },
+    "focus_stability": {
+      "domain": "mind",
+      "driver_key": "focus_stability",
+      "display_name": "Focus Stability",
+      "weight": 0.50,
+      "dominance_cap": 0.6,
+      "freshness_half_life_days": 30,
+      "missing_copy": "Rate your focus stability",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "very_unstable": 25,
+          "somewhat_unstable": 45,
+          "mostly_stable": 70,
+          "very_stable": 90
+        },
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "test": "Focus Test",
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "brain_fog": {
+      "domain": "mind",
+      "driver_key": "brain_fog",
+      "display_name": "Brain Fog Frequency",
+      "weight": 0.50,
+      "dominance_cap": 0.6,
+      "freshness_half_life_days": 30,
+      "missing_copy": "Rate brain fog frequency",
+      "scoring": {
+        "method": "proxy_map",
+        "mapping": {
+          "rarely": 90,
+          "sometimes": 55,
+          "often": 25
+        },
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    }
+  }
+}
+

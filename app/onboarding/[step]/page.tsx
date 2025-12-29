@@ -4,7 +4,7 @@ import { getUserState } from '@/lib/onboarding/getUserState'
 import { getStep, getFirstMissingStep, TOTAL_STEPS } from '@/lib/onboarding/steps'
 import { redirect } from 'next/navigation'
 import OnboardingStepClient from '@/components/onboarding/OnboardingStepClient'
-import Step8ScorecardReveal from '@/components/onboarding/Step8ScorecardReveal'
+import Step6ScorecardReveal from '@/components/onboarding/Step6ScorecardReveal'
 
 interface OnboardingPageProps {
   params: Promise<{ step: string }>
@@ -26,8 +26,8 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
     redirect('/chat')
   }
 
-  // If user is on step 8, validate that all required steps are complete
-  if (stepNumber === 8) {
+  // If user is on step 6 (scorecard), validate that all required steps are complete
+  if (stepNumber === 6) {
     const firstMissing = getFirstMissingStep(state)
     if (firstMissing !== null) {
       redirect(`/onboarding/${firstMissing}`)
@@ -40,8 +40,8 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
     redirect('/onboarding/1')
   }
 
-  // Steps 1-7 use the client component with forms
-  if (stepNumber < 8) {
+  // Steps 1-5 use the client component with forms
+  if (stepNumber < 6) {
     return (
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         {/* Step indicator */}
@@ -75,7 +75,7 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
     )
   }
 
-  // Step 8: Prime Scorecard Reveal + CTA (client component)
+  // Step 6: Prime Scorecard Reveal + CTA (client component)
   return (
     <div className="bg-white rounded-xl shadow-sm overflow-hidden">
       {/* Step indicator */}
@@ -101,11 +101,7 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
 
       {/* Prime Scorecard Reveal (client component) */}
       <div className="px-6 pb-6">
-        <Step8ScorecardReveal 
-          userId={user.id}
-          focusPrimary={state.goals_json?.focus_primary}
-          focusSecondary={state.goals_json?.focus_secondary}
-        />
+        <Step6ScorecardReveal userId={user.id} />
       </div>
     </div>
   )

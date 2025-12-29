@@ -1,15 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { TOTAL_STEPS } from '@/lib/onboarding/steps'
 
 interface SaveOnboardingRequest {
   step: number
   onboarding_status?: 'in_progress' | 'profile_complete' | 'completed'
   patch: {
-    goals_json?: Record<string, any>
-    identity_json?: Record<string, any>
-    safety_json?: Record<string, any>
-    behaviors_json?: Record<string, any>
-    coaching_json?: Record<string, any>
+    goals_json?: Record<string, unknown>
+    identity_json?: Record<string, unknown>
+    safety_json?: Record<string, unknown>
+    prime_check_json?: Record<string, unknown>
+    behaviors_json?: Record<string, unknown>
+    coaching_json?: Record<string, unknown>
   }
 }
 
@@ -18,9 +20,9 @@ interface SaveOnboardingRequest {
  * If incoming value is null, it deletes the key
  */
 function shallowMerge(
-  existing: Record<string, any> | null,
-  incoming: Record<string, any>
-): Record<string, any> {
+  existing: Record<string, unknown> | null,
+  incoming: Record<string, unknown>
+): Record<string, unknown> {
   const result = { ...(existing || {}) }
   
   for (const [key, value] of Object.entries(incoming)) {
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
     // Parse request body
     const body: SaveOnboardingRequest = await request.json()
     
-    if (typeof body.step !== 'number' || body.step < 1 || body.step > 8) {
+    if (typeof body.step !== 'number' || body.step < 1 || body.step > TOTAL_STEPS) {
       return NextResponse.json({ error: 'Invalid step number' }, { status: 400 })
     }
 
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Build update object
-    const update: Record<string, any> = {
+    const update: Record<string, unknown> = {
       user_id: user.id,
       onboarding_step: Math.max(currentState?.onboarding_step || 0, body.step),
       updated_at: new Date().toISOString(),
@@ -77,19 +79,24 @@ export async function POST(request: NextRequest) {
     // Merge JSON fields
     if (body.patch) {
       if (body.patch.goals_json !== undefined) {
-        update.goals_json = shallowMerge(currentState?.goals_json, body.patch.goals_json)
+        update.goals_json = shallowMerge(currentState?.goals_json, body.patch.goals_json as Record<string, unknown>)
       }
       if (body.patch.identity_json !== undefined) {
-        update.identity_json = shallowMerge(currentState?.identity_json, body.patch.identity_json)
+        update.identity_json = shallowMerge(currentState?.identity_json, body.patch.identity_json as Record<string, unknown>)
       }
       if (body.patch.safety_json !== undefined) {
-        update.safety_json = shallowMerge(currentState?.safety_json, body.patch.safety_json)
+        update.safety_json = shallowMerge(currentState?.safety_json, body.patch.safety_json as Record<string, unknown>)
+      }
+      if (body.patch.prime_check_json !== undefined) {
+        // For prime_check_json, we replace the entire object (not merge)
+        // because it's a single form submission
+        update.prime_check_json = body.patch.prime_check_json
       }
       if (body.patch.behaviors_json !== undefined) {
-        update.behaviors_json = shallowMerge(currentState?.behaviors_json, body.patch.behaviors_json)
+        update.behaviors_json = shallowMerge(currentState?.behaviors_json, body.patch.behaviors_json as Record<string, unknown>)
       }
       if (body.patch.coaching_json !== undefined) {
-        update.coaching_json = shallowMerge(currentState?.coaching_json, body.patch.coaching_json)
+        update.coaching_json = shallowMerge(currentState?.coaching_json, body.patch.coaching_json as Record<string, unknown>)
       }
     }
 
@@ -113,4 +120,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
