@@ -320,8 +320,13 @@ function computeSleepContribution(value: number): ContributionResult {
   }
 }
 
-function computeBloodPressureContribution(value: number | string): ContributionResult | null {
+function computeBloodPressureContribution(value: number | string | boolean): ContributionResult | null {
   // Blood pressure may be stored as "systolic/diastolic" string or just systolic number
+  // Boolean values are not valid for BP
+  if (typeof value === 'boolean') {
+    return null
+  }
+  
   let systolic: number
   let diastolic: number | null = null
 
