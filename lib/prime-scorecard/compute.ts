@@ -12,7 +12,7 @@ import { PrimeScorecard, PrimeDomain, PRIME_DOMAINS, ScorecardEvidence, Evidence
 import { emptyScorecard } from './contract'
 import { validateScorecard } from './validate'
 import { expectedMetricsByDomain, metricDisplay, MetricCode } from './metrics'
-import { ScorecardInputs, MetricInput, PrimeCheckData } from './inputs'
+import { ScorecardInputs, MetricInput, PrimeCheckJson } from './inputs'
 import { toContribution, ContributionResult } from './metricContribution'
 import { computeScorecard as computeScorecardV3, Observation, SourceType } from './scoring'
 import { convertPrimeCheckToObservations } from './scoring/prime-check-converter'
@@ -93,7 +93,7 @@ function computeScorecardV3Flow(
   
   // Convert prime_check_json to observations
   const primeCheckObservations = convertPrimeCheckToObservations(
-    inputs.prime_check as PrimeCheckData,
+    inputs.prime_check as PrimeCheckJson,
     {
       height: inputs.self_report.height,
       weight: inputs.self_report.weight,

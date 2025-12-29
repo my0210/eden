@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { EvidenceSource } from './types'
+import type { PrimeCheckJson } from '@/lib/onboarding/types'
 
 // =============================================================================
 // TYPES
@@ -55,53 +56,9 @@ export type SelfReportEssentials = {
   units?: string
 }
 
-/**
- * Prime Check data from onboarding (v3)
- */
-export type PrimeCheckData = {
-  heart?: {
-    cardio_self_rating?: string
-    blood_pressure?: {
-      systolic: number
-      diastolic: number
-      measured_date: string
-    }
-    resting_heart_rate?: {
-      bpm?: number
-      range?: string
-      measured_date?: string
-      source?: string
-    }
-  }
-  frame?: {
-    pushup_capability?: string
-    pain_limitation?: string
-    waist_cm?: number
-    waist_measured_correctly?: boolean
-  }
-  metabolism?: {
-    diagnoses?: string[]
-    family_history?: string[]
-    medications?: string[]
-    labs?: {
-      apob_mg_dl?: number
-      hba1c_percent?: number
-      hscrp_mg_l?: number
-      test_date?: string
-    }
-  }
-  recovery?: {
-    sleep_duration?: string
-    sleep_regularity?: boolean
-    insomnia_frequency?: string
-  }
-  mind?: {
-    focus_stability?: string
-    brain_fog?: string
-  }
-  schema_version?: number
-  completed_at?: string
-}
+// PrimeCheckJson is imported from @/lib/onboarding/types
+// Re-export for backwards compatibility
+export type { PrimeCheckJson }
 
 /**
  * All inputs needed to compute a scorecard
@@ -117,7 +74,7 @@ export type ScorecardInputs = {
   /** Self-reported essentials from onboarding */
   self_report: SelfReportEssentials
   /** Prime Check data from onboarding v3 */
-  prime_check?: PrimeCheckData
+  prime_check?: PrimeCheckJson
   /** When inputs were loaded */
   loaded_at: string
 }
