@@ -252,22 +252,16 @@
       "weight": 0.10,
       "dominance_cap": 0.25,
       "freshness_half_life_days": 30,
-      "missing_copy": "Rate pain and mobility limitations",
+      "missing_copy": "Answer limitation questions",
       "scoring": {
-        "method": "proxy_map",
-        "mapping": {
-          "no_limitations": 90,
-          "mild_pain_only": 70,
-          "mobility_limited": 50,
-          "moderate_pain": 40,
-          "severe": 20
-        },
+        "method": "passthrough",
         "default_score": 70
       },
       "evidence_label_map": {
         "self_report_proxy": "Self-report",
         "prior": "Estimated"
-      }
+      },
+      "coach_flags": ["movement_restriction_flag", "chronic_issue_flag", "affected_areas"]
     },
     "bmi": {
       "domain": "frame",

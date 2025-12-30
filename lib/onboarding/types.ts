@@ -50,9 +50,46 @@ export interface HeartPrimeCheck {
 
 export type PushupCapability = '0-5' | '6-15' | '16-30' | '31+' | 'not_possible'
 
-export type PainLimitation = 'none' | 'mild' | 'moderate' | 'severe'
-
 export type MidsectionAdiposityLevel = 'low' | 'moderate' | 'high'
+
+// ----- Structural Integrity v1 Questionnaire -----
+
+/** SI1: Limitation severity (required) */
+export type LimitationSeverity = 'none' | 'mild' | 'moderate' | 'severe'
+
+/** SI2: Location of limitation (conditional, max 2) */
+export type LimitationArea = 
+  | 'back_low' 
+  | 'knee' 
+  | 'shoulder' 
+  | 'neck_upper' 
+  | 'hip' 
+  | 'ankle_foot' 
+  | 'wrist_elbow' 
+  | 'other'
+
+/** SI3: Duration/pattern of limitation */
+export type LimitationDuration = 'new_2w' | 'recent_6w' | 'ongoing_6plus' | 'intermittent'
+
+/** SI4 (optional): Stiffness frequency */
+export type StiffnessFrequency = 'rarely' | 'sometimes' | 'often'
+
+/**
+ * Complete Structural Integrity assessment
+ */
+export interface StructuralIntegrityEntry {
+  /** SI1: Limitation severity (required) */
+  severity: LimitationSeverity
+  /** SI2: Affected areas (conditional on severity != 'none', max 2) */
+  areas?: LimitationArea[]
+  /** SI3: Duration pattern (conditional on severity != 'none') */
+  duration?: LimitationDuration
+  /** SI4: Stiffness frequency (optional universal) */
+  stiffness?: StiffnessFrequency
+}
+
+// Legacy type for backward compatibility
+export type PainLimitation = 'none' | 'mild' | 'moderate' | 'severe'
 
 /**
  * Photo analysis results from body photo analyzer
@@ -73,6 +110,9 @@ export interface PhotoAnalysisResult {
 export interface FramePrimeCheck {
   // Quick check (required)
   pushup_capability?: PushupCapability
+  // Structural Integrity (new v1 questionnaire)
+  structural_integrity?: StructuralIntegrityEntry
+  // Legacy field (for backward compat, deprecated)
   pain_limitation?: PainLimitation
   // Measurement (optional)
   waist_cm?: number

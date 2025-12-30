@@ -107,7 +107,7 @@ export interface ResolvedObservation extends Observation {
  * - proxy_map: Map discrete answers to score bands (pushup bucket, focus stability)
  * - trend: Baseline-relative for time series (future, not v1)
  */
-export type ScoringMethod = 'ladder' | 'percentile' | 'proxy_map' | 'trend'
+export type ScoringMethod = 'ladder' | 'percentile' | 'proxy_map' | 'trend' | 'passthrough'
 
 /**
  * Ladder scoring configuration
@@ -161,7 +161,18 @@ export interface TrendConfig {
   improvement_target_percent: number
 }
 
-export type ScoringConfig = LadderConfig | ProxyMapConfig | PercentileConfig | TrendConfig
+/**
+ * Passthrough scoring configuration
+ * Used when the value is already a pre-computed 0-100 score
+ * (e.g., structural integrity computed from SI questionnaire)
+ */
+export interface PassthroughConfig {
+  method: 'passthrough'
+  /** Default score if value is not numeric */
+  default_score?: number
+}
+
+export type ScoringConfig = LadderConfig | ProxyMapConfig | PercentileConfig | TrendConfig | PassthroughConfig
 
 /**
  * Domain contribution - how a driver contributes to a specific domain

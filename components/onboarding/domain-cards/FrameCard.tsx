@@ -1,13 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { PushupCapability, PainLimitation, PhotoAnalysisResult, MidsectionAdiposityLevel } from '@/lib/onboarding/types'
+import { 
+  PushupCapability, 
+  PhotoAnalysisResult, 
+  MidsectionAdiposityLevel,
+  LimitationSeverity,
+  LimitationArea,
+  LimitationDuration,
+  StiffnessFrequency,
+  StructuralIntegrityEntry,
+} from '@/lib/onboarding/types'
 import BodyPhotoAnalyzer from '@/components/uploads/BodyPhotoAnalyzer'
 
 interface FrameCardProps {
   initialData?: {
     pushup_capability?: PushupCapability
-    pain_limitation?: PainLimitation
+    structural_integrity?: StructuralIntegrityEntry
     waist_cm?: number
     waist_measured_correctly?: boolean
     photo_analysis?: PhotoAnalysisResult
@@ -18,12 +27,11 @@ interface FrameCardProps {
   }
   onChange: (data: {
     pushup_capability?: PushupCapability
-    pain_limitation?: PainLimitation
+    structural_integrity?: StructuralIntegrityEntry
     waist_cm?: number
     waist_measured_correctly?: boolean
     photo_analysis?: PhotoAnalysisResult
   }) => void
-  /** User's weight in kg (for lean mass calculation) */
   userWeightKg?: number
 }
 
@@ -35,20 +43,56 @@ const PUSHUP_OPTIONS: { value: PushupCapability; label: string }[] = [
   { value: 'not_possible', label: 'Can\'t do' },
 ]
 
-const PAIN_OPTIONS: { value: PainLimitation; label: string }[] = [
-  { value: 'none', label: 'None' },
-  { value: 'mild', label: 'Mild' },
-  { value: 'moderate', label: 'Moderate' },
-  { value: 'severe', label: 'Severe' },
+const SEVERITY_OPTIONS: { value: LimitationSeverity; label: string; desc: string }[] = [
+  { value: 'none', label: 'No limitations', desc: '' },
+  { value: 'mild', label: 'Mild', desc: 'I can train normally' },
+  { value: 'moderate', label: 'Moderate', desc: 'I avoid some movements' },
+  { value: 'severe', label: 'Severe', desc: 'Daily pain or training is hard' },
+]
+
+const AREA_OPTIONS: { value: LimitationArea; label: string }[] = [
+  { value: 'back_low', label: 'Lower back' },
+  { value: 'knee', label: 'Knee' },
+  { value: 'shoulder', label: 'Shoulder' },
+  { value: 'neck_upper', label: 'Neck / upper back' },
+  { value: 'hip', label: 'Hip' },
+  { value: 'ankle_foot', label: 'Ankle / foot' },
+  { value: 'wrist_elbow', label: 'Wrist / elbow' },
+  { value: 'other', label: 'Other' },
+]
+
+const DURATION_OPTIONS: { value: LimitationDuration; label: string }[] = [
+  { value: 'new_2w', label: 'New (≤2 weeks)' },
+  { value: 'recent_6w', label: 'Recent (2-6 weeks)' },
+  { value: 'ongoing_6plus', label: 'Ongoing (6+ weeks)' },
+  { value: 'intermittent', label: 'Comes and goes' },
+]
+
+const STIFFNESS_OPTIONS: { value: StiffnessFrequency; label: string }[] = [
+  { value: 'rarely', label: 'Rarely' },
+  { value: 'sometimes', label: 'Sometimes' },
+  { value: 'often', label: 'Often' },
 ]
 
 export default function FrameCard({ initialData, appleHealthData, onChange, userWeightKg }: FrameCardProps) {
   const [pushupCapability, setPushupCapability] = useState<PushupCapability | undefined>(
     initialData?.pushup_capability
   )
-  const [painLimitation, setPainLimitation] = useState<PainLimitation | undefined>(
-    initialData?.pain_limitation
+  
+  // Structural Integrity state
+  const [siSeverity, setSiSeverity] = useState<LimitationSeverity | undefined>(
+    initialData?.structural_integrity?.severity
   )
+  const [siAreas, setSiAreas] = useState<LimitationArea[]>(
+    initialData?.structural_integrity?.areas || []
+  )
+  const [siDuration, setSiDuration] = useState<LimitationDuration | undefined>(
+    initialData?.structural_integrity?.duration
+  )
+  const [siStiffness, setSiStiffness] = useState<StiffnessFrequency | undefined>(
+    initialData?.structural_integrity?.stiffness
+  )
+  
   const [waistCm, setWaistCm] = useState<number | ''>(initialData?.waist_cm || '')
   const [waistMeasuredCorrectly, setWaistMeasuredCorrectly] = useState(
     initialData?.waist_measured_correctly || false
@@ -59,20 +103,30 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
 
   const emitChange = (updates: Partial<{
     pushup_capability: PushupCapability
-    pain_limitation: PainLimitation
+    structural_integrity: StructuralIntegrityEntry
     waist_cm: number
     waist_measured_correctly: boolean
     photo_analysis: PhotoAnalysisResult
   }>) => {
     const data: {
       pushup_capability?: PushupCapability
-      pain_limitation?: PainLimitation
+      structural_integrity?: StructuralIntegrityEntry
       waist_cm?: number
       waist_measured_correctly?: boolean
       photo_analysis?: PhotoAnalysisResult
     } = {
       pushup_capability: updates.pushup_capability ?? pushupCapability,
-      pain_limitation: updates.pain_limitation ?? painLimitation,
+    }
+
+    // Build structural integrity entry
+    const severity = updates.structural_integrity?.severity ?? siSeverity
+    if (severity) {
+      data.structural_integrity = {
+        severity,
+        ...(severity !== 'none' && siAreas.length > 0 ? { areas: updates.structural_integrity?.areas ?? siAreas } : {}),
+        ...(severity !== 'none' && siDuration ? { duration: updates.structural_integrity?.duration ?? siDuration } : {}),
+        ...(siStiffness ? { stiffness: updates.structural_integrity?.stiffness ?? siStiffness } : {}),
+      }
     }
 
     const waist = updates.waist_cm ?? waistCm
@@ -112,10 +166,43 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
     emitChange({ pushup_capability: value })
   }
 
-  const handlePainChange = (value: PainLimitation) => {
-    setPainLimitation(value)
-    emitChange({ pain_limitation: value })
+  const handleSeverityChange = (value: LimitationSeverity) => {
+    setSiSeverity(value)
+    // Clear conditional fields if "none"
+    if (value === 'none') {
+      setSiAreas([])
+      setSiDuration(undefined)
+    }
+    emitChange({ structural_integrity: { severity: value, areas: value === 'none' ? [] : siAreas, duration: value === 'none' ? undefined : siDuration, stiffness: siStiffness } })
   }
+
+  const handleAreaToggle = (area: LimitationArea) => {
+    let newAreas: LimitationArea[]
+    if (siAreas.includes(area)) {
+      newAreas = siAreas.filter(a => a !== area)
+    } else {
+      // Max 2 areas
+      if (siAreas.length >= 2) {
+        newAreas = [siAreas[1], area] // Remove oldest, add new
+      } else {
+        newAreas = [...siAreas, area]
+      }
+    }
+    setSiAreas(newAreas)
+    emitChange({ structural_integrity: { severity: siSeverity!, areas: newAreas, duration: siDuration, stiffness: siStiffness } })
+  }
+
+  const handleDurationChange = (value: LimitationDuration) => {
+    setSiDuration(value)
+    emitChange({ structural_integrity: { severity: siSeverity!, areas: siAreas, duration: value, stiffness: siStiffness } })
+  }
+
+  const handleStiffnessChange = (value: StiffnessFrequency) => {
+    setSiStiffness(value)
+    emitChange({ structural_integrity: { severity: siSeverity || 'none', areas: siAreas, duration: siDuration, stiffness: value } })
+  }
+
+  const showConditionalSI = siSeverity && siSeverity !== 'none'
 
   return (
     <div className="bg-white border border-[#E5E5EA] rounded-2xl overflow-hidden">
@@ -133,7 +220,6 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
           </div>
         </div>
 
-        {/* Apple Health Data Badge */}
         {appleHealthData && appleHealthData.weight && (
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="text-[12px] px-2 py-1 bg-[#34C759]/10 text-[#34C759] rounded-full flex items-center gap-1">
@@ -172,25 +258,109 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
         </div>
 
         {/* Section 2: Structural Integrity */}
-        <div>
-          <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            Pain or physical limitations that affect exercise
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {PAIN_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handlePainChange(opt.value)}
-                className={`px-4 py-2.5 rounded-xl text-[15px] font-medium transition-all ${
-                  painLimitation === opt.value
-                    ? 'bg-[#5856D6] text-white'
-                    : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+        <div className="space-y-4">
+          {/* SI1: Severity */}
+          <div>
+            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
+              Pain or limitation that affects training?
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {SEVERITY_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleSeverityChange(opt.value)}
+                  className={`p-3 rounded-xl text-left transition-all ${
+                    siSeverity === opt.value
+                      ? 'bg-[#5856D6] text-white'
+                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
+                  }`}
+                >
+                  <span className="text-[14px] font-medium block">{opt.label}</span>
+                  {opt.desc && (
+                    <span className={`text-[11px] ${
+                      siSeverity === opt.value ? 'text-white/70' : 'text-[#8E8E93]'
+                    }`}>
+                      {opt.desc}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* SI2 & SI3: Conditional on severity */}
+          {showConditionalSI && (
+            <div className="p-4 bg-[#F2F2F7] rounded-xl space-y-4">
+              {/* SI2: Location */}
+              <div>
+                <label className="block text-[12px] font-medium text-[#3C3C43] mb-2">
+                  Where is it? <span className="text-[#8E8E93] font-normal">(select up to 2)</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {AREA_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleAreaToggle(opt.value)}
+                      className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
+                        siAreas.includes(opt.value)
+                          ? 'bg-[#5856D6] text-white'
+                          : 'bg-white text-[#3C3C43] border border-[#C6C6C8] hover:bg-[#E5E5EA]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* SI3: Duration */}
+              <div>
+                <label className="block text-[12px] font-medium text-[#3C3C43] mb-2">
+                  How long has it been an issue?
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {DURATION_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleDurationChange(opt.value)}
+                      className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
+                        siDuration === opt.value
+                          ? 'bg-[#5856D6] text-white'
+                          : 'bg-white text-[#3C3C43] border border-[#C6C6C8] hover:bg-[#E5E5EA]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SI4: Stiffness (optional, universal) */}
+          <div>
+            <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
+              How often do you feel stiff when you start moving?
+            </label>
+            <div className="flex gap-2">
+              {STIFFNESS_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleStiffnessChange(opt.value)}
+                  className={`flex-1 p-2.5 rounded-xl text-[14px] font-medium transition-all ${
+                    siStiffness === opt.value
+                      ? 'bg-[#5856D6] text-white'
+                      : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

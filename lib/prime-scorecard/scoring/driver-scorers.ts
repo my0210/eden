@@ -86,6 +86,21 @@ function scorePercentile(
 }
 
 /**
+ * Score an observation using passthrough method
+ * Used when the value is already a pre-computed 0-100 score
+ */
+function scorePassthrough(
+  value: number | string | boolean,
+  defaultScore: number = 50
+): { score: number } {
+  if (typeof value === 'number') {
+    // Clamp to valid score range
+    return { score: Math.max(0, Math.min(100, value)) }
+  }
+  return { score: defaultScore }
+}
+
+/**
  * Main scoring function
  * Dispatches to the appropriate method based on config
  */
@@ -111,6 +126,10 @@ export function scoreDriver(
         userContext?.age,
         userContext?.sex
       )
+    
+    case 'passthrough':
+      // Used for pre-computed scores (e.g., structural integrity)
+      return scorePassthrough(value, (scoring as { default_score?: number }).default_score)
     
     case 'trend':
       // Trend scoring not implemented in v1

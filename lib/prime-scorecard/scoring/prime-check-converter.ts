@@ -10,6 +10,8 @@ import {
   BloodPressureEntry,
   RestingHeartRateEntry,
   PhotoAnalysisResult,
+  StructuralIntegrityEntry,
+  LimitationSeverity,
 } from '@/lib/onboarding/types'
 import { Observation, SourceType } from './types'
 import { calculateWaistToHeight, calculateBmi, deriveMetabolicRiskCategory } from './driver-scorers'
@@ -137,7 +139,68 @@ function convertHeartData(
 }
 
 /**
- * Map old pain_limitation values to new structural_integrity values
+ * Calculate structural integrity score from SI questionnaire
+ * 
+ * Base score from SI1 (severity):
+ * - No limitations → 90
+ * - Mild → 75
+ * - Moderate → 55
+ * - Severe → 35
+ * 
+ * Adjustments:
+ * - If SI3 is Ongoing (6+ weeks) or Comes-and-goes → −10
+ * - If multiple locations selected → −5
+ * - If SI4 "Often" → −5
+ * 
+ * Clamp 20–95
+ */
+function calculateStructuralIntegrityScore(si: StructuralIntegrityEntry): number {
+  // Base score from severity
+  const baseScores: Record<LimitationSeverity, number> = {
+    'none': 90,
+    'mild': 75,
+    'moderate': 55,
+    'severe': 35,
+  }
+  
+  let score = baseScores[si.severity] ?? 70
+  
+  // Adjustment: chronic/recurring pattern
+  if (si.duration === 'ongoing_6plus' || si.duration === 'intermittent') {
+    score -= 10
+  }
+  
+  // Adjustment: multiple affected areas
+  if (si.areas && si.areas.length >= 2) {
+    score -= 5
+  }
+  
+  // Adjustment: frequent stiffness
+  if (si.stiffness === 'often') {
+    score -= 5
+  }
+  
+  // Clamp to valid range
+  return Math.max(20, Math.min(95, score))
+}
+
+/**
+ * Extract coach flags from SI questionnaire
+ */
+function extractSICoachFlags(si: StructuralIntegrityEntry): {
+  movement_restriction_flag: boolean
+  chronic_issue_flag: boolean
+  affected_areas: string[]
+} {
+  return {
+    movement_restriction_flag: si.severity === 'moderate' || si.severity === 'severe',
+    chronic_issue_flag: si.duration === 'ongoing_6plus' || si.duration === 'intermittent',
+    affected_areas: si.areas || [],
+  }
+}
+
+/**
+ * Map old pain_limitation values to new structural_integrity values (backward compat)
  */
 function mapPainToStructuralIntegrity(painValue: string): string {
   const mapping: Record<string, string> = {
@@ -171,8 +234,29 @@ function convertFrameData(
     })
   }
 
-  // Pain limitation -> structural_integrity driver
-  if (frame.pain_limitation) {
+  // Structural Integrity (new v1 questionnaire) -> structural_integrity driver
+  if (frame.structural_integrity) {
+    const siScore = calculateStructuralIntegrityScore(frame.structural_integrity)
+    const coachFlags = extractSICoachFlags(frame.structural_integrity)
+    
+    observations.push({
+      driver_key: 'structural_integrity',
+      value: siScore, // Pre-computed score (0-100)
+      measured_at: now,
+      source_type: 'self_report_proxy',
+      metadata: { 
+        entry_method: 'onboarding_prime_check_si_v1',
+        severity: frame.structural_integrity.severity,
+        areas: frame.structural_integrity.areas,
+        duration: frame.structural_integrity.duration,
+        stiffness: frame.structural_integrity.stiffness,
+        // Coach flags for exercise filtering
+        ...coachFlags,
+      },
+    })
+  } 
+  // Legacy: Pain limitation (backward compat)
+  else if (frame.pain_limitation) {
     observations.push({
       driver_key: 'structural_integrity',
       value: mapPainToStructuralIntegrity(frame.pain_limitation),
@@ -181,6 +265,7 @@ function convertFrameData(
       metadata: { 
         entry_method: 'onboarding_prime_check',
         original_value: frame.pain_limitation,
+        legacy_format: true,
       },
     })
   }
