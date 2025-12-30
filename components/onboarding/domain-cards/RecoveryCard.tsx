@@ -21,17 +21,17 @@ interface RecoveryCardProps {
 }
 
 const SLEEP_DURATION_OPTIONS: { value: SleepDuration; label: string }[] = [
-  { value: '<6h', label: 'Less than 6 hours' },
-  { value: '6-7h', label: '6-7 hours' },
-  { value: '7-8h', label: '7-8 hours' },
-  { value: '8h+', label: '8+ hours' },
+  { value: '<6h', label: '< 6h' },
+  { value: '6-7h', label: '6-7h' },
+  { value: '7-8h', label: '7-8h' },
+  { value: '8h+', label: '8+h' },
 ]
 
 const INSOMNIA_OPTIONS: { value: InsomniaFrequency; label: string }[] = [
-  { value: '<1', label: 'Less than 1 night/week' },
-  { value: '1-2', label: '1-2 nights/week' },
-  { value: '3-4', label: '3-4 nights/week' },
-  { value: '5+', label: '5+ nights/week' },
+  { value: '<1', label: '< 1x/week' },
+  { value: '1-2', label: '1-2x/week' },
+  { value: '3-4', label: '3-4x/week' },
+  { value: '5+', label: '5+x/week' },
 ]
 
 export default function RecoveryCard({ initialData, appleHealthData, onChange }: RecoveryCardProps) {
@@ -102,19 +102,19 @@ export default function RecoveryCard({ initialData, appleHealthData, onChange }:
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-5">
-        {/* Quick Check: Sleep Duration */}
+      <div className="p-4 space-y-6">
+        {/* Section 1: Sleep Duration */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            Average sleep duration (weekday)
+            Average sleep on weeknights
           </label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex gap-2">
             {SLEEP_DURATION_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => handleDurationChange(opt.value)}
-                className={`p-3 rounded-xl text-[15px] font-medium transition-all ${
+                className={`flex-1 p-3 rounded-xl text-[15px] font-medium transition-all ${
                   sleepDuration === opt.value
                     ? 'bg-[#34C759] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
@@ -126,10 +126,10 @@ export default function RecoveryCard({ initialData, appleHealthData, onChange }:
           </div>
         </div>
 
-        {/* Quick Check: Sleep Regularity */}
+        {/* Section 2: Sleep Regularity */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            Do you go to bed and wake up at roughly the same time each day?
+            Regular sleep schedule (same time ±30min)
           </label>
           <div className="flex gap-3">
             <button
@@ -157,18 +157,18 @@ export default function RecoveryCard({ initialData, appleHealthData, onChange }:
           </div>
         </div>
 
-        {/* Quick Check: Insomnia Frequency */}
+        {/* Section 3: Insomnia Frequency */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            How often do you have trouble falling or staying asleep?
+            Trouble falling or staying asleep
           </label>
-          <div className="space-y-2">
+          <div className="flex gap-2">
             {INSOMNIA_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => handleInsomniaChange(opt.value)}
-                className={`w-full p-3 rounded-xl text-left text-[15px] font-medium transition-all ${
+                className={`flex-1 p-2.5 rounded-xl text-[13px] font-medium transition-all ${
                   insomniaFrequency === opt.value
                     ? 'bg-[#34C759] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
@@ -181,13 +181,14 @@ export default function RecoveryCard({ initialData, appleHealthData, onChange }:
         </div>
 
         {/* Connect tip */}
-        <div className="p-3 bg-[#34C759]/10 rounded-xl">
-          <p className="text-[13px] text-[#248A3D]">
-            💡 Connect Apple Health for automatic sleep tracking and more accurate Recovery scores.
-          </p>
-        </div>
+        {!appleHealthData?.avgSleepDuration && (
+          <div className="p-3 bg-[#34C759]/10 rounded-xl">
+            <p className="text-[12px] text-[#248A3D]">
+              💡 Connect Apple Health for automatic sleep tracking and more accurate Recovery scores.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
 }
-

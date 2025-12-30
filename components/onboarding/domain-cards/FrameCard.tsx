@@ -27,12 +27,12 @@ interface FrameCardProps {
   userWeightKg?: number
 }
 
-const PUSHUP_OPTIONS: { value: PushupCapability; label: string; description: string }[] = [
-  { value: '0-5', label: '0-5 push-ups', description: 'Just starting out' },
-  { value: '6-15', label: '6-15 push-ups', description: 'Building strength' },
-  { value: '16-30', label: '16-30 push-ups', description: 'Good fitness' },
-  { value: '31+', label: '31+ push-ups', description: 'Strong' },
-  { value: 'not_possible', label: 'Not possible', description: 'Due to injury/condition' },
+const PUSHUP_OPTIONS: { value: PushupCapability; label: string }[] = [
+  { value: '0-5', label: '0-5' },
+  { value: '6-15', label: '6-15' },
+  { value: '16-30', label: '16-30' },
+  { value: '31+', label: '31+' },
+  { value: 'not_possible', label: 'Can\'t do' },
 ]
 
 const PAIN_OPTIONS: { value: PainLimitation; label: string }[] = [
@@ -49,12 +49,10 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
   const [painLimitation, setPainLimitation] = useState<PainLimitation | undefined>(
     initialData?.pain_limitation
   )
-  const [showWaistInput, setShowWaistInput] = useState(!!initialData?.waist_cm)
   const [waistCm, setWaistCm] = useState<number | ''>(initialData?.waist_cm || '')
   const [waistMeasuredCorrectly, setWaistMeasuredCorrectly] = useState(
     initialData?.waist_measured_correctly || false
   )
-  const [showPhotoAnalyzer, setShowPhotoAnalyzer] = useState(!!initialData?.photo_analysis)
   const [photoAnalysis, setPhotoAnalysis] = useState<PhotoAnalysisResult | undefined>(
     initialData?.photo_analysis
   )
@@ -83,7 +81,6 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
       data.waist_measured_correctly = updates.waist_measured_correctly ?? waistMeasuredCorrectly
     }
 
-    // Include photo analysis if present
     const photo = updates.photo_analysis ?? photoAnalysis
     if (photo) {
       data.photo_analysis = photo
@@ -150,39 +147,34 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-5">
-        {/* Quick Check: Push-up Capability */}
+      <div className="p-4 space-y-6">
+        {/* Section 1: Strength Proxy */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            Push-up capability
+            How many push-ups can you do in a row?
           </label>
-          <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
             {PUSHUP_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => handlePushupChange(opt.value)}
-                className={`w-full p-3 rounded-xl text-left transition-all ${
+                className={`px-4 py-2.5 rounded-xl text-[15px] font-medium transition-all ${
                   pushupCapability === opt.value
                     ? 'bg-[#5856D6] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
                 }`}
               >
-                <span className="text-[15px] font-medium">{opt.label}</span>
-                <span className={`text-[13px] ml-2 ${
-                  pushupCapability === opt.value ? 'text-white/80' : 'text-[#8E8E93]'
-                }`}>
-                  {opt.description}
-                </span>
+                {opt.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Context: Pain/Limitation */}
+        {/* Section 2: Structural Integrity */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            Pain or physical limitations
+            Pain or physical limitations that affect exercise
           </label>
           <div className="flex flex-wrap gap-2">
             {PAIN_OPTIONS.map(opt => (
@@ -190,7 +182,7 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
                 key={opt.value}
                 type="button"
                 onClick={() => handlePainChange(opt.value)}
-                className={`px-4 py-2 rounded-xl text-[15px] font-medium transition-all ${
+                className={`px-4 py-2.5 rounded-xl text-[15px] font-medium transition-all ${
                   painLimitation === opt.value
                     ? 'bg-[#5856D6] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
@@ -202,111 +194,101 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
           </div>
         </div>
 
-        {/* Add a measurement: Waist Circumference */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowWaistInput(!showWaistInput)}
-            className="flex items-center gap-2 text-[15px] text-[#007AFF] font-medium"
-          >
-            <span>{showWaistInput ? '−' : '+'}</span>
-            Add waist measurement
-          </button>
-
-          {showWaistInput && (
-            <div className="mt-3 p-4 bg-[#F2F2F7] rounded-xl space-y-3">
-              <div>
-                <label className="block text-[12px] text-[#8E8E93] mb-1">Waist circumference (cm)</label>
-                <input
-                  type="number"
-                  value={waistCm}
-                  onChange={e => {
-                    const v = e.target.value ? Number(e.target.value) : ''
-                    setWaistCm(v)
-                  }}
-                  onBlur={() => emitChange({})}
-                  placeholder="85"
-                  className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-[13px] text-[#3C3C43]">
-                <input
-                  type="checkbox"
-                  checked={waistMeasuredCorrectly}
-                  onChange={e => {
-                    setWaistMeasuredCorrectly(e.target.checked)
-                    emitChange({ waist_measured_correctly: e.target.checked })
-                  }}
-                  className="w-4 h-4 rounded border-[#C6C6C8] text-[#5856D6] focus:ring-[#5856D6]"
-                />
-                Measured at navel, relaxed
-              </label>
-              <p className="text-[12px] text-[#8E8E93]">
-                For accuracy, measure at your navel level while standing relaxed, not sucking in.
-              </p>
-            </div>
-          )}
+        {/* Section 3: Waist Measurement */}
+        <div className="p-4 bg-[#F2F2F7] rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-[13px] font-medium text-[#3C3C43]">
+              Waist circumference
+            </label>
+            <span className="text-[11px] text-[#8E8E93] bg-white px-2 py-0.5 rounded">
+              optional
+            </span>
+          </div>
+          <div className="flex gap-3 items-center">
+            <input
+              type="number"
+              value={waistCm}
+              onChange={e => {
+                const v = e.target.value ? Number(e.target.value) : ''
+                setWaistCm(v)
+              }}
+              onBlur={() => emitChange({})}
+              placeholder="85"
+              className="w-24 px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#5856D6] outline-none"
+            />
+            <span className="text-[15px] text-[#8E8E93]">cm</span>
+            <label className="flex items-center gap-2 text-[13px] text-[#3C3C43] ml-auto">
+              <input
+                type="checkbox"
+                checked={waistMeasuredCorrectly}
+                onChange={e => {
+                  setWaistMeasuredCorrectly(e.target.checked)
+                  emitChange({ waist_measured_correctly: e.target.checked })
+                }}
+                className="w-4 h-4 rounded border-[#C6C6C8] text-[#5856D6] focus:ring-[#5856D6]"
+              />
+              At navel, relaxed
+            </label>
+          </div>
+          <p className="text-[11px] text-[#8E8E93]">
+            Measure at navel level while standing relaxed, not sucking in.
+          </p>
         </div>
 
-        {/* Add body photo for better accuracy */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowPhotoAnalyzer(!showPhotoAnalyzer)}
-            className="flex items-center gap-2 text-[15px] text-[#007AFF] font-medium"
-          >
-            <span>{showPhotoAnalyzer ? '−' : '+'}</span>
-            Add body photo for better accuracy
-          </button>
-
-          {showPhotoAnalyzer && (
-            <div className="mt-3 p-4 bg-[#F2F2F7] rounded-xl">
-              {photoAnalysis ? (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[15px] font-medium text-[#34C759]">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Photo analyzed
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {photoAnalysis.body_fat_range && (
-                      <span className="text-[12px] px-2 py-1 bg-[#007AFF]/10 text-[#007AFF] rounded-full">
-                        Body fat: {photoAnalysis.body_fat_range.low}-{photoAnalysis.body_fat_range.high}%
-                      </span>
-                    )}
-                    {photoAnalysis.lean_mass_range_kg && (
-                      <span className="text-[12px] px-2 py-1 bg-[#34C759]/10 text-[#34C759] rounded-full">
-                        Lean mass: {photoAnalysis.lean_mass_range_kg.low}-{photoAnalysis.lean_mass_range_kg.high} kg
-                      </span>
-                    )}
-                    {photoAnalysis.midsection_adiposity && !waistCm && (
-                      <span className="text-[12px] px-2 py-1 bg-[#FF9500]/10 text-[#FF9500] rounded-full">
-                        Midsection: {photoAnalysis.midsection_adiposity}
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setPhotoAnalysis(undefined)}
-                    className="text-[13px] text-[#8E8E93] hover:text-[#3C3C43]"
-                  >
-                    Replace photo
-                  </button>
-                </div>
-              ) : (
-                <BodyPhotoAnalyzer
-                  source="onboarding"
-                  weightKg={userWeightKg || appleHealthData?.weight}
-                  hasMeasuredWaist={!!waistCm}
-                  onAnalysisComplete={handlePhotoAnalysisComplete}
-                />
-              )}
+        {/* Section 4: Body Photo Analysis */}
+        <div className="p-4 bg-[#F2F2F7] rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-[13px] font-medium text-[#3C3C43]">
+              Body photo analysis
+            </label>
+            <span className="text-[11px] text-[#8E8E93] bg-white px-2 py-0.5 rounded">
+              optional · improves accuracy
+            </span>
+          </div>
+          
+          {photoAnalysis ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-[14px] font-medium text-[#34C759]">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Photo analyzed
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {photoAnalysis.body_fat_range && (
+                  <span className="text-[12px] px-2 py-1 bg-white text-[#5856D6] rounded-full border border-[#5856D6]/20">
+                    Body fat: {photoAnalysis.body_fat_range.low}-{photoAnalysis.body_fat_range.high}%
+                  </span>
+                )}
+                {photoAnalysis.lean_mass_range_kg && (
+                  <span className="text-[12px] px-2 py-1 bg-white text-[#34C759] rounded-full border border-[#34C759]/20">
+                    Lean mass: {photoAnalysis.lean_mass_range_kg.low.toFixed(1)}-{photoAnalysis.lean_mass_range_kg.high.toFixed(1)} kg
+                  </span>
+                )}
+                {photoAnalysis.midsection_adiposity && !waistCm && (
+                  <span className="text-[12px] px-2 py-1 bg-white text-[#FF9500] rounded-full border border-[#FF9500]/20">
+                    Midsection: {photoAnalysis.midsection_adiposity}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setPhotoAnalysis(undefined)}
+                className="text-[13px] text-[#8E8E93] hover:text-[#3C3C43] underline"
+              >
+                Upload new photo
+              </button>
             </div>
+          ) : (
+            <BodyPhotoAnalyzer
+              source="onboarding"
+              weightKg={userWeightKg || appleHealthData?.weight}
+              hasMeasuredWaist={!!waistCm}
+              onAnalysisComplete={handlePhotoAnalysisComplete}
+            />
           )}
         </div>
       </div>
     </div>
   )
 }
-

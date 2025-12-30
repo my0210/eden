@@ -32,7 +32,7 @@ const DIAGNOSIS_OPTIONS: { value: MetabolismDiagnosis; label: string }[] = [
   { value: 'high_apob', label: 'High ApoB' },
   { value: 'high_ldl', label: 'High LDL' },
   { value: 'fatty_liver', label: 'Fatty liver' },
-  { value: 'high_blood_pressure', label: 'High blood pressure' },
+  { value: 'high_blood_pressure', label: 'High BP' },
 ]
 
 const FAMILY_OPTIONS: { value: FamilyHistory; label: string }[] = [
@@ -46,7 +46,7 @@ const MEDICATION_OPTIONS: { value: MetabolismMedication; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'statin', label: 'Statin' },
   { value: 'metformin', label: 'Metformin' },
-  { value: 'glp1', label: 'GLP-1 (Ozempic, etc.)' },
+  { value: 'glp1', label: 'GLP-1' },
   { value: 'other', label: 'Other' },
 ]
 
@@ -61,7 +61,6 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
     initialData?.medications || []
   )
   
-  const [showLabsInput, setShowLabsInput] = useState(!!initialData?.labs)
   const [apob, setApob] = useState<number | ''>(initialData?.labs?.apob_mg_dl || '')
   const [hba1c, setHba1c] = useState<number | ''>(initialData?.labs?.hba1c_percent || '')
   const [hscrp, setHscrp] = useState<number | ''>(initialData?.labs?.hscrp_mg_l || '')
@@ -131,6 +130,8 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
     }>)
   }
 
+  const hasLabValues = apob || hba1c || hscrp
+
   return (
     <div className="bg-white border border-[#E5E5EA] rounded-2xl overflow-hidden">
       {/* Header */}
@@ -149,94 +150,89 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-5">
-        {/* Add labs (primary value path) */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowLabsInput(!showLabsInput)}
-            className="flex items-center gap-2 text-[15px] text-[#007AFF] font-medium"
-          >
-            <span>{showLabsInput ? '−' : '+'}</span>
-            Add recent lab results (recommended)
-          </button>
-
-          {showLabsInput && (
-            <div className="mt-3 p-4 bg-[#F2F2F7] rounded-xl space-y-3">
-              <p className="text-[12px] text-[#8E8E93] mb-2">
-                Adding lab values significantly improves your Metabolism score accuracy
-              </p>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[12px] text-[#8E8E93] mb-1">ApoB (mg/dL)</label>
-                  <input
-                    type="number"
-                    value={apob}
-                    onChange={e => {
-                      const v = e.target.value ? Number(e.target.value) : ''
-                      setApob(v)
-                    }}
-                    onBlur={() => emitChange({})}
-                    placeholder="90"
-                    step="0.1"
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[12px] text-[#8E8E93] mb-1">HbA1c (%)</label>
-                  <input
-                    type="number"
-                    value={hba1c}
-                    onChange={e => {
-                      const v = e.target.value ? Number(e.target.value) : ''
-                      setHba1c(v)
-                    }}
-                    onBlur={() => emitChange({})}
-                    placeholder="5.4"
-                    step="0.1"
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[12px] text-[#8E8E93] mb-1">hs-CRP (mg/L)</label>
-                  <input
-                    type="number"
-                    value={hscrp}
-                    onChange={e => {
-                      const v = e.target.value ? Number(e.target.value) : ''
-                      setHscrp(v)
-                    }}
-                    onBlur={() => emitChange({})}
-                    placeholder="1.0"
-                    step="0.1"
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[12px] text-[#8E8E93] mb-1">Test date</label>
-                  <input
-                    type="month"
-                    value={labDate}
-                    onChange={e => {
-                      setLabDate(e.target.value)
-                      emitChange({})
-                    }}
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                  />
-                </div>
-              </div>
+      <div className="p-4 space-y-6">
+        {/* Section 1: Lab Results (priority) */}
+        <div className="p-4 bg-[#F2F2F7] rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-[13px] font-medium text-[#3C3C43]">
+              Recent lab results
+            </label>
+            <span className="text-[11px] text-[#FF9500] bg-[#FF9500]/10 px-2 py-0.5 rounded font-medium">
+              recommended
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-[#8E8E93] mb-1">ApoB (mg/dL)</label>
+              <input
+                type="number"
+                value={apob}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : ''
+                  setApob(v)
+                }}
+                onBlur={() => emitChange({})}
+                placeholder="90"
+                step="0.1"
+                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+              />
             </div>
+            <div>
+              <label className="block text-[11px] text-[#8E8E93] mb-1">HbA1c (%)</label>
+              <input
+                type="number"
+                value={hba1c}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : ''
+                  setHba1c(v)
+                }}
+                onBlur={() => emitChange({})}
+                placeholder="5.4"
+                step="0.1"
+                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-[#8E8E93] mb-1">hs-CRP (mg/L)</label>
+              <input
+                type="number"
+                value={hscrp}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : ''
+                  setHscrp(v)
+                }}
+                onBlur={() => emitChange({})}
+                placeholder="1.0"
+                step="0.1"
+                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-[#8E8E93] mb-1">Test date</label>
+              <input
+                type="month"
+                value={labDate}
+                onChange={e => {
+                  setLabDate(e.target.value)
+                  emitChange({})
+                }}
+                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+              />
+            </div>
+          </div>
+          
+          {!hasLabValues && (
+            <p className="text-[11px] text-[#8E8E93]">
+              Lab values significantly improve your Metabolism score accuracy. Without labs, confidence is limited.
+            </p>
           )}
         </div>
 
-        {/* Quick Check: Diagnoses */}
+        {/* Section 2: Diagnosed Conditions */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            Diagnosed conditions (select all that apply)
+            Diagnosed conditions
           </label>
           <div className="flex flex-wrap gap-2">
             {DIAGNOSIS_OPTIONS.map(opt => (
@@ -250,7 +246,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                   setDiagnoses, 
                   'diagnoses'
                 )}
-                className={`px-3 py-2 rounded-xl text-[14px] font-medium transition-all ${
+                className={`px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
                   diagnoses.includes(opt.value)
                     ? 'bg-[#FF9500] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
@@ -262,10 +258,10 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
           </div>
         </div>
 
-        {/* Quick Check: Family History */}
+        {/* Section 3: Family History */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            Family history (select all that apply)
+            Family history
           </label>
           <div className="flex flex-wrap gap-2">
             {FAMILY_OPTIONS.map(opt => (
@@ -279,7 +275,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                   setFamilyHistory, 
                   'family_history'
                 )}
-                className={`px-3 py-2 rounded-xl text-[14px] font-medium transition-all ${
+                className={`px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
                   familyHistory.includes(opt.value)
                     ? 'bg-[#FF9500] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
@@ -291,10 +287,10 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
           </div>
         </div>
 
-        {/* Context: Medications */}
+        {/* Section 4: Medications */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            Current medications (select all that apply)
+            Current medications
           </label>
           <div className="flex flex-wrap gap-2">
             {MEDICATION_OPTIONS.map(opt => (
@@ -308,7 +304,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                   setMedications, 
                   'medications'
                 )}
-                className={`px-3 py-2 rounded-xl text-[14px] font-medium transition-all ${
+                className={`px-3 py-2 rounded-xl text-[13px] font-medium transition-all ${
                   medications.includes(opt.value)
                     ? 'bg-[#FF9500] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
@@ -319,17 +315,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
             ))}
           </div>
         </div>
-
-        {/* Note about confidence cap */}
-        {!showLabsInput && (
-          <div className="p-3 bg-[#FF9500]/10 rounded-xl">
-            <p className="text-[13px] text-[#C85D00]">
-              💡 Without lab values, Metabolism confidence will be limited. Add recent labs for better accuracy.
-            </p>
-          </div>
-        )}
       </div>
     </div>
   )
 }
-

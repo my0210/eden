@@ -28,31 +28,29 @@ interface HeartCardProps {
 
 const CARDIO_OPTIONS: { value: CardioSelfRating; label: string }[] = [
   { value: 'below_avg', label: 'Below average' },
-  { value: 'slightly_below', label: 'Slightly below average' },
-  { value: 'average', label: 'About average' },
-  { value: 'slightly_above', label: 'Slightly above average' },
+  { value: 'slightly_below', label: 'Slightly below' },
+  { value: 'average', label: 'Average' },
+  { value: 'slightly_above', label: 'Slightly above' },
   { value: 'above_avg', label: 'Above average' },
   { value: 'not_sure', label: 'Not sure' },
 ]
 
 const RHR_RANGES: { value: RhrRange; label: string }[] = [
-  { value: '<55', label: '< 55 bpm' },
-  { value: '55-64', label: '55-64 bpm' },
-  { value: '65-74', label: '65-74 bpm' },
-  { value: '75-84', label: '75-84 bpm' },
-  { value: '85+', label: '85+ bpm' },
+  { value: '<55', label: '< 55' },
+  { value: '55-64', label: '55-64' },
+  { value: '65-74', label: '65-74' },
+  { value: '75-84', label: '75-84' },
+  { value: '85+', label: '85+' },
 ]
 
 export default function HeartCard({ initialData, appleHealthData, onChange }: HeartCardProps) {
   const [cardioRating, setCardioRating] = useState<CardioSelfRating | undefined>(
     initialData?.cardio_self_rating
   )
-  const [showBpInput, setShowBpInput] = useState(!!initialData?.blood_pressure)
   const [systolic, setSystolic] = useState<number | ''>(initialData?.blood_pressure?.systolic || '')
   const [diastolic, setDiastolic] = useState<number | ''>(initialData?.blood_pressure?.diastolic || '')
   const [bpDate, setBpDate] = useState(initialData?.blood_pressure?.measured_date || '')
   
-  const [showRhrInput, setShowRhrInput] = useState(false)
   const [rhrBpm, setRhrBpm] = useState<number | ''>(initialData?.resting_heart_rate?.bpm || '')
   const [rhrRange, setRhrRange] = useState<RhrRange | undefined>(initialData?.resting_heart_rate?.range)
   const [rhrDate, setRhrDate] = useState(initialData?.resting_heart_rate?.measured_date || '')
@@ -143,19 +141,19 @@ export default function HeartCard({ initialData, appleHealthData, onChange }: He
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-5">
-        {/* Quick Check: Cardio Self-Rating */}
+      <div className="p-4 space-y-6">
+        {/* Section 1: Cardio Self-Rating */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
             Compared to others your age, my cardio fitness is…
           </label>
-          <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
             {CARDIO_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => handleCardioChange(opt.value)}
-                className={`w-full p-3 rounded-xl text-left text-[15px] font-medium transition-all ${
+                className={`p-2.5 rounded-xl text-[14px] font-medium transition-all ${
                   cardioRating === opt.value
                     ? 'bg-[#FF2D55] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
@@ -167,143 +165,142 @@ export default function HeartCard({ initialData, appleHealthData, onChange }: He
           </div>
         </div>
 
-        {/* Add a measurement: Blood Pressure */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowBpInput(!showBpInput)}
-            className="flex items-center gap-2 text-[15px] text-[#007AFF] font-medium"
-          >
-            <span>{showBpInput ? '−' : '+'}</span>
-            Add blood pressure
-          </button>
-
-          {showBpInput && (
-            <div className="mt-3 p-4 bg-[#F2F2F7] rounded-xl space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[12px] text-[#8E8E93] mb-1">Systolic (mmHg)</label>
-                  <input
-                    type="number"
-                    value={systolic}
-                    onChange={e => {
-                      const v = e.target.value ? Number(e.target.value) : ''
-                      setSystolic(v)
-                    }}
-                    onBlur={() => emitChange({})}
-                    placeholder="120"
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[12px] text-[#8E8E93] mb-1">Diastolic (mmHg)</label>
-                  <input
-                    type="number"
-                    value={diastolic}
-                    onChange={e => {
-                      const v = e.target.value ? Number(e.target.value) : ''
-                      setDiastolic(v)
-                    }}
-                    onBlur={() => emitChange({})}
-                    placeholder="80"
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[12px] text-[#8E8E93] mb-1">When was this measured?</label>
-                <input
-                  type="month"
-                  value={bpDate}
-                  onChange={e => {
-                    setBpDate(e.target.value)
-                    emitChange({})
-                  }}
-                  className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                />
-              </div>
+        {/* Section 2: Blood Pressure */}
+        <div className="p-4 bg-[#F2F2F7] rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-[13px] font-medium text-[#3C3C43]">
+              Blood pressure
+            </label>
+            <span className="text-[11px] text-[#8E8E93] bg-white px-2 py-0.5 rounded">
+              optional · high value
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] text-[#8E8E93] mb-1">Systolic</label>
+              <input
+                type="number"
+                value={systolic}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : ''
+                  setSystolic(v)
+                }}
+                onBlur={() => emitChange({})}
+                placeholder="120"
+                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF2D55] outline-none"
+              />
             </div>
-          )}
+            <div>
+              <label className="block text-[11px] text-[#8E8E93] mb-1">Diastolic</label>
+              <input
+                type="number"
+                value={diastolic}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : ''
+                  setDiastolic(v)
+                }}
+                onBlur={() => emitChange({})}
+                placeholder="80"
+                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF2D55] outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-[#8E8E93] mb-1">When</label>
+              <input
+                type="month"
+                value={bpDate}
+                onChange={e => {
+                  setBpDate(e.target.value)
+                  emitChange({})
+                }}
+                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF2D55] outline-none"
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Add more accuracy: Resting Heart Rate */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowRhrInput(!showRhrInput)}
-            className="flex items-center gap-2 text-[14px] text-[#8E8E93]"
-          >
-            <span>{showRhrInput ? '−' : '+'}</span>
-            Add resting heart rate for more accuracy
-          </button>
+        {/* Section 3: Resting Heart Rate */}
+        <div className="p-4 bg-[#F2F2F7] rounded-xl space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-[13px] font-medium text-[#3C3C43]">
+              Resting heart rate
+            </label>
+            <span className="text-[11px] text-[#8E8E93] bg-white px-2 py-0.5 rounded">
+              optional
+            </span>
+          </div>
+          
+          {/* Exact BPM or Range selection */}
+          <div className="flex gap-3 items-center">
+            <div className="flex-shrink-0">
+              <input
+                type="number"
+                value={rhrBpm}
+                onChange={e => {
+                  const v = e.target.value ? Number(e.target.value) : ''
+                  setRhrBpm(v)
+                  if (v) setRhrRange(undefined) // Clear range if exact value entered
+                }}
+                onBlur={() => emitChange({})}
+                placeholder="65"
+                className="w-20 px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF2D55] outline-none"
+              />
+            </div>
+            <span className="text-[13px] text-[#8E8E93]">bpm</span>
+            <span className="text-[13px] text-[#8E8E93]">or</span>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {RHR_RANGES.map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  setRhrRange(opt.value)
+                  setRhrBpm('') // Clear exact if range selected
+                  emitChange({ resting_heart_rate: { range: opt.value } })
+                }}
+                className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
+                  rhrRange === opt.value
+                    ? 'bg-[#FF2D55] text-white'
+                    : 'bg-white text-[#3C3C43] border border-[#C6C6C8] hover:bg-[#E5E5EA]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
 
-          {showRhrInput && (
-            <div className="mt-3 p-4 bg-[#F2F2F7] rounded-xl space-y-3">
-              <div>
-                <label className="block text-[12px] text-[#8E8E93] mb-1">Exact BPM (if known)</label>
-                <input
-                  type="number"
-                  value={rhrBpm}
+          {/* Source (only show if RHR is entered) */}
+          {(rhrBpm || rhrRange) && (
+            <div className="flex gap-3 pt-2">
+              <div className="flex-1">
+                <label className="block text-[11px] text-[#8E8E93] mb-1">Source</label>
+                <select
+                  value={rhrSource || ''}
                   onChange={e => {
-                    const v = e.target.value ? Number(e.target.value) : ''
-                    setRhrBpm(v)
+                    setRhrSource(e.target.value as RhrSource || undefined)
+                    emitChange({})
                   }}
-                  onBlur={() => emitChange({})}
-                  placeholder="65"
-                  className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
+                  className="w-full px-3 py-2 text-[14px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF2D55] outline-none"
+                >
+                  <option value="">Select...</option>
+                  <option value="wearable">Wearable</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-[11px] text-[#8E8E93] mb-1">When</label>
+                <input
+                  type="month"
+                  value={rhrDate}
+                  onChange={e => {
+                    setRhrDate(e.target.value)
+                    emitChange({})
+                  }}
+                  className="w-full px-3 py-2 text-[14px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF2D55] outline-none"
                 />
-              </div>
-              <div>
-                <label className="block text-[12px] text-[#8E8E93] mb-2">Or select a range</label>
-                <div className="flex flex-wrap gap-2">
-                  {RHR_RANGES.map(opt => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => {
-                        setRhrRange(opt.value)
-                        emitChange({ resting_heart_rate: { range: opt.value } })
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all ${
-                        rhrRange === opt.value
-                          ? 'bg-[#FF2D55] text-white'
-                          : 'bg-white text-[#3C3C43] border border-[#C6C6C8]'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[12px] text-[#8E8E93] mb-1">When? (optional)</label>
-                  <input
-                    type="month"
-                    value={rhrDate}
-                    onChange={e => {
-                      setRhrDate(e.target.value)
-                      emitChange({})
-                    }}
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[12px] text-[#8E8E93] mb-1">Source (optional)</label>
-                  <select
-                    value={rhrSource || ''}
-                    onChange={e => {
-                      setRhrSource(e.target.value as RhrSource || undefined)
-                      emitChange({})
-                    }}
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#007AFF] outline-none"
-                  >
-                    <option value="">Select...</option>
-                    <option value="wearable">Wearable</option>
-                    <option value="doctor">Doctor</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
               </div>
             </div>
           )}
@@ -312,4 +309,3 @@ export default function HeartCard({ initialData, appleHealthData, onChange }: He
     </div>
   )
 }
-

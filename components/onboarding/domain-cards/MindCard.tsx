@@ -14,11 +14,11 @@ interface MindCardProps {
   }) => void
 }
 
-const FOCUS_OPTIONS: { value: FocusStability; label: string; description: string }[] = [
-  { value: 'very_unstable', label: 'Very unstable', description: 'Hard to concentrate for even short periods' },
-  { value: 'somewhat_unstable', label: 'Somewhat unstable', description: 'Often get distracted' },
-  { value: 'mostly_stable', label: 'Mostly stable', description: 'Can focus with occasional lapses' },
-  { value: 'very_stable', label: 'Very stable', description: 'Can maintain deep focus easily' },
+const FOCUS_OPTIONS: { value: FocusStability; label: string; short: string }[] = [
+  { value: 'very_unstable', label: 'Very unstable', short: 'Hard to concentrate' },
+  { value: 'somewhat_unstable', label: 'Somewhat unstable', short: 'Often distracted' },
+  { value: 'mostly_stable', label: 'Mostly stable', short: 'Occasional lapses' },
+  { value: 'very_stable', label: 'Very stable', short: 'Deep focus easily' },
 ]
 
 const FOG_OPTIONS: { value: BrainFogFrequency; label: string }[] = [
@@ -73,39 +73,39 @@ export default function MindCard({ initialData, onChange }: MindCardProps) {
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-5">
-        {/* Quick Check: Focus Stability */}
+      <div className="p-4 space-y-6">
+        {/* Section 1: Focus Stability */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
             How stable is your focus?
           </label>
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
             {FOCUS_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 type="button"
                 onClick={() => handleFocusChange(opt.value)}
-                className={`w-full p-3 rounded-xl text-left transition-all ${
+                className={`p-3 rounded-xl text-left transition-all ${
                   focusStability === opt.value
                     ? 'bg-[#007AFF] text-white'
                     : 'bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA]'
                 }`}
               >
-                <span className="text-[15px] font-medium">{opt.label}</span>
-                <p className={`text-[13px] mt-0.5 ${
-                  focusStability === opt.value ? 'text-white/80' : 'text-[#8E8E93]'
+                <span className="text-[14px] font-medium block">{opt.label}</span>
+                <span className={`text-[11px] ${
+                  focusStability === opt.value ? 'text-white/70' : 'text-[#8E8E93]'
                 }`}>
-                  {opt.description}
-                </p>
+                  {opt.short}
+                </span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* Quick Check: Brain Fog */}
+        {/* Section 2: Brain Fog */}
         <div>
           <label className="block text-[13px] font-medium text-[#8E8E93] uppercase tracking-wide mb-2">
-            How often do you experience brain fog?
+            Brain fog frequency
           </label>
           <div className="flex gap-2">
             {FOG_OPTIONS.map(opt => (
@@ -125,9 +125,9 @@ export default function MindCard({ initialData, onChange }: MindCardProps) {
           </div>
         </div>
 
-        {/* Note about confidence cap */}
+        {/* Note about confidence */}
         <div className="p-3 bg-[#007AFF]/10 rounded-xl">
-          <p className="text-[13px] text-[#0055CC]">
+          <p className="text-[12px] text-[#0055CC]">
             💡 Mind scores are self-reported. A Focus Check feature is coming soon for more accurate cognitive assessment.
           </p>
         </div>
@@ -135,4 +135,3 @@ export default function MindCard({ initialData, onChange }: MindCardProps) {
     </div>
   )
 }
-
