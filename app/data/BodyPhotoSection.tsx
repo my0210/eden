@@ -281,10 +281,15 @@ export default function BodyPhotoSection() {
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
-            <h3 className="text-[17px] font-semibold text-black mb-2">Delete photo?</h3>
-            <p className="text-[14px] text-[#3C3C43] mb-5">
-              This will remove the photo and any body composition data extracted from it.
-            </p>
+            <h3 className="text-[17px] font-semibold text-black mb-3">Delete body photo?</h3>
+            <div className="text-[14px] text-[#3C3C43] mb-5 space-y-2">
+              <p>This will remove:</p>
+              <ul className="list-disc list-inside text-[13px] space-y-1 text-[#8E8E93]">
+                <li>The uploaded photo</li>
+                <li>Body fat & composition estimates</li>
+              </ul>
+              <p className="text-[13px] text-[#8E8E93]">Your Frame score may change.</p>
+            </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(null)}

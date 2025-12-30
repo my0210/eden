@@ -334,10 +334,15 @@ export default function AppleHealthSection() {
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5">
-            <h3 className="text-[17px] font-semibold text-black mb-2">Delete import?</h3>
-            <p className="text-[14px] text-[#3C3C43] mb-5">
-              This will remove the file and all health metrics extracted from it. Your scorecard will be recalculated.
-            </p>
+            <h3 className="text-[17px] font-semibold text-black mb-3">Delete Apple Health import?</h3>
+            <div className="text-[14px] text-[#3C3C43] mb-5 space-y-2">
+              <p>This will remove:</p>
+              <ul className="list-disc list-inside text-[13px] space-y-1 text-[#8E8E93]">
+                <li>The uploaded export file</li>
+                <li>All extracted health metrics</li>
+              </ul>
+              <p className="text-[13px] text-[#8E8E93]">Your scorecard will be recalculated.</p>
+            </div>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(null)}

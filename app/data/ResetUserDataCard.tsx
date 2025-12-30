@@ -18,7 +18,7 @@ export default function ResetUserDataCard() {
 
   const handleResetAll = async () => {
     const confirmed = window.confirm(
-      '⚠️ DANGER: This will delete ALL your Eden data:\n\n• Profile & Onboarding\n• Prime Check answers\n• Scorecards & Metrics\n• Plans & Messages\n• Apple Health imports\n• Body photos\n\nThis cannot be undone. Are you sure?'
+      'This will permanently delete ALL your Eden data:\n\n• Profile & onboarding progress\n• Prime Check answers\n• Scorecards & metrics\n• Coach conversations & plans\n• Apple Health imports\n• Body photos\n\nThis cannot be undone.\n\nContinue?'
     )
 
     if (!confirmed) return
@@ -45,7 +45,7 @@ export default function ResetUserDataCard() {
 
   const handleResetOnboarding = async () => {
     const confirmed = window.confirm(
-      'This will reset your onboarding and clear:\n\n• Onboarding progress\n• Goals & Identity\n• Prime Check answers\n• Scorecards & Metrics\n• Apple Health imports\n• Body photos\n\nYou will start fresh from step 1.\n\nContinue?'
+      'This will reset your onboarding and clear:\n\n• Onboarding progress\n• Goals & identity\n• Prime Check answers\n• Scorecards & metrics\n• Apple Health imports\n• Body photos\n\nYou will start fresh from step 1.\n\nContinue?'
     )
 
     if (!confirmed) return
