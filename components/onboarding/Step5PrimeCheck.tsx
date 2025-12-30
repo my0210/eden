@@ -260,69 +260,69 @@ export default function Step5PrimeCheck({ state }: Step5PrimeCheckProps) {
         {/* Heart */}
         <div>
           <DomainHeader domain="heart" />
-          {expandedDomain === 'heart' && (
-            <div className="border-t border-[#E5E5EA]">
-              <HeartCard
-                initialData={heartData}
-                appleHealthData={appleHealthData.heart}
-                onChange={setHeartData}
-              />
-            </div>
-          )}
+          <div
+            className={`border-t border-[#E5E5EA] ${expandedDomain === 'heart' ? '' : 'hidden'}`}
+          >
+            <HeartCard
+              initialData={heartData}
+              appleHealthData={appleHealthData.heart}
+              onChange={setHeartData}
+            />
+          </div>
         </div>
 
         {/* Frame */}
         <div>
           <DomainHeader domain="frame" />
-          {expandedDomain === 'frame' && (
-            <div className="border-t border-[#E5E5EA]">
-              <FrameCard
-                initialData={frameData}
-                appleHealthData={appleHealthData.frame}
-                onChange={setFrameData}
-              />
-            </div>
-          )}
+          <div
+            className={`border-t border-[#E5E5EA] ${expandedDomain === 'frame' ? '' : 'hidden'}`}
+          >
+            <FrameCard
+              initialData={frameData}
+              appleHealthData={appleHealthData.frame}
+              onChange={setFrameData}
+            />
+          </div>
         </div>
 
         {/* Metabolism */}
         <div>
           <DomainHeader domain="metabolism" />
-          {expandedDomain === 'metabolism' && (
-            <div className="border-t border-[#E5E5EA]">
-              <MetabolismCard
-                initialData={metabolismData}
-                onChange={setMetabolismData}
-              />
-            </div>
-          )}
+          <div
+            className={`border-t border-[#E5E5EA] ${expandedDomain === 'metabolism' ? '' : 'hidden'}`}
+          >
+            <MetabolismCard
+              initialData={metabolismData}
+              onChange={setMetabolismData}
+            />
+          </div>
         </div>
 
         {/* Recovery */}
         <div>
           <DomainHeader domain="recovery" />
-          {expandedDomain === 'recovery' && (
-            <div className="border-t border-[#E5E5EA]">
-              <RecoveryCard
-                initialData={recoveryData}
-                appleHealthData={appleHealthData.recovery}
-                onChange={setRecoveryData}
-              />
-            </div>
-          )}
+          <div
+            className={`border-t border-[#E5E5EA] ${expandedDomain === 'recovery' ? '' : 'hidden'}`}
+          >
+            <RecoveryCard
+              initialData={recoveryData}
+              appleHealthData={appleHealthData.recovery}
+              onChange={setRecoveryData}
+            />
+          </div>
         </div>
 
         {/* Mind */}
         <div>
           <DomainHeader domain="mind" />
-          {expandedDomain === 'mind' && (
-            <div className="border-t border-[#E5E5EA]">
-              <MindCard
-                initialData={mindData}
-                onChange={setMindData}
-              />
-            </div>
-          )}
+          <div
+            className={`border-t border-[#E5E5EA] ${expandedDomain === 'mind' ? '' : 'hidden'}`}
+          >
+            <MindCard
+              initialData={mindData}
+              onChange={setMindData}
+            />
+          </div>
         </div>
       </div>
 
