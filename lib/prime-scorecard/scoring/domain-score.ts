@@ -198,8 +198,14 @@ export function getFastestUpgradeAction(
     return null
   }
   
-  // Sort by weight (highest impact first)
-  const sorted = [...missing].sort((a, b) => b.weight - a.weight)
+  // Sort by domain-specific weight (highest impact first)
+  const sorted = [...missing].sort((a, b) => {
+    const aContrib = getDomainContribution(a, domain)
+    const bContrib = getDomainContribution(b, domain)
+    const aWeight = aContrib?.weight ?? a.weight ?? 0
+    const bWeight = bContrib?.weight ?? b.weight ?? 0
+    return bWeight - aWeight
+  })
   
   return sorted[0].missing_copy
 }
