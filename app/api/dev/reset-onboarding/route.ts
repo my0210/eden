@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       console.error('reset-onboarding: eden_metric_values delete error', metricsDeleteError)
     }
 
-    // Reset onboarding state with all new v2 fields cleared
+    // Reset onboarding state with all new v2/v3 fields cleared
     const { error: updateError } = await supabase
       .from('eden_user_state')
       .update({
@@ -103,6 +103,8 @@ export async function POST(request: NextRequest) {
         identity_json: {},
         // Clear safety_json (v2: privacy_ack, diagnoses, meds, injuries_limitations, red_lines, doctor_restrictions)
         safety_json: {},
+        // Clear prime_check_json (v3: all domain self-assessments, photo analysis, focus check results)
+        prime_check_json: {},
         // Clear legacy fields (no longer used in v2 but reset for clean state)
         behaviors_json: {},
         coaching_json: {},

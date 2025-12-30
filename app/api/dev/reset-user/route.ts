@@ -263,7 +263,7 @@ export async function POST() {
       console.error('reset-user: photo cleanup error', photoErr)
     }
 
-    // 7) Reset eden_user_state (v2 onboarding)
+    // 7) Reset eden_user_state (v2/v3 onboarding)
     const { error: stateResetError } = await supabase
       .from('eden_user_state')
       .update({
@@ -272,6 +272,7 @@ export async function POST() {
         goals_json: {},
         identity_json: {},
         safety_json: {},
+        prime_check_json: {},  // v3: all domain self-assessments, photo analysis, focus check
         behaviors_json: {},
         coaching_json: {},
         latest_scorecard_id: null,

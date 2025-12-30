@@ -31,11 +31,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Upload not found' }, { status: 404 })
     }
 
-    // Delete from storage if we have a storage path
-    if (upload.storage_path) {
+    // Delete from storage if we have a file path
+    if (upload.file_path) {
       const { error: storageError } = await supabase.storage
         .from('body_photos')
-        .remove([upload.storage_path])
+        .remove([upload.file_path])
       
       if (storageError) {
         console.error('Error deleting from storage:', storageError)
