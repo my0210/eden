@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { pdfToPng } from 'pdf-to-png-converter'
 import {
   LabAnalysisResponse,
   RawLabAnalysis,
@@ -16,7 +17,7 @@ import {
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Analysis may take 15-20 seconds for complex reports
 
-// Allowed MIME types for lab reports (images only - OpenAI Vision doesn't support PDFs)
+// Allowed MIME types for lab reports
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
@@ -24,6 +25,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/webp',
   'image/heic', // iPhone photos
   'image/heif',
+  'application/pdf', // PDFs converted to images
 ])
 
 // Max file size: 20MB (lab reports can be larger than photos)
@@ -37,6 +39,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/webp': 'webp',
   'image/heic': 'heic',
   'image/heif': 'heif',
+  'application/pdf': 'pdf',
 }
 
 /**
@@ -190,7 +193,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
         success: false,
         validation: { is_valid: false },
         markers_found: 0,
-        error: 'Please upload a photo or screenshot (JPEG, PNG, WebP). PDFs are not supported - please take a photo of your lab report instead.',
+        error: 'Please upload a photo, screenshot, or PDF (JPEG, PNG, WebP, or PDF).',
       }, { status: 400 })
     }
 
@@ -248,6 +251,51 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       apiKey: process.env.OPENAI_API_KEY,
     })
 
+    // Convert PDF to images if needed
+    const isPdf = file.type === 'application/pdf'
+    let imageContents: Array<{ type: 'image_url'; image_url: { url: string; detail: 'high' } }> = []
+
+    if (isPdf) {
+      try {
+        // Convert PDF pages to PNG images (all pages)
+        const pngPages = await pdfToPng(Buffer.from(fileBuffer), {
+          disableFontFace: true,
+          useSystemFonts: true,
+          viewportScale: 2.0, // Higher quality for text readability
+        })
+
+        // Convert each page to base64 and add to image contents
+        for (const page of pngPages) {
+          const base64 = page.content.toString('base64')
+          imageContents.push({
+            type: 'image_url',
+            image_url: {
+              url: `data:image/png;base64,${base64}`,
+              detail: 'high' as const,
+            },
+          })
+        }
+      } catch (pdfError) {
+        console.error('PDF conversion error:', pdfError)
+        await supabase.storage.from('lab_reports').remove([filePath])
+        return NextResponse.json({
+          success: false,
+          validation: { is_valid: false },
+          markers_found: 0,
+          error: 'Failed to process PDF. Please try taking a photo of your lab report instead.',
+        }, { status: 500 })
+      }
+    } else {
+      // For images, use the signed URL directly
+      imageContents = [{
+        type: 'image_url',
+        image_url: {
+          url: signedUrlData.signedUrl,
+          detail: 'high' as const,
+        },
+      }]
+    }
+
     let analysis: RawLabAnalysis
     try {
       const completion = await openai.chat.completions.create({
@@ -264,13 +312,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
                 type: 'text',
                 text: LAB_ANALYSIS_USER_PROMPT,
               },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: signedUrlData.signedUrl,
-                  detail: 'high' as const,
-                },
-              },
+              ...imageContents,
             ],
           },
         ],
