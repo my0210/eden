@@ -52,6 +52,33 @@ const MEDICATION_OPTIONS: { value: MetabolismMedication; label: string }[] = [
 ]
 
 type LabInputMode = 'manual' | 'upload' | 'extracted'
+type LabRecency = 'recent' | '1-3mo' | '3-6mo' | '6mo+'
+
+// Convert recency to approximate YYYY-MM date
+function getDateFromRecency(recency: LabRecency): string {
+  const now = new Date()
+  let monthsAgo = 0
+  switch (recency) {
+    case 'recent': monthsAgo = 0; break
+    case '1-3mo': monthsAgo = 2; break
+    case '3-6mo': monthsAgo = 4; break
+    case '6mo+': monthsAgo = 8; break
+  }
+  now.setMonth(now.getMonth() - monthsAgo)
+  return now.toISOString().substring(0, 7)
+}
+
+// Derive recency from a YYYY-MM date string
+function getRecencyFromDate(dateStr: string | undefined): LabRecency | undefined {
+  if (!dateStr) return undefined
+  const date = new Date(dateStr + '-01')
+  const now = new Date()
+  const monthsDiff = (now.getFullYear() - date.getFullYear()) * 12 + (now.getMonth() - date.getMonth())
+  if (monthsDiff <= 1) return 'recent'
+  if (monthsDiff <= 3) return '1-3mo'
+  if (monthsDiff <= 6) return '3-6mo'
+  return '6mo+'
+}
 
 export default function MetabolismCard({ initialData, onChange }: MetabolismCardProps) {
   const [diagnoses, setDiagnoses] = useState<MetabolismDiagnosis[]>(
@@ -70,7 +97,9 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
   const [ldl, setLdl] = useState<number | ''>(initialData?.labs?.ldl_mg_dl || '')
   const [triglycerides, setTriglycerides] = useState<number | ''>(initialData?.labs?.triglycerides_mg_dl || '')
   const [fastingGlucose, setFastingGlucose] = useState<number | ''>(initialData?.labs?.fasting_glucose_mg_dl || '')
-  const [labDate, setLabDate] = useState(initialData?.labs?.test_date || '')
+  const [labRecency, setLabRecency] = useState<LabRecency | undefined>(
+    getRecencyFromDate(initialData?.labs?.test_date)
+  )
   
   // Lab upload state
   const [labInputMode, setLabInputMode] = useState<LabInputMode>(
@@ -114,7 +143,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
         ...(ldl ? { ldl_mg_dl: Number(ldl) } : {}),
         ...(triglycerides ? { triglycerides_mg_dl: Number(triglycerides) } : {}),
         ...(fastingGlucose ? { fasting_glucose_mg_dl: Number(fastingGlucose) } : {}),
-        ...(labDate ? { test_date: labDate } : {}),
+        ...(labRecency ? { test_date: getDateFromRecency(labRecency) } : {}),
         ...(updates.labs?.upload_id ? { upload_id: updates.labs.upload_id } : {}),
       }
     }
@@ -160,7 +189,9 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
       if (normalized.ldl_mg_dl) setLdl(normalized.ldl_mg_dl)
       if (normalized.triglycerides_mg_dl) setTriglycerides(normalized.triglycerides_mg_dl)
       if (normalized.fasting_glucose_mg_dl) setFastingGlucose(normalized.fasting_glucose_mg_dl)
-      if (data.lab_info?.test_date) setLabDate(data.lab_info.test_date.substring(0, 7)) // YYYY-MM
+      if (data.lab_info?.test_date) {
+        setLabRecency(getRecencyFromDate(data.lab_info.test_date.substring(0, 7)))
+      }
 
       // Emit change with upload_id
       emitChange({
@@ -171,7 +202,8 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
           ...(normalized.ldl_mg_dl ? { ldl_mg_dl: normalized.ldl_mg_dl } : {}),
           ...(normalized.triglycerides_mg_dl ? { triglycerides_mg_dl: normalized.triglycerides_mg_dl } : {}),
           ...(normalized.fasting_glucose_mg_dl ? { fasting_glucose_mg_dl: normalized.fasting_glucose_mg_dl } : {}),
-          ...(data.lab_info?.test_date ? { test_date: data.lab_info.test_date.substring(0, 7) } : {}),
+          ...(data.lab_info?.test_date ? { test_date: data.lab_info.test_date.substring(0, 7) } : 
+              labRecency ? { test_date: getDateFromRecency(labRecency) } : {}),
           upload_id: data.upload_id,
         }
       })
@@ -445,16 +477,31 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[11px] text-[#8E8E93] mb-1">Test date</label>
-                  <input
-                    type="month"
-                    value={labDate}
-                    onChange={e => {
-                      setLabDate(e.target.value)
-                      emitChange({})
-                    }}
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
-                  />
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">When were these taken?</label>
+                  <div className="flex gap-2">
+                    {([
+                      { value: 'recent', label: 'Recent' },
+                      { value: '1-3mo', label: '1-3 months' },
+                      { value: '3-6mo', label: '3-6 months' },
+                      { value: '6mo+', label: '6+ months' },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setLabRecency(opt.value)
+                          emitChange({})
+                        }}
+                        className={`flex-1 px-2 py-2 rounded-lg text-[12px] font-medium transition-all ${
+                          labRecency === opt.value
+                            ? 'bg-[#FF9500] text-white'
+                            : 'bg-white border border-[#C6C6C8] text-[#3C3C43] hover:bg-[#E5E5EA]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </>
