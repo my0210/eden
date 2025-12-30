@@ -271,7 +271,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
               role: 'user',
               content: [
                 { type: 'input_text', text: LAB_ANALYSIS_USER_PROMPT },
-                { type: 'input_file', file_id: uploadedFileId, filename: file.name || 'lab-report.pdf' },
+                // When referencing an existing uploaded file, provide ONLY `file_id` (not `filename`)
+                { type: 'input_file', file_id: uploadedFileId },
               ],
             },
           ],
