@@ -145,9 +145,11 @@ export interface ProxyMapConfig {
 export interface PercentileConfig {
   method: 'percentile'
   /** Reference data key for percentile lookup */
-  reference_data: string
+  percentile_table: string
   /** Whether lower is better (e.g., RHR) */
   lower_is_better?: boolean
+  /** Default score if lookup fails */
+  default_score?: number
 }
 
 /**
