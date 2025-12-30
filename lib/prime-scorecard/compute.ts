@@ -146,52 +146,86 @@ function computeScorecardV3Flow(
 
 /**
  * Convert metrics from eden_metric_values to Observations
+ * 
+ * A single metric may map to multiple drivers (e.g., HRV → heart HRV + recovery HRV)
  */
 function convertMetricsToObservations(metrics: MetricInput[]): Observation[] {
   const observations: Observation[] = []
 
   for (const metric of metrics) {
-    // Map metric_code to driver_key
-    const driverKey = mapMetricCodeToDriver(metric.metric_code)
-    if (!driverKey) continue
+    // Map metric_code to driver_key(s)
+    const driverKeys = mapMetricCodeToDrivers(metric.metric_code)
+    if (driverKeys.length === 0) continue
 
-    observations.push({
-      driver_key: driverKey,
-      value: metric.value_raw,
-      unit: metric.unit,
-      measured_at: metric.measured_at,
-      source_type: mapSourceToSourceType(metric.source),
-      metadata: {
-        source_batch_id: metric.import_id,
-        original_metric_code: metric.metric_code,
-      },
-    })
+    // Create an observation for each driver this metric feeds
+    for (const driverKey of driverKeys) {
+      observations.push({
+        driver_key: driverKey,
+        value: metric.value_raw,
+        unit: metric.unit,
+        measured_at: metric.measured_at,
+        source_type: mapSourceToSourceType(metric.source),
+        metadata: {
+          source_batch_id: metric.import_id,
+          original_metric_code: metric.metric_code,
+        },
+      })
+    }
   }
 
   return observations
 }
 
 /**
- * Map metric_code to driver_key
+ * Map metric_code to driver_key(s)
+ * 
+ * Some metrics map to multiple drivers (e.g., HRV → both heart and recovery domains)
+ * Returns array of driver keys to create observations for
  */
-function mapMetricCodeToDriver(metricCode: string): string | null {
-  const mapping: Record<string, string> = {
-    'resting_heart_rate': 'rhr',
-    'resting_hr': 'rhr',
-    'resting_hr_and_recovery': 'rhr',
-    'hrv': 'hrv',
-    'heart_rate_variability': 'hrv',
-    'blood_pressure': 'bp',
-    'bp_systolic': 'bp',
-    'vo2max': 'cardio_fitness',
-    'weight': 'bmi', // Will need height to calculate
-    'body_mass': 'bmi',
-    'sleep': 'sleep_duration',
-    'sleep_efficiency_and_duration': 'sleep_duration',
-    'sleep_duration': 'sleep_duration',
+function mapMetricCodeToDrivers(metricCode: string): string[] {
+  const mapping: Record<string, string[]> = {
+    // Heart domain
+    'resting_heart_rate': ['rhr'],
+    'resting_hr': ['rhr'],
+    'resting_hr_and_recovery': ['rhr'],
+    'hrv': ['hrv', 'recovery_hrv'],  // HRV feeds both Heart and Recovery
+    'heart_rate_variability': ['hrv', 'recovery_hrv'],
+    'blood_pressure': ['bp'],
+    'bp_systolic': ['bp'],
+    'bp_diastolic': ['bp'],  // Will be paired with systolic
+    'vo2max': ['vo2max'],  // Actual VO2max from device goes to vo2max driver (ladder scoring)
+    
+    // Frame domain
+    'weight': ['bmi'],  // Needs height to calculate actual BMI
+    'body_mass': ['bmi'],
+    'body_fat_percentage': ['body_fat'],  // Body fat % from smart scale
+    'body_fat': ['body_fat'],
+    'lean_body_mass': ['bmi'],
+    'body_composition': ['bmi', 'body_fat'],  // Can feed both drivers
+    
+    // Recovery domain
+    'sleep': ['sleep_duration'],
+    'sleep_efficiency_and_duration': ['sleep_duration'],
+    'sleep_duration': ['sleep_duration'],
+    'sleep_analysis': ['sleep_duration'],
+    
+    // Note: These metrics from Apple Health don't have direct driver mappings yet:
+    // - step_count (could be activity driver in future)
+    // - active_energy (could be activity driver in future)
+    // - walking_heart_rate_average
+    // - flights_climbed
   }
 
-  return mapping[metricCode] || null
+  return mapping[metricCode] || []
+}
+
+/**
+ * Map metric_code to driver_key (legacy single-driver version)
+ * @deprecated Use mapMetricCodeToDrivers instead
+ */
+function mapMetricCodeToDriver(metricCode: string): string | null {
+  const drivers = mapMetricCodeToDrivers(metricCode)
+  return drivers.length > 0 ? drivers[0] : null
 }
 
 /**

@@ -93,9 +93,9 @@
     "cardio_fitness": {
       "domain": "heart",
       "driver_key": "cardio_fitness",
-      "display_name": "Cardio Fitness",
-      "weight": 0.25,
-      "dominance_cap": 0.4,
+      "display_name": "Cardio Fitness (Self-Report)",
+      "weight": 0.15,
+      "dominance_cap": 0.3,
       "freshness_half_life_days": 180,
       "missing_copy": "Rate your cardio fitness",
       "scoring": {
@@ -111,9 +111,34 @@
         "default_score": 50
       },
       "evidence_label_map": {
-        "test": "VO2max Test",
-        "device": "Device",
         "self_report_proxy": "Self-report",
+        "prior": "Estimated"
+      }
+    },
+    "vo2max": {
+      "domain": "heart",
+      "driver_key": "vo2max",
+      "display_name": "VO2max",
+      "weight": 0.25,
+      "dominance_cap": 0.4,
+      "freshness_half_life_days": 90,
+      "missing_copy": "Connect Apple Health for VO2max",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "min": 50, "score": 100, "label": "excellent" },
+          { "min": 45, "max": 50, "score": 90, "label": "great" },
+          { "min": 40, "max": 45, "score": 80, "label": "good" },
+          { "min": 35, "max": 40, "score": 65, "label": "above_average" },
+          { "min": 30, "max": 35, "score": 50, "label": "average" },
+          { "min": 25, "max": 30, "score": 35, "label": "below_average" },
+          { "max": 25, "score": 20, "label": "poor" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "test": "VO2max Test",
+        "device": "Apple Watch",
         "prior": "Estimated"
       }
     },
@@ -194,8 +219,8 @@
       "domain": "frame",
       "driver_key": "bmi",
       "display_name": "Body Mass Index",
-      "weight": 0.15,
-      "dominance_cap": 0.3,
+      "weight": 0.10,
+      "dominance_cap": 0.25,
       "freshness_half_life_days": 60,
       "missing_copy": "Add height and weight",
       "scoring": {
@@ -211,7 +236,33 @@
         "default_score": 50
       },
       "evidence_label_map": {
-        "device": "Device",
+        "device": "Smart Scale",
+        "measured_self_report": "Measurement",
+        "prior": "Estimated"
+      }
+    },
+    "body_fat": {
+      "domain": "frame",
+      "driver_key": "body_fat",
+      "display_name": "Body Fat %",
+      "weight": 0.15,
+      "dominance_cap": 0.3,
+      "freshness_half_life_days": 60,
+      "missing_copy": "Connect smart scale for body fat",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 10, "score": 85, "label": "athletic_male" },
+          { "min": 10, "max": 20, "score": 95, "label": "fit" },
+          { "min": 20, "max": 25, "score": 80, "label": "average" },
+          { "min": 25, "max": 30, "score": 60, "label": "above_average" },
+          { "min": 30, "max": 35, "score": 40, "label": "overweight" },
+          { "min": 35, "score": 25, "label": "obese" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "device": "Smart Scale",
         "measured_self_report": "Measurement",
         "prior": "Estimated"
       }
