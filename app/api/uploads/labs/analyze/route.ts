@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import OpenAI, { toFile } from 'openai'
 import {
   LabAnalysisResponse,
   RawLabAnalysis,
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       }, { status: 500 })
     }
 
-    // 8. Call OpenAI API (Files API for PDFs, Vision API for images)
+    // 8. Call OpenAI Responses API (PDFs via Files API + input_file; images via input_image)
     const isPdf = file.type === 'application/pdf'
     let analysis: RawLabAnalysis
     let uploadedFileId: string | null = null
@@ -256,37 +256,27 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
 
     try {
       if (isPdf) {
-        // For PDFs: Upload to OpenAI Files API and reference in chat
-        const pdfBlob = new Blob([fileBuffer], { type: 'application/pdf' })
-        const openaiFile = await openai.files.create({
-          file: pdfBlob,
-          purpose: 'user_data',
+        // For PDFs: Upload to OpenAI Files API and reference via Responses input_file
+        const uploadable = await toFile(Buffer.from(fileBuffer), file.name || 'lab-report.pdf', {
+          type: 'application/pdf',
         })
+        const openaiFile = await openai.files.create({ file: uploadable, purpose: 'user_data' })
         uploadedFileId = openaiFile.id
 
-        const completion = await openai.chat.completions.create({
+        const resp = await openai.responses.create({
           model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: LAB_ANALYSIS_SYSTEM_PROMPT,
-            },
+          instructions: LAB_ANALYSIS_SYSTEM_PROMPT,
+          input: [
             {
               role: 'user',
               content: [
-                {
-                  type: 'text',
-                  text: LAB_ANALYSIS_USER_PROMPT,
-                },
-                {
-                  type: 'file',
-                  file_id: uploadedFileId,
-                } as any, // OpenAI SDK types don't include file type yet
+                { type: 'input_text', text: LAB_ANALYSIS_USER_PROMPT },
+                { type: 'input_file', file_id: uploadedFileId, filename: file.name || 'lab-report.pdf' },
               ],
             },
           ],
-          max_tokens: 2000,
-          temperature: 0.1,
+          max_output_tokens: 2000,
+          temperature: 0,
         })
 
         // Clean up OpenAI file
@@ -297,7 +287,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
         }
         uploadedFileId = null
 
-        const responseText = completion.choices[0]?.message?.content
+        const responseText = resp.output_text
         if (!responseText) {
           throw new Error('No response from OpenAI')
         }
@@ -309,36 +299,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
 
         analysis = parsed.data
       } else {
-        // For images: Use Vision API with signed URL
-        const completion = await openai.chat.completions.create({
+        // For images: Use Responses input_image with signed URL
+        const resp = await openai.responses.create({
           model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: LAB_ANALYSIS_SYSTEM_PROMPT,
-            },
+          instructions: LAB_ANALYSIS_SYSTEM_PROMPT,
+          input: [
             {
               role: 'user',
               content: [
-                {
-                  type: 'text',
-                  text: LAB_ANALYSIS_USER_PROMPT,
-                },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: signedUrlData.signedUrl,
-                    detail: 'high' as const,
-                  },
-                },
+                { type: 'input_text', text: LAB_ANALYSIS_USER_PROMPT },
+                { type: 'input_image', image_url: signedUrlData.signedUrl, detail: 'high' },
               ],
             },
           ],
-          max_tokens: 2000,
-          temperature: 0.1,
+          max_output_tokens: 2000,
+          temperature: 0,
         })
 
-        const responseText = completion.choices[0]?.message?.content
+        const responseText = resp.output_text
         if (!responseText) {
           throw new Error('No response from OpenAI')
         }

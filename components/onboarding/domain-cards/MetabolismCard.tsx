@@ -117,6 +117,8 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'analyzing' | 'error'>('idle')
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [extractedValues, setExtractedValues] = useState<ExtractedLabValue[]>([])
+  const [pendingUploadId, setPendingUploadId] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const emitChange = (updates: Partial<{
@@ -187,8 +189,10 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
       // Extract and set values
       const extracted = data.extracted_values || []
       setExtractedValues(extracted)
+      // Require confirmation before we attach upload_id and apply to scoring
       setLabInputMode('extracted')
       setUploadState('idle')
+      setPendingUploadId(data.upload_id || null)
 
       // Update form values from extracted data
       const normalized = data.normalized_values || {}
@@ -203,21 +207,6 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
         setLabMonth(parsed.month)
         setLabYear(parsed.year)
       }
-
-      // Emit change with upload_id
-      emitChange({
-        labs: {
-          ...(normalized.apob_mg_dl ? { apob_mg_dl: normalized.apob_mg_dl } : {}),
-          ...(normalized.hba1c_percent ? { hba1c_percent: normalized.hba1c_percent } : {}),
-          ...(normalized.hscrp_mg_l ? { hscrp_mg_l: normalized.hscrp_mg_l } : {}),
-          ...(normalized.ldl_mg_dl ? { ldl_mg_dl: normalized.ldl_mg_dl } : {}),
-          ...(normalized.triglycerides_mg_dl ? { triglycerides_mg_dl: normalized.triglycerides_mg_dl } : {}),
-          ...(normalized.fasting_glucose_mg_dl ? { fasting_glucose_mg_dl: normalized.fasting_glucose_mg_dl } : {}),
-          ...(data.lab_info?.test_date ? { test_date: data.lab_info.test_date.substring(0, 7) } : 
-              (labMonth && labYear) ? { test_date: formatLabDate(labMonth, labYear) } : {}),
-          upload_id: data.upload_id,
-        }
-      })
     } catch (e) {
       console.error('Lab upload error:', e)
       setUploadState('error')
@@ -227,6 +216,64 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
 
   const getMarkerDisplayName = (key: string): string => {
     return MARKER_DISPLAY_NAMES[key as LabMarkerKey] || key
+  }
+
+  const handleConfirmExtracted = async () => {
+    if (!pendingUploadId) return
+    setConfirming(true)
+    setUploadError(null)
+
+    try {
+      const normalized = {
+        ...(apob ? { apob_mg_dl: Number(apob) } : {}),
+        ...(hba1c ? { hba1c_percent: Number(hba1c) } : {}),
+        ...(hscrp ? { hscrp_mg_l: Number(hscrp) } : {}),
+        ...(ldl ? { ldl_mg_dl: Number(ldl) } : {}),
+        ...(triglycerides ? { triglycerides_mg_dl: Number(triglycerides) } : {}),
+        ...(fastingGlucose ? { fasting_glucose_mg_dl: Number(fastingGlucose) } : {}),
+      }
+
+      const res = await fetch(`/api/uploads/labs/${pendingUploadId}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          normalized_values: normalized,
+          lab_info: {
+            test_date: labMonth && labYear ? formatLabDate(labMonth, labYear) : undefined,
+          },
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Failed to confirm lab values')
+      }
+
+      // Now we can attach upload_id to Prime Check state (so onboarding save includes it)
+      emitChange({
+        labs: {
+          ...(apob ? { apob_mg_dl: Number(apob) } : {}),
+          ...(hba1c ? { hba1c_percent: Number(hba1c) } : {}),
+          ...(hscrp ? { hscrp_mg_l: Number(hscrp) } : {}),
+          ...(ldl ? { ldl_mg_dl: Number(ldl) } : {}),
+          ...(triglycerides ? { triglycerides_mg_dl: Number(triglycerides) } : {}),
+          ...(fastingGlucose ? { fasting_glucose_mg_dl: Number(fastingGlucose) } : {}),
+          ...(labMonth && labYear ? { test_date: formatLabDate(labMonth, labYear) } : {}),
+          upload_id: pendingUploadId,
+        },
+      })
+
+      // Best-effort regenerate scorecard (in case user already has one)
+      try {
+        await fetch('/api/prime-scorecard/generate', { method: 'POST' })
+      } catch {}
+
+      setPendingUploadId(null)
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : 'Failed to confirm lab values')
+    } finally {
+      setConfirming(false)
+    }
   }
 
   const toggleMultiSelect = <T extends string>(
@@ -301,12 +348,30 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
               </div>
             </div>
 
+            {/* Confirmation gate */}
+            {pendingUploadId && (
+              <div className="p-4 rounded-xl border border-[#E5E5EA] bg-white space-y-3">
+                <p className="text-[13px] text-[#3C3C43]">
+                  Review looks good? Confirm to apply these labs to your score.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleConfirmExtracted}
+                  disabled={confirming}
+                  className="w-full px-4 py-3 rounded-xl bg-[#34C759] text-white font-semibold text-[15px] hover:bg-[#34C759]/90 transition-colors disabled:opacity-50"
+                >
+                  {confirming ? 'Applying...' : 'Confirm & Apply to Score'}
+                </button>
+              </div>
+            )}
+
             {/* Subtle replace action */}
             <button
               type="button"
               onClick={() => {
                 setLabInputMode('upload')
                 setExtractedValues([])
+                setPendingUploadId(null)
                 setUploadState('idle')
                 if (fileInputRef.current) {
                   fileInputRef.current.value = ''

@@ -8,6 +8,7 @@ interface LabUpload {
   file_name: string
   file_type: string
   status: string
+  confirmed?: boolean
   lab_date: string | null
   lab_provider: string | null
   extracted_values: ExtractedLabValue[] | null
@@ -123,13 +124,15 @@ export default function LabUploadsList({ onDelete }: LabUploadsListProps) {
 
               <div className="flex items-center gap-2">
                 <span className={`px-2 py-1 rounded text-[11px] font-medium ${
-                  upload.status === 'completed'
+                  upload.confirmed
+                    ? 'bg-[#34C759]/10 text-[#34C759]'
+                    : upload.status === 'completed'
                     ? 'bg-[#34C759]/10 text-[#34C759]'
                     : upload.status === 'failed'
                     ? 'bg-[#FF3B30]/10 text-[#FF3B30]'
                     : 'bg-[#FF9500]/10 text-[#FF9500]'
                 }`}>
-                  {upload.status === 'completed' ? 'Extracted' : upload.status}
+                  {upload.confirmed ? 'Applied' : (upload.status === 'completed' ? 'Extracted' : upload.status)}
                 </span>
                 <svg
                   className={`w-5 h-5 text-[#8E8E93] transition-transform ${isExpanded ? 'rotate-180' : ''}`}

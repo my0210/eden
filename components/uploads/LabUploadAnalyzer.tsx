@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { LabAnalysisResponse, ExtractedLabValue, MARKER_DISPLAY_NAMES, LabMarkerKey } from '@/lib/lab-analysis/types'
 
-type UploadState = 'empty' | 'uploading' | 'analyzing' | 'rejected' | 'success' | 'error'
+type UploadState = 'empty' | 'uploading' | 'analyzing' | 'rejected' | 'review' | 'confirmed' | 'error'
 
 interface LabUploadAnalyzerProps {
   onAnalysisComplete?: (result: LabAnalysisResponse) => void
@@ -17,6 +17,7 @@ export default function LabUploadAnalyzer({
   const [state, setState] = useState<UploadState>('empty')
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<LabAnalysisResponse | null>(null)
+  const [confirming, setConfirming] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -48,9 +49,10 @@ export default function LabUploadAnalyzer({
         return
       }
 
-      setState('success')
+      // Require explicit user confirmation before applying to scoring
+      setState('review')
       setResult(data)
-      onAnalysisComplete?.(data)
+      // Note: onAnalysisComplete is intentionally fired only after confirmation
     } catch (e) {
       console.error('Lab upload error:', e)
       setState('error')
@@ -69,6 +71,7 @@ export default function LabUploadAnalyzer({
     setState('empty')
     setError(null)
     setResult(null)
+    setConfirming(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -186,7 +189,7 @@ export default function LabUploadAnalyzer({
   }
 
   // Success state
-  if (state === 'success' && result) {
+  if ((state === 'review' || state === 'confirmed') && result) {
     const extractedValues = result.extracted_values || []
     
     return (
@@ -201,7 +204,9 @@ export default function LabUploadAnalyzer({
             </div>
             <div>
               <p className="text-[15px] font-semibold text-[#1C1C1E]">
-                {extractedValues.length} biomarkers extracted
+                {state === 'confirmed'
+                  ? 'Applied to your score'
+                  : `${extractedValues.length} biomarkers extracted`}
               </p>
               {result.lab_info?.lab_provider && (
                 <p className="text-[13px] text-[#8E8E93]">
@@ -243,9 +248,51 @@ export default function LabUploadAnalyzer({
             ))}
           </div>
 
+          {state === 'review' && (
+            <button
+              disabled={confirming || !result.upload_id || !result.normalized_values}
+              onClick={async () => {
+                if (!result.upload_id || !result.normalized_values) return
+                setConfirming(true)
+                setError(null)
+                try {
+                  const res = await fetch(`/api/uploads/labs/${result.upload_id}/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      normalized_values: result.normalized_values,
+                      lab_info: result.lab_info,
+                    }),
+                  })
+
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}))
+                    throw new Error(data.error || 'Failed to confirm lab values')
+                  }
+
+                  // Trigger scorecard regeneration (best-effort)
+                  try {
+                    await fetch('/api/prime-scorecard/generate', { method: 'POST' })
+                  } catch {}
+
+                  setState('confirmed')
+                  onAnalysisComplete?.(result)
+                } catch (e) {
+                  setState('error')
+                  setError(e instanceof Error ? e.message : 'Failed to confirm lab values')
+                } finally {
+                  setConfirming(false)
+                }
+              }}
+              className="mt-4 w-full px-4 py-3 bg-[#34C759] text-white font-semibold rounded-xl text-[15px] hover:bg-[#34C759]/90 transition-colors disabled:opacity-50"
+            >
+              {confirming ? 'Applying...' : 'Confirm & Apply to Score'}
+            </button>
+          )}
+
           <button
             onClick={handleReset}
-            className="mt-4 w-full px-4 py-2 border border-[#C6C6C8] text-[#3C3C43] font-medium rounded-lg text-[13px] hover:bg-[#F2F2F7] transition-colors"
+            className="mt-3 w-full px-4 py-2 border border-[#C6C6C8] text-[#3C3C43] font-medium rounded-lg text-[13px] hover:bg-[#F2F2F7] transition-colors"
           >
             Upload Another Report
           </button>
