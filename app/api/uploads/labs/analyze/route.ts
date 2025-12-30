@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { pdfToPng } from 'pdf-to-png-converter'
 import {
   LabAnalysisResponse,
   RawLabAnalysis,
@@ -25,7 +24,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/webp',
   'image/heic', // iPhone photos
   'image/heif',
-  'application/pdf', // PDFs converted to images
+  'application/pdf', // PDFs sent directly to GPT-4o
 ])
 
 // Max file size: 20MB (lab reports can be larger than photos)
@@ -251,49 +250,29 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       apiKey: process.env.OPENAI_API_KEY,
     })
 
-    // Convert PDF to images if needed
+    // Prepare file content for OpenAI
     const isPdf = file.type === 'application/pdf'
-    let imageContents: Array<{ type: 'image_url'; image_url: { url: string; detail: 'high' } }> = []
+    let fileContent: { type: 'image_url'; image_url: { url: string; detail: 'high' } }
 
     if (isPdf) {
-      try {
-        // Convert PDF pages to PNG images (all pages)
-        const pngPages = await pdfToPng(Buffer.from(fileBuffer), {
-          disableFontFace: true,
-          useSystemFonts: true,
-          viewportScale: 2.0, // Higher quality for text readability
-        })
-
-        // Convert each page to base64 and add to image contents
-        for (const page of pngPages) {
-          const base64 = page.content.toString('base64')
-          imageContents.push({
-            type: 'image_url',
-            image_url: {
-              url: `data:image/png;base64,${base64}`,
-              detail: 'high' as const,
-            },
-          })
-        }
-      } catch (pdfError) {
-        console.error('PDF conversion error:', pdfError)
-        await supabase.storage.from('lab_reports').remove([filePath])
-        return NextResponse.json({
-          success: false,
-          validation: { is_valid: false },
-          markers_found: 0,
-          error: 'Failed to process PDF. Please try taking a photo of your lab report instead.',
-        }, { status: 500 })
+      // Send PDF directly as base64 to GPT-4o (supports native PDF input)
+      const base64 = Buffer.from(fileBuffer).toString('base64')
+      fileContent = {
+        type: 'image_url',
+        image_url: {
+          url: `data:application/pdf;base64,${base64}`,
+          detail: 'high' as const,
+        },
       }
     } else {
       // For images, use the signed URL directly
-      imageContents = [{
+      fileContent = {
         type: 'image_url',
         image_url: {
           url: signedUrlData.signedUrl,
           detail: 'high' as const,
         },
-      }]
+      }
     }
 
     let analysis: RawLabAnalysis
@@ -312,7 +291,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
                 type: 'text',
                 text: LAB_ANALYSIS_USER_PROMPT,
               },
-              ...imageContents,
+              fileContent,
             ],
           },
         ],
