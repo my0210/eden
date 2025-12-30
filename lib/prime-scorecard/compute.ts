@@ -476,6 +476,11 @@ function computeDomainScore(
   if (contributions.length > 0) {
     const avgContribution = contributions.reduce((sum, c) => sum + c.contribution.contribution, 0) / contributions.length
     score = Math.round(avgContribution)
+  } else {
+    // Legacy behavior previously returned null (showing "—" in UI).
+    // Product requirement: always show a full scorecard after onboarding.
+    // Use a neutral prior when no scorable metrics exist.
+    score = 50
   }
 
   // Compute confidence

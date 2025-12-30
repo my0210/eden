@@ -219,6 +219,14 @@ export default function Step6ScorecardReveal({ userId }: Step6ScorecardRevealPro
     loadScorecard()
   }, [])
 
+  function hasAllScores(sc: PrimeScorecard): boolean {
+    if (sc.prime_score === null) return false
+    for (const d of PRIME_DOMAINS) {
+      if (sc.domain_scores[d] === null) return false
+    }
+    return true
+  }
+
   async function loadScorecard() {
     setLoading(true)
     setError(null)
@@ -229,20 +237,24 @@ export default function Step6ScorecardReveal({ userId }: Step6ScorecardRevealPro
       
       if (latestRes.ok) {
         const data = await latestRes.json()
-        setScorecard(data.scorecard)
-        setLoading(false)
-        return
+        const latest = data.scorecard as PrimeScorecard
+        // If we have a legacy/empty scorecard (null scores), generate a fresh one.
+        if (latest && hasAllScores(latest)) {
+          setScorecard(latest)
+          setLoading(false)
+          return
+        }
       }
 
       // If no scorecard exists (404), generate one
-      if (latestRes.status === 404) {
+      if (latestRes.status === 404 || latestRes.ok) {
         const generateRes = await fetch('/api/prime-scorecard/generate', {
           method: 'POST',
         })
 
         if (generateRes.ok) {
           const data = await generateRes.json()
-          setScorecard(data.scorecard)
+          setScorecard(data.scorecard as PrimeScorecard)
         } else {
           setError('Failed to generate scorecard')
         }
