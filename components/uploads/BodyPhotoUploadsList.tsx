@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from 'react'
 
-type UploadStatus = 'pending' | 'analyzed' | 'failed'
+type UploadStatus = 'pending' | 'completed' | 'failed'
 
 interface PhotoUpload {
   id: string
   status: UploadStatus
   storage_path: string | null
   created_at: string
-  analyzed_at: string | null
+  processed_at: string | null
   metadata_json: {
     validation?: {
       valid: boolean
@@ -17,8 +17,10 @@ interface PhotoUpload {
       user_message?: string
     }
     analysis?: {
-      body_fat_range_pct?: { low: number; high: number }
-      midsection_adiposity?: { level: string }
+      body_fat_estimate?: { range_low: number; range_high: number } | { unable_to_estimate: true; reason: string }
+      midsection_adiposity?: { level: string } | { unable_to_estimate: true; reason: string }
+    }
+    derived?: {
       lean_mass_estimate_kg?: { range_low: number; range_high: number }
     }
   } | null
@@ -109,11 +111,11 @@ export default function BodyPhotoUploadsList({ onDelete }: Props) {
   const statusBadge = (upload: PhotoUpload) => {
     const status = upload.status
     const color =
-      status === 'analyzed' ? 'bg-[#34C759]/10 text-[#34C759]' :
+      status === 'completed' ? 'bg-[#34C759]/10 text-[#34C759]' :
       status === 'failed' ? 'bg-[#FF3B30]/10 text-[#FF3B30]' :
       'bg-[#FF9500]/10 text-[#FF9500]'
     const label =
-      status === 'analyzed' ? 'Analyzed' :
+      status === 'completed' ? 'Analyzed' :
       status === 'failed' ? 'Failed' :
       'Pending'
     return (
@@ -123,32 +125,42 @@ export default function BodyPhotoUploadsList({ onDelete }: Props) {
     )
   }
 
+  const isUnableToEstimate = (val: unknown): boolean => {
+    return typeof val === 'object' && val !== null && 'unable_to_estimate' in val
+  }
+
   const getAnalysisMetrics = (upload: PhotoUpload) => {
     const analysis = upload.metadata_json?.analysis
-    if (!analysis) return null
+    const derived = upload.metadata_json?.derived
+    if (!analysis && !derived) return null
     
     const metrics = []
     
-    if (analysis.body_fat_range_pct) {
+    // Body fat from analysis
+    if (analysis?.body_fat_estimate && !isUnableToEstimate(analysis.body_fat_estimate)) {
+      const bf = analysis.body_fat_estimate as { range_low: number; range_high: number }
       metrics.push({
         label: 'Body fat',
-        value: `${analysis.body_fat_range_pct.low}-${analysis.body_fat_range_pct.high}%`,
+        value: `${bf.range_low}-${bf.range_high}%`,
         color: 'bg-[#007AFF]/10 text-[#007AFF]'
       })
     }
     
-    if (analysis.lean_mass_estimate_kg) {
+    // Lean mass from derived
+    if (derived?.lean_mass_estimate_kg) {
       metrics.push({
         label: 'Lean mass',
-        value: `${analysis.lean_mass_estimate_kg.range_low}-${analysis.lean_mass_estimate_kg.range_high} kg`,
+        value: `${derived.lean_mass_estimate_kg.range_low}-${derived.lean_mass_estimate_kg.range_high} kg`,
         color: 'bg-[#34C759]/10 text-[#34C759]'
       })
     }
     
-    if (analysis.midsection_adiposity?.level) {
+    // Midsection from analysis
+    if (analysis?.midsection_adiposity && !isUnableToEstimate(analysis.midsection_adiposity)) {
+      const mid = analysis.midsection_adiposity as { level: string }
       metrics.push({
         label: 'Midsection',
-        value: analysis.midsection_adiposity.level,
+        value: mid.level,
         color: 'bg-[#FF9500]/10 text-[#FF9500]'
       })
     }
@@ -204,8 +216,8 @@ export default function BodyPhotoUploadsList({ onDelete }: Props) {
                   
                   <div className="text-[13px] text-[#8E8E93] space-y-1">
                     <div>Uploaded: {formatDate(upload.created_at)}</div>
-                    {upload.analyzed_at && (
-                      <div className="text-[#34C759]">Analyzed: {formatDate(upload.analyzed_at)}</div>
+                    {upload.processed_at && (
+                      <div className="text-[#34C759]">Analyzed: {formatDate(upload.processed_at)}</div>
                     )}
                   </div>
                   
