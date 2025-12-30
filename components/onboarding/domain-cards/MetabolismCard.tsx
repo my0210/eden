@@ -133,22 +133,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
   const hasLabValues = apob || hba1c || hscrp
 
   return (
-    <div className="bg-white border border-[#E5E5EA] rounded-2xl overflow-hidden">
-      {/* Header */}
-      <div className="p-4 bg-gradient-to-r from-[#FF9500]/10 to-[#FF9500]/5 border-b border-[#E5E5EA]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#FF9500] flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-[17px] font-semibold text-black">Metabolism</h3>
-            <p className="text-[13px] text-[#8E8E93]">Metabolic health & biomarkers</p>
-          </div>
-        </div>
-      </div>
-
+    <div className="bg-white">
       {/* Content */}
       <div className="p-4 space-y-6">
         {/* Section 1: Lab Results (priority) */}

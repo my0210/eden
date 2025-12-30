@@ -73,33 +73,18 @@ export default function RecoveryCard({ initialData, appleHealthData, onChange }:
   }
 
   return (
-    <div className="bg-white border border-[#E5E5EA] rounded-2xl overflow-hidden">
-      {/* Header */}
-      <div className="p-4 bg-gradient-to-r from-[#34C759]/10 to-[#34C759]/5 border-b border-[#E5E5EA]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#34C759] flex items-center justify-center">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+    <div className="bg-white">
+      {/* Apple Health Data Badge */}
+      {appleHealthData && appleHealthData.avgSleepDuration && (
+        <div className="px-4 pt-3 flex flex-wrap gap-2">
+          <span className="text-[12px] px-2 py-1 bg-[#34C759]/10 text-[#34C759] rounded-full flex items-center gap-1">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
             </svg>
-          </div>
-          <div>
-            <h3 className="text-[17px] font-semibold text-black">Recovery</h3>
-            <p className="text-[13px] text-[#8E8E93]">Sleep & stress resilience</p>
-          </div>
+            Avg sleep: {appleHealthData.avgSleepDuration.toFixed(1)}h
+          </span>
         </div>
-
-        {/* Apple Health Data Badge */}
-        {appleHealthData && appleHealthData.avgSleepDuration && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className="text-[12px] px-2 py-1 bg-[#34C759]/10 text-[#34C759] rounded-full flex items-center gap-1">
-              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-              </svg>
-              Avg sleep: {appleHealthData.avgSleepDuration.toFixed(1)}h
-            </span>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Content */}
       <div className="p-4 space-y-6">
