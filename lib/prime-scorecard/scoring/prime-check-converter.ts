@@ -416,6 +416,59 @@ function convertMetabolismData(
         metadata: { entry_method: 'onboarding_prime_check' },
       })
     }
+
+    // New lab markers
+    if (labs.ldl_mg_dl) {
+      observations.push({
+        driver_key: 'ldl',
+        value: labs.ldl_mg_dl,
+        unit: 'mg/dL',
+        measured_at: labDate,
+        source_type: 'lab',
+        metadata: { entry_method: 'onboarding_prime_check' },
+      })
+    }
+
+    if (labs.triglycerides_mg_dl) {
+      observations.push({
+        driver_key: 'triglycerides',
+        value: labs.triglycerides_mg_dl,
+        unit: 'mg/dL',
+        measured_at: labDate,
+        source_type: 'lab',
+        metadata: { entry_method: 'onboarding_prime_check' },
+      })
+    }
+
+    if (labs.fasting_glucose_mg_dl) {
+      observations.push({
+        driver_key: 'fasting_glucose',
+        value: labs.fasting_glucose_mg_dl,
+        unit: 'mg/dL',
+        measured_at: labDate,
+        source_type: 'lab',
+        metadata: { entry_method: 'onboarding_prime_check' },
+      })
+    }
+
+    // Liver function: use ALT as primary (most sensitive for fatty liver)
+    // If multiple liver markers present, we use ALT but store all in metadata
+    if (labs.alt || labs.ast || labs.ggt) {
+      const liverValue = labs.alt || labs.ast || labs.ggt
+      observations.push({
+        driver_key: 'liver_function',
+        value: liverValue!,
+        unit: 'U/L',
+        measured_at: labDate,
+        source_type: 'lab',
+        metadata: { 
+          entry_method: 'onboarding_prime_check',
+          alt: labs.alt,
+          ast: labs.ast,
+          ggt: labs.ggt,
+        },
+      })
+    }
   }
 
   // Metabolic risk from diagnoses + family history -> metabolic_risk driver

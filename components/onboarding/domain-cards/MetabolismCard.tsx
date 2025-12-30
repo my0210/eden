@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import {
   MetabolismDiagnosis,
   FamilyHistory,
   MetabolismMedication,
   LabsEntry,
 } from '@/lib/onboarding/types'
+import { LabAnalysisResponse, ExtractedLabValue, MARKER_DISPLAY_NAMES, LabMarkerKey } from '@/lib/lab-analysis/types'
 
 interface MetabolismCardProps {
   initialData?: {
@@ -50,6 +51,8 @@ const MEDICATION_OPTIONS: { value: MetabolismMedication; label: string }[] = [
   { value: 'other', label: 'Other' },
 ]
 
+type LabInputMode = 'manual' | 'upload' | 'extracted'
+
 export default function MetabolismCard({ initialData, onChange }: MetabolismCardProps) {
   const [diagnoses, setDiagnoses] = useState<MetabolismDiagnosis[]>(
     initialData?.diagnoses || []
@@ -64,7 +67,19 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
   const [apob, setApob] = useState<number | ''>(initialData?.labs?.apob_mg_dl || '')
   const [hba1c, setHba1c] = useState<number | ''>(initialData?.labs?.hba1c_percent || '')
   const [hscrp, setHscrp] = useState<number | ''>(initialData?.labs?.hscrp_mg_l || '')
+  const [ldl, setLdl] = useState<number | ''>(initialData?.labs?.ldl_mg_dl || '')
+  const [triglycerides, setTriglycerides] = useState<number | ''>(initialData?.labs?.triglycerides_mg_dl || '')
+  const [fastingGlucose, setFastingGlucose] = useState<number | ''>(initialData?.labs?.fasting_glucose_mg_dl || '')
   const [labDate, setLabDate] = useState(initialData?.labs?.test_date || '')
+  
+  // Lab upload state
+  const [labInputMode, setLabInputMode] = useState<LabInputMode>(
+    initialData?.labs?.upload_id ? 'extracted' : 'manual'
+  )
+  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'analyzing' | 'error'>('idle')
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [extractedValues, setExtractedValues] = useState<ExtractedLabValue[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const emitChange = (updates: Partial<{
     diagnoses: MetabolismDiagnosis[]
@@ -86,18 +101,89 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
     // Include labs if any values are present
     const hasLabs = (updates.labs?.apob_mg_dl ?? apob) || 
                     (updates.labs?.hba1c_percent ?? hba1c) || 
-                    (updates.labs?.hscrp_mg_l ?? hscrp)
+                    (updates.labs?.hscrp_mg_l ?? hscrp) ||
+                    (updates.labs?.ldl_mg_dl ?? ldl) ||
+                    (updates.labs?.triglycerides_mg_dl ?? triglycerides) ||
+                    (updates.labs?.fasting_glucose_mg_dl ?? fastingGlucose)
     
     if (hasLabs) {
       data.labs = {
         ...(apob ? { apob_mg_dl: Number(apob) } : {}),
         ...(hba1c ? { hba1c_percent: Number(hba1c) } : {}),
         ...(hscrp ? { hscrp_mg_l: Number(hscrp) } : {}),
+        ...(ldl ? { ldl_mg_dl: Number(ldl) } : {}),
+        ...(triglycerides ? { triglycerides_mg_dl: Number(triglycerides) } : {}),
+        ...(fastingGlucose ? { fasting_glucose_mg_dl: Number(fastingGlucose) } : {}),
         ...(labDate ? { test_date: labDate } : {}),
+        ...(updates.labs?.upload_id ? { upload_id: updates.labs.upload_id } : {}),
       }
     }
 
     onChange(data)
+  }
+
+  const handleLabUpload = async (file: File) => {
+    setUploadError(null)
+    setUploadState('uploading')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('source', 'onboarding')
+
+      setUploadState('analyzing')
+
+      const response = await fetch('/api/uploads/labs/analyze', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data: LabAnalysisResponse = await response.json()
+
+      if (!data.success) {
+        setUploadState('error')
+        setUploadError(data.error || 'Failed to analyze lab report')
+        return
+      }
+
+      // Extract and set values
+      const extracted = data.extracted_values || []
+      setExtractedValues(extracted)
+      setLabInputMode('extracted')
+      setUploadState('idle')
+
+      // Update form values from extracted data
+      const normalized = data.normalized_values || {}
+      if (normalized.apob_mg_dl) setApob(normalized.apob_mg_dl)
+      if (normalized.hba1c_percent) setHba1c(normalized.hba1c_percent)
+      if (normalized.hscrp_mg_l) setHscrp(normalized.hscrp_mg_l)
+      if (normalized.ldl_mg_dl) setLdl(normalized.ldl_mg_dl)
+      if (normalized.triglycerides_mg_dl) setTriglycerides(normalized.triglycerides_mg_dl)
+      if (normalized.fasting_glucose_mg_dl) setFastingGlucose(normalized.fasting_glucose_mg_dl)
+      if (data.lab_info?.test_date) setLabDate(data.lab_info.test_date.substring(0, 7)) // YYYY-MM
+
+      // Emit change with upload_id
+      emitChange({
+        labs: {
+          ...(normalized.apob_mg_dl ? { apob_mg_dl: normalized.apob_mg_dl } : {}),
+          ...(normalized.hba1c_percent ? { hba1c_percent: normalized.hba1c_percent } : {}),
+          ...(normalized.hscrp_mg_l ? { hscrp_mg_l: normalized.hscrp_mg_l } : {}),
+          ...(normalized.ldl_mg_dl ? { ldl_mg_dl: normalized.ldl_mg_dl } : {}),
+          ...(normalized.triglycerides_mg_dl ? { triglycerides_mg_dl: normalized.triglycerides_mg_dl } : {}),
+          ...(normalized.fasting_glucose_mg_dl ? { fasting_glucose_mg_dl: normalized.fasting_glucose_mg_dl } : {}),
+          ...(data.lab_info?.test_date ? { test_date: data.lab_info.test_date.substring(0, 7) } : {}),
+          upload_id: data.upload_id,
+        }
+      })
+    } catch (e) {
+      console.error('Lab upload error:', e)
+      setUploadState('error')
+      setUploadError('Upload failed. Please try again.')
+    }
+  }
+
+  const getMarkerDisplayName = (key: string): string => {
+    return MARKER_DISPLAY_NAMES[key as LabMarkerKey] || key
   }
 
   const toggleMultiSelect = <T extends string>(
@@ -130,10 +216,22 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
     }>)
   }
 
-  const hasLabValues = apob || hba1c || hscrp
+  const hasLabValues = apob || hba1c || hscrp || ldl || triglycerides || fastingGlucose
 
   return (
     <div className="bg-white">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleLabUpload(file)
+        }}
+        className="hidden"
+      />
+
       {/* Content */}
       <div className="p-4 space-y-6">
         {/* Section 1: Lab Results (priority) */}
@@ -146,68 +244,223 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
               recommended
             </span>
           </div>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] text-[#8E8E93] mb-1">ApoB (mg/dL)</label>
-              <input
-                type="number"
-                value={apob}
-                onChange={e => {
-                  const v = e.target.value ? Number(e.target.value) : ''
-                  setApob(v)
-                }}
-                onBlur={() => emitChange({})}
-                placeholder="90"
-                step="0.1"
-                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-[#8E8E93] mb-1">HbA1c (%)</label>
-              <input
-                type="number"
-                value={hba1c}
-                onChange={e => {
-                  const v = e.target.value ? Number(e.target.value) : ''
-                  setHba1c(v)
-                }}
-                onBlur={() => emitChange({})}
-                placeholder="5.4"
-                step="0.1"
-                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-[#8E8E93] mb-1">hs-CRP (mg/L)</label>
-              <input
-                type="number"
-                value={hscrp}
-                onChange={e => {
-                  const v = e.target.value ? Number(e.target.value) : ''
-                  setHscrp(v)
-                }}
-                onBlur={() => emitChange({})}
-                placeholder="1.0"
-                step="0.1"
-                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-[#8E8E93] mb-1">Test date</label>
-              <input
-                type="month"
-                value={labDate}
-                onChange={e => {
-                  setLabDate(e.target.value)
-                  emitChange({})
-                }}
-                className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
-              />
-            </div>
+
+          {/* Mode toggle */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setLabInputMode('upload')}
+              className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium transition-all flex items-center justify-center gap-2 ${
+                labInputMode === 'upload' || labInputMode === 'extracted'
+                  ? 'bg-[#FF9500] text-white'
+                  : 'bg-white border border-[#C6C6C8] text-[#3C3C43] hover:bg-[#E5E5EA]'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Upload Report
+            </button>
+            <button
+              type="button"
+              onClick={() => setLabInputMode('manual')}
+              className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium transition-all ${
+                labInputMode === 'manual'
+                  ? 'bg-[#FF9500] text-white'
+                  : 'bg-white border border-[#C6C6C8] text-[#3C3C43] hover:bg-[#E5E5EA]'
+              }`}
+            >
+              Enter Manually
+            </button>
           </div>
+
+          {/* Upload Mode */}
+          {labInputMode === 'upload' && (
+            <div className="text-center py-4">
+              {uploadState === 'idle' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-3 border-2 border-dashed border-[#C6C6C8] rounded-lg text-[#3C3C43] hover:border-[#FF9500] hover:text-[#FF9500] transition-colors"
+                  >
+                    <svg className="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Choose file or take photo
+                  </button>
+                  <p className="text-[11px] text-[#8E8E93] mt-2">
+                    JPEG, PNG, or PDF • We extract key biomarkers automatically
+                  </p>
+                </>
+              )}
+              {(uploadState === 'uploading' || uploadState === 'analyzing') && (
+                <div className="py-4">
+                  <div className="w-8 h-8 mx-auto mb-2 border-2 border-[#FF9500] border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-[13px] text-[#3C3C43]">
+                    {uploadState === 'uploading' ? 'Uploading...' : 'Analyzing lab report...'}
+                  </p>
+                </div>
+              )}
+              {uploadState === 'error' && (
+                <div className="py-2">
+                  <p className="text-[13px] text-[#FF3B30] mb-2">{uploadError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUploadState('idle')
+                      setUploadError(null)
+                    }}
+                    className="text-[13px] text-[#FF9500] font-medium"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Extracted Values Display */}
+          {labInputMode === 'extracted' && extractedValues.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-[12px] text-[#34C759] font-medium">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {extractedValues.length} values extracted
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {extractedValues.slice(0, 6).map((val, idx) => (
+                  <div key={idx} className="p-2 bg-white rounded-lg border border-[#E5E5EA]">
+                    <p className="text-[10px] text-[#8E8E93]">{getMarkerDisplayName(val.marker_key)}</p>
+                    <p className="text-[13px] font-semibold text-[#1C1C1E]">{val.value} {val.unit}</p>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setLabInputMode('upload')
+                  setExtractedValues([])
+                }}
+                className="text-[12px] text-[#FF9500] font-medium"
+              >
+                Upload different report
+              </button>
+            </div>
+          )}
+
+          {/* Manual Entry */}
+          {labInputMode === 'manual' && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">ApoB (mg/dL)</label>
+                  <input
+                    type="number"
+                    value={apob}
+                    onChange={e => {
+                      const v = e.target.value ? Number(e.target.value) : ''
+                      setApob(v)
+                    }}
+                    onBlur={() => emitChange({})}
+                    placeholder="90"
+                    step="0.1"
+                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">LDL (mg/dL)</label>
+                  <input
+                    type="number"
+                    value={ldl}
+                    onChange={e => {
+                      const v = e.target.value ? Number(e.target.value) : ''
+                      setLdl(v)
+                    }}
+                    onBlur={() => emitChange({})}
+                    placeholder="100"
+                    step="1"
+                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">HbA1c (%)</label>
+                  <input
+                    type="number"
+                    value={hba1c}
+                    onChange={e => {
+                      const v = e.target.value ? Number(e.target.value) : ''
+                      setHba1c(v)
+                    }}
+                    onBlur={() => emitChange({})}
+                    placeholder="5.4"
+                    step="0.1"
+                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">Fasting Glucose (mg/dL)</label>
+                  <input
+                    type="number"
+                    value={fastingGlucose}
+                    onChange={e => {
+                      const v = e.target.value ? Number(e.target.value) : ''
+                      setFastingGlucose(v)
+                    }}
+                    onBlur={() => emitChange({})}
+                    placeholder="95"
+                    step="1"
+                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">Triglycerides (mg/dL)</label>
+                  <input
+                    type="number"
+                    value={triglycerides}
+                    onChange={e => {
+                      const v = e.target.value ? Number(e.target.value) : ''
+                      setTriglycerides(v)
+                    }}
+                    onBlur={() => emitChange({})}
+                    placeholder="100"
+                    step="1"
+                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">hs-CRP (mg/L)</label>
+                  <input
+                    type="number"
+                    value={hscrp}
+                    onChange={e => {
+                      const v = e.target.value ? Number(e.target.value) : ''
+                      setHscrp(v)
+                    }}
+                    onBlur={() => emitChange({})}
+                    placeholder="1.0"
+                    step="0.1"
+                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">Test date</label>
+                  <input
+                    type="month"
+                    value={labDate}
+                    onChange={e => {
+                      setLabDate(e.target.value)
+                      emitChange({})
+                    }}
+                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none"
+                  />
+                </div>
+              </div>
+            </>
+          )}
           
-          {!hasLabValues && (
+          {!hasLabValues && labInputMode !== 'upload' && labInputMode !== 'extracted' && (
             <p className="text-[11px] text-[#8E8E93]">
               Lab values significantly improve your Metabolism score accuracy. Without labs, confidence is limited.
             </p>

@@ -71,6 +71,35 @@ export async function POST(request: NextRequest) {
       console.error('reset-onboarding: photo cleanup error', photoErr)
     }
 
+    // Delete lab uploads (storage + DB records) for clean testing
+    try {
+      const { data: labs } = await supabase
+        .from('eden_lab_uploads')
+        .select('id, file_path')
+        .eq('user_id', user.id)
+
+      if (labs && labs.length > 0) {
+        // Delete files from storage
+        const storagePaths = labs
+          .map(l => l.file_path)
+          .filter(Boolean) as string[]
+        
+        if (storagePaths.length > 0) {
+          await supabase.storage
+            .from('lab_reports')
+            .remove(storagePaths)
+        }
+
+        // Delete DB records
+        await supabase
+          .from('eden_lab_uploads')
+          .delete()
+          .eq('user_id', user.id)
+      }
+    } catch (labErr) {
+      console.error('reset-onboarding: lab upload cleanup error', labErr)
+    }
+
     // Delete Apple Health imports for clean testing
     const { error: ahDeleteError } = await supabase
       .from('apple_health_imports')

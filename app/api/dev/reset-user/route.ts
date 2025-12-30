@@ -263,6 +263,44 @@ export async function POST() {
       console.error('reset-user: photo cleanup error', photoErr)
     }
 
+    // 6c) Lab uploads - delete from storage first, then DB
+    try {
+      // Get list of lab records to find storage paths
+      const { data: labs } = await supabase
+        .from('eden_lab_uploads')
+        .select('id, file_path')
+        .eq('user_id', userId)
+
+      if (labs && labs.length > 0) {
+        // Delete files from storage
+        const storagePaths = labs
+          .map(l => l.file_path)
+          .filter(Boolean) as string[]
+        
+        if (storagePaths.length > 0) {
+          const { error: storageDeleteError } = await supabase.storage
+            .from('lab_reports')
+            .remove(storagePaths)
+          
+          if (storageDeleteError) {
+            console.error('reset-user: lab storage delete error', storageDeleteError)
+          }
+        }
+
+        // Delete DB records
+        const { error: labsDeleteError } = await supabase
+          .from('eden_lab_uploads')
+          .delete()
+          .eq('user_id', userId)
+
+        if (labsDeleteError) {
+          console.error('reset-user: eden_lab_uploads delete error', labsDeleteError)
+        }
+      }
+    } catch (labErr) {
+      console.error('reset-user: lab cleanup error', labErr)
+    }
+
     // 7) Reset eden_user_state (v2/v3 onboarding)
     const { error: stateResetError } = await supabase
       .from('eden_user_state')

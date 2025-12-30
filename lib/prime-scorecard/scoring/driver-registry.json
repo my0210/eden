@@ -295,10 +295,10 @@
       "domain": "metabolism",
       "driver_key": "hba1c",
       "display_name": "HbA1c",
-      "weight": 0.30,
-      "dominance_cap": 0.45,
+      "weight": 0.22,
+      "dominance_cap": 0.40,
       "freshness_half_life_days": 90,
-      "missing_copy": "Add HbA1c from recent labs",
+      "missing_copy": "Add HbA1c from lab results",
       "scoring": {
         "method": "ladder",
         "bands": [
@@ -319,10 +319,10 @@
       "domain": "metabolism",
       "driver_key": "apob",
       "display_name": "ApoB",
-      "weight": 0.30,
-      "dominance_cap": 0.45,
+      "weight": 0.20,
+      "dominance_cap": 0.40,
       "freshness_half_life_days": 180,
-      "missing_copy": "Add ApoB from recent labs",
+      "missing_copy": "Add ApoB from lab results",
       "scoring": {
         "method": "ladder",
         "bands": [
@@ -339,14 +339,89 @@
         "prior": "Estimated"
       }
     },
+    "ldl": {
+      "domain": "metabolism",
+      "driver_key": "ldl",
+      "display_name": "LDL Cholesterol",
+      "weight": 0.12,
+      "dominance_cap": 0.30,
+      "freshness_half_life_days": 180,
+      "missing_copy": "Add LDL from lab results",
+      "fallback_only": true,
+      "suppress_if_present": ["apob"],
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 70, "score": 100, "label": "optimal" },
+          { "min": 70, "max": 100, "score": 85, "label": "good" },
+          { "min": 100, "max": 130, "score": 65, "label": "borderline" },
+          { "min": 130, "max": 160, "score": 45, "label": "elevated" },
+          { "min": 160, "max": 190, "score": 30, "label": "high" },
+          { "min": 190, "score": 15, "label": "very_high" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "prior": "Estimated"
+      }
+    },
+    "triglycerides": {
+      "domain": "metabolism",
+      "driver_key": "triglycerides",
+      "display_name": "Triglycerides",
+      "weight": 0.12,
+      "dominance_cap": 0.30,
+      "freshness_half_life_days": 90,
+      "missing_copy": "Add triglycerides from lab results",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 100, "score": 100, "label": "optimal" },
+          { "min": 100, "max": 150, "score": 80, "label": "normal" },
+          { "min": 150, "max": 200, "score": 55, "label": "borderline" },
+          { "min": 200, "max": 500, "score": 35, "label": "high" },
+          { "min": 500, "score": 15, "label": "very_high" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "prior": "Estimated"
+      }
+    },
+    "fasting_glucose": {
+      "domain": "metabolism",
+      "driver_key": "fasting_glucose",
+      "display_name": "Fasting Glucose",
+      "weight": 0.10,
+      "dominance_cap": 0.25,
+      "freshness_half_life_days": 60,
+      "missing_copy": "Add fasting glucose from lab results",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 80, "score": 100, "label": "optimal" },
+          { "min": 80, "max": 100, "score": 90, "label": "normal" },
+          { "min": 100, "max": 110, "score": 70, "label": "borderline" },
+          { "min": 110, "max": 126, "score": 50, "label": "prediabetic" },
+          { "min": 126, "score": 30, "label": "diabetic" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "prior": "Estimated"
+      }
+    },
     "hscrp": {
       "domain": "metabolism",
       "driver_key": "hscrp",
       "display_name": "hs-CRP",
-      "weight": 0.15,
-      "dominance_cap": 0.3,
+      "weight": 0.10,
+      "dominance_cap": 0.25,
       "freshness_half_life_days": 90,
-      "missing_copy": "Add hs-CRP from recent labs",
+      "missing_copy": "Add hs-CRP from lab results",
       "scoring": {
         "method": "ladder",
         "bands": [
@@ -361,14 +436,40 @@
         "prior": "Estimated"
       }
     },
+    "liver_function": {
+      "domain": "metabolism",
+      "driver_key": "liver_function",
+      "display_name": "Liver Function",
+      "weight": 0.08,
+      "dominance_cap": 0.20,
+      "freshness_half_life_days": 180,
+      "missing_copy": "Add liver enzymes from lab results",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 25, "score": 100, "label": "optimal" },
+          { "min": 25, "max": 40, "score": 85, "label": "normal" },
+          { "min": 40, "max": 60, "score": 60, "label": "borderline" },
+          { "min": 60, "max": 100, "score": 40, "label": "elevated" },
+          { "min": 100, "score": 20, "label": "high" }
+        ],
+        "default_score": 70
+      },
+      "evidence_label_map": {
+        "lab": "Lab",
+        "prior": "Estimated"
+      }
+    },
     "metabolic_risk": {
       "domain": "metabolism",
       "driver_key": "metabolic_risk",
       "display_name": "Metabolic Risk Factors",
-      "weight": 0.25,
-      "dominance_cap": 0.4,
+      "weight": 0.06,
+      "dominance_cap": 0.20,
       "freshness_half_life_days": 365,
       "missing_copy": "Answer metabolic health questions",
+      "fallback_only": true,
+      "suppress_if_present": ["hba1c", "apob", "ldl"],
       "scoring": {
         "method": "proxy_map",
         "mapping": {

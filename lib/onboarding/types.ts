@@ -148,14 +148,75 @@ export type MetabolismMedication =
   | 'glp1'
   | 'other'
 
+// Individual lab marker with metadata
+export interface LabValue {
+  value: number
+  unit: string
+  reference_range?: string  // e.g., "<100", "70-100"
+  source?: 'manual' | 'extracted'  // How the value was entered
+}
+
 export interface LabsEntry {
+  // Core metabolic markers (existing, primary)
   apob_mg_dl?: number
   hba1c_percent?: number
   hscrp_mg_l?: number
+  
+  // Liver markers (existing)
   alt?: number
   ast?: number
   ggt?: number
+  
+  // Lipid panel (new)
+  ldl_mg_dl?: number
+  hdl_mg_dl?: number
+  triglycerides_mg_dl?: number
+  total_cholesterol_mg_dl?: number
+  
+  // Glucose/Insulin (new)
+  fasting_glucose_mg_dl?: number
+  fasting_insulin_uiu_ml?: number
+  
+  // Kidney (new)
+  egfr?: number
+  creatinine_mg_dl?: number
+  
+  // Vitamins (new)
+  vitamin_d_ng_ml?: number
+  vitamin_b12_pg_ml?: number
+  
+  // Thyroid (new)
+  tsh_miu_l?: number
+  
+  // Metadata
   test_date?: string // YYYY-MM format
+  lab_provider?: string
+  
+  // Lab upload reference (if values came from AI extraction)
+  upload_id?: string
+}
+
+// Extended lab results from AI extraction (includes reference ranges)
+export interface ExtractedLabResults {
+  apob?: LabValue
+  hba1c?: LabValue
+  hscrp?: LabValue
+  ldl?: LabValue
+  hdl?: LabValue
+  triglycerides?: LabValue
+  total_cholesterol?: LabValue
+  fasting_glucose?: LabValue
+  fasting_insulin?: LabValue
+  alt?: LabValue
+  ast?: LabValue
+  ggt?: LabValue
+  egfr?: LabValue
+  creatinine?: LabValue
+  vitamin_d?: LabValue
+  vitamin_b12?: LabValue
+  tsh?: LabValue
+  // Allow additional markers
+  [key: string]: LabValue | undefined
 }
 
 export interface MetabolismPrimeCheck {
