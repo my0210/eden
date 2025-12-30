@@ -283,7 +283,6 @@ function convertFrameData(
         entry_method: 'onboarding_prime_check',
         waist_cm: frame.waist_cm,
         height_cm: identity.height,
-        measured_correctly: frame.waist_measured_correctly,
       },
     })
   }
