@@ -6,6 +6,7 @@ import UploadCard from '@/components/uploads/UploadCard'
 import AppleHealthUpload from '@/components/uploads/AppleHealthUpload'
 import AppleHealthImportsList from '@/components/uploads/AppleHealthImportsList'
 import BodyPhotoAnalyzerCard from './BodyPhotoAnalyzerCard'
+import BodyPhotoUploadsList from '@/components/uploads/BodyPhotoUploadsList'
 
 export default async function DataPage() {
   const user = await requireAuth()
@@ -50,6 +51,9 @@ export default async function DataPage() {
 
           {/* Body Photo Analyzer */}
           <BodyPhotoAnalyzerCard />
+
+          {/* Body Photo Uploads List */}
+          <BodyPhotoUploadsList />
         </div>
 
         {/* Coming Soon */}
