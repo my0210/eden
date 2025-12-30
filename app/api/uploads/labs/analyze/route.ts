@@ -260,7 +260,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
         const pdfBlob = new Blob([fileBuffer], { type: 'application/pdf' })
         const openaiFile = await openai.files.create({
           file: pdfBlob,
-          purpose: 'assistants',
+          purpose: 'user_data',
         })
         uploadedFileId = openaiFile.id
 
@@ -280,9 +280,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
                 },
                 {
                   type: 'file',
-                  file: {
-                    file_id: uploadedFileId,
-                  },
+                  file_id: uploadedFileId,
                 } as any, // OpenAI SDK types don't include file type yet
               ],
             },
