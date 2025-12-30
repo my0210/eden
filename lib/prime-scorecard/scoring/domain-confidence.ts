@@ -244,6 +244,19 @@ export function calculateDomainConfidence(
     }
   }
   
+  // Frame domain: if ONLY image_estimate sources (no device, measured, or test data),
+  // cap confidence at Medium - 1 (69) to prevent "High" confidence from photo-only data
+  if (domain === 'frame') {
+    const hasNonImageSource = domainResults.some(r => 
+      r.source_type !== 'image_estimate' && 
+      r.source_type !== 'self_report_proxy' && 
+      r.source_type !== 'prior'
+    )
+    if (!hasNonImageSource && domainResults.length > 0) {
+      rawConfidence = Math.min(rawConfidence, CONFIDENCE_THRESHOLDS.HIGH - 1)
+    }
+  }
+  
   // Clamp to valid range
   const confidence = Math.max(0, Math.min(100, Math.round(rawConfidence)))
   

@@ -27,7 +27,14 @@ export const PRIME_DOMAINS: readonly PrimeDomain[] = [
 /**
  * Sources of evidence for scoring
  */
-export type EvidenceSource = 'apple_health' | 'photo' | 'self_report'
+export type EvidenceSource = 
+  | 'apple_health' 
+  | 'photo' 
+  | 'self_report' 
+  | 'image_estimate'
+  | 'lab'
+  | 'device'
+  | 'test'
 
 /**
  * A single piece of evidence used in scoring

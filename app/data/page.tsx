@@ -5,8 +5,7 @@ import ResetUserDataCard from './ResetUserDataCard'
 import UploadCard from '@/components/uploads/UploadCard'
 import AppleHealthUpload from '@/components/uploads/AppleHealthUpload'
 import AppleHealthImportsList from '@/components/uploads/AppleHealthImportsList'
-// TODO: Re-enable when OpenAI body composition analysis is ready
-// import PhotoUpload from '@/components/uploads/PhotoUpload'
+import BodyPhotoAnalyzerCard from './BodyPhotoAnalyzerCard'
 
 export default async function DataPage() {
   const user = await requireAuth()
@@ -49,19 +48,8 @@ export default async function DataPage() {
           {/* Apple Health Imports List */}
           <AppleHealthImportsList />
 
-          {/* TODO: Re-enable Body Photos when OpenAI body composition analysis is ready
-          <UploadCard
-            title="Body Photos"
-            subtitle="Upload progress photos securely"
-            icon={
-              <svg className="w-6 h-6 text-[#5856D6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.75 10.5L19.5 6.75m-4.5 0L19.5 10.5m-8.25 1.125l-2.955 2.955a2.25 2.25 0 11-3.182-3.182l7.5-7.5a2.25 2.25 0 113.182 3.182L10.5 10.5zm0 0L12 12" />
-              </svg>
-            }
-          >
-            <PhotoUpload source="data" />
-          </UploadCard>
-          */}
+          {/* Body Photo Analyzer */}
+          <BodyPhotoAnalyzerCard />
         </div>
 
         {/* Coming Soon */}

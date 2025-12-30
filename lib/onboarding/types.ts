@@ -52,6 +52,24 @@ export type PushupCapability = '0-5' | '6-15' | '16-30' | '31+' | 'not_possible'
 
 export type PainLimitation = 'none' | 'mild' | 'moderate' | 'severe'
 
+export type MidsectionAdiposityLevel = 'low' | 'moderate' | 'high'
+
+/**
+ * Photo analysis results from body photo analyzer
+ */
+export interface PhotoAnalysisResult {
+  /** UUID of the photo upload record */
+  upload_id: string
+  /** Body fat percentage range (direct from image) → body_fat driver */
+  body_fat_range?: { low: number; high: number }
+  /** Midsection adiposity level (direct from image) → waist_to_height proxy */
+  midsection_adiposity?: MidsectionAdiposityLevel
+  /** Lean body mass range in kg (derived from weight + body fat) → lean_mass driver */
+  lean_mass_range_kg?: { low: number; high: number }
+  /** ISO timestamp when analysis was performed */
+  analyzed_at: string
+}
+
 export interface FramePrimeCheck {
   // Quick check (required)
   pushup_capability?: PushupCapability
@@ -59,6 +77,8 @@ export interface FramePrimeCheck {
   // Measurement (optional)
   waist_cm?: number
   waist_measured_correctly?: boolean
+  // Photo analysis (optional)
+  photo_analysis?: PhotoAnalysisResult
 }
 
 // ============================================================================

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "domain_weights": {
     "heart": 0.2,
     "frame": 0.2,
@@ -143,12 +143,89 @@
         "prior": "Estimated"
       }
     },
-    "pushups": {
+    "waist_to_height": {
       "domain": "frame",
-      "driver_key": "pushups",
-      "display_name": "Push-up Capability",
+      "driver_key": "waist_to_height",
+      "display_name": "Waist-to-Height Ratio",
       "weight": 0.30,
       "dominance_cap": 0.45,
+      "freshness_half_life_days": 60,
+      "missing_copy": "Add waist measurement or body photo",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 0.4, "score": 100, "label": "excellent" },
+          { "min": 0.4, "max": 0.5, "score": 80, "label": "healthy" },
+          { "min": 0.5, "max": 0.55, "score": 60, "label": "moderate" },
+          { "min": 0.55, "max": 0.6, "score": 40, "label": "elevated" },
+          { "min": 0.6, "score": 25, "label": "high_risk" }
+        ],
+        "default_score": 50,
+        "proxy_fallback": {
+          "source": "midsection_adiposity",
+          "mapping": { "low": 0.42, "moderate": 0.52, "high": 0.58 }
+        }
+      },
+      "evidence_label_map": {
+        "measured_self_report": "Measurement",
+        "device": "Device",
+        "image_estimate": "Photo Estimate",
+        "prior": "Estimated"
+      }
+    },
+    "body_fat": {
+      "domain": "frame",
+      "driver_key": "body_fat",
+      "display_name": "Body Fat %",
+      "weight": 0.20,
+      "dominance_cap": 0.35,
+      "freshness_half_life_days": 60,
+      "missing_copy": "Add body photo or smart scale for body fat",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 10, "score": 85, "label": "athletic_male" },
+          { "min": 10, "max": 20, "score": 95, "label": "fit" },
+          { "min": 20, "max": 25, "score": 80, "label": "average" },
+          { "min": 25, "max": 30, "score": 60, "label": "above_average" },
+          { "min": 30, "max": 35, "score": 40, "label": "elevated" },
+          { "min": 35, "score": 25, "label": "high" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "device": "Smart Scale",
+        "measured_self_report": "Measurement",
+        "image_estimate": "Photo Estimate",
+        "prior": "Estimated"
+      }
+    },
+    "lean_mass": {
+      "domain": "frame",
+      "driver_key": "lean_mass",
+      "display_name": "Lean Body Mass",
+      "weight": 0.15,
+      "dominance_cap": 0.3,
+      "freshness_half_life_days": 90,
+      "missing_copy": "Derived from weight + body fat",
+      "scoring": {
+        "method": "percentile",
+        "percentile_table": "lean_mass_by_age_sex",
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "lab": "DEXA Scan",
+        "device": "Smart Scale",
+        "image_estimate": "Photo Estimate",
+        "prior": "Estimated"
+      }
+    },
+    "strength_proxy": {
+      "domain": "frame",
+      "driver_key": "strength_proxy",
+      "display_name": "Strength (Push-ups)",
+      "weight": 0.20,
+      "dominance_cap": 0.35,
       "freshness_half_life_days": 90,
       "missing_copy": "Estimate your push-up capability",
       "scoring": {
@@ -168,46 +245,22 @@
         "prior": "Estimated"
       }
     },
-    "waist_to_height": {
+    "structural_integrity": {
       "domain": "frame",
-      "driver_key": "waist_to_height",
-      "display_name": "Waist-to-Height Ratio",
-      "weight": 0.35,
-      "dominance_cap": 0.5,
-      "freshness_half_life_days": 60,
-      "missing_copy": "Add waist measurement",
-      "scoring": {
-        "method": "ladder",
-        "bands": [
-          { "max": 0.4, "score": 100, "label": "excellent" },
-          { "min": 0.4, "max": 0.5, "score": 80, "label": "healthy" },
-          { "min": 0.5, "max": 0.55, "score": 60, "label": "moderate" },
-          { "min": 0.55, "max": 0.6, "score": 40, "label": "elevated" },
-          { "min": 0.6, "score": 25, "label": "high_risk" }
-        ],
-        "default_score": 50
-      },
-      "evidence_label_map": {
-        "measured_self_report": "Measurement",
-        "device": "Device",
-        "prior": "Estimated"
-      }
-    },
-    "pain_limitation": {
-      "domain": "frame",
-      "driver_key": "pain_limitation",
-      "display_name": "Pain/Limitations",
-      "weight": 0.20,
-      "dominance_cap": 0.35,
+      "driver_key": "structural_integrity",
+      "display_name": "Structural Integrity",
+      "weight": 0.10,
+      "dominance_cap": 0.25,
       "freshness_half_life_days": 30,
-      "missing_copy": "Rate your pain level",
+      "missing_copy": "Rate pain and mobility limitations",
       "scoring": {
         "method": "proxy_map",
         "mapping": {
-          "none": 100,
-          "mild": 70,
-          "moderate": 40,
-          "severe": 15
+          "no_limitations": 90,
+          "mild_pain_only": 70,
+          "mobility_limited": 50,
+          "moderate_pain": 40,
+          "severe": 20
         },
         "default_score": 70
       },
@@ -220,10 +273,12 @@
       "domain": "frame",
       "driver_key": "bmi",
       "display_name": "Body Mass Index",
-      "weight": 0.10,
-      "dominance_cap": 0.25,
+      "weight": 0.05,
+      "dominance_cap": 0.15,
       "freshness_half_life_days": 60,
       "missing_copy": "Add height and weight",
+      "fallback_only": true,
+      "suppress_if_present": ["waist_to_height", "body_fat"],
       "scoring": {
         "method": "ladder",
         "bands": [
@@ -233,32 +288,6 @@
           { "min": 30, "max": 35, "score": 45, "label": "obese1" },
           { "min": 35, "max": 40, "score": 30, "label": "obese2" },
           { "min": 40, "score": 15, "label": "obese3" }
-        ],
-        "default_score": 50
-      },
-      "evidence_label_map": {
-        "device": "Smart Scale",
-        "measured_self_report": "Measurement",
-        "prior": "Estimated"
-      }
-    },
-    "body_fat": {
-      "domain": "frame",
-      "driver_key": "body_fat",
-      "display_name": "Body Fat %",
-      "weight": 0.15,
-      "dominance_cap": 0.3,
-      "freshness_half_life_days": 60,
-      "missing_copy": "Connect smart scale for body fat",
-      "scoring": {
-        "method": "ladder",
-        "bands": [
-          { "max": 10, "score": 85, "label": "athletic_male" },
-          { "min": 10, "max": 20, "score": 95, "label": "fit" },
-          { "min": 20, "max": 25, "score": 80, "label": "average" },
-          { "min": 25, "max": 30, "score": 60, "label": "above_average" },
-          { "min": 30, "max": 35, "score": 40, "label": "overweight" },
-          { "min": 35, "score": 25, "label": "obese" }
         ],
         "default_score": 50
       },
@@ -480,4 +509,3 @@
     }
   }
 }
-

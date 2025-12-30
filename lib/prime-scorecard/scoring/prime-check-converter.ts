@@ -9,9 +9,19 @@ import {
   PrimeCheckJson,
   BloodPressureEntry,
   RestingHeartRateEntry,
+  PhotoAnalysisResult,
 } from '@/lib/onboarding/types'
 import { Observation, SourceType } from './types'
 import { calculateWaistToHeight, calculateBmi, deriveMetabolicRiskCategory } from './driver-scorers'
+
+/**
+ * Mapping from midsection adiposity to estimated waist-to-height ratio
+ */
+const MIDSECTION_TO_WHR: Record<string, number> = {
+  'low': 0.42,      // healthy range
+  'moderate': 0.52, // borderline
+  'high': 0.58,     // elevated risk
+}
 
 /**
  * Get the middle value of an RHR range
@@ -127,6 +137,19 @@ function convertHeartData(
 }
 
 /**
+ * Map old pain_limitation values to new structural_integrity values
+ */
+function mapPainToStructuralIntegrity(painValue: string): string {
+  const mapping: Record<string, string> = {
+    'none': 'no_limitations',
+    'mild': 'mild_pain_only',
+    'moderate': 'moderate_pain',
+    'severe': 'severe',
+  }
+  return mapping[painValue] || painValue
+}
+
+/**
  * Convert Frame domain data to Observations
  */
 function convertFrameData(
@@ -137,10 +160,10 @@ function convertFrameData(
   const observations: Observation[] = []
   const now = completedAt || new Date().toISOString()
 
-  // Push-up capability -> pushups driver
+  // Push-up capability -> strength_proxy driver
   if (frame.pushup_capability) {
     observations.push({
-      driver_key: 'pushups',
+      driver_key: 'strength_proxy',
       value: frame.pushup_capability,
       measured_at: now,
       source_type: 'self_report_proxy',
@@ -148,14 +171,17 @@ function convertFrameData(
     })
   }
 
-  // Pain limitation -> pain_limitation driver
+  // Pain limitation -> structural_integrity driver
   if (frame.pain_limitation) {
     observations.push({
-      driver_key: 'pain_limitation',
-      value: frame.pain_limitation,
+      driver_key: 'structural_integrity',
+      value: mapPainToStructuralIntegrity(frame.pain_limitation),
       measured_at: now,
       source_type: 'self_report_proxy',
-      metadata: { entry_method: 'onboarding_prime_check' },
+      metadata: { 
+        entry_method: 'onboarding_prime_check',
+        original_value: frame.pain_limitation,
+      },
     })
   }
 
@@ -190,6 +216,69 @@ function convertFrameData(
         weight_kg: identity.weight,
       },
     })
+  }
+
+  // Photo analysis results
+  if (frame.photo_analysis) {
+    const photoAnalysis = frame.photo_analysis
+    const photoDate = photoAnalysis.analyzed_at || now
+    const userHasMeasuredWaist = !!frame.waist_cm
+
+    // Body fat -> body_fat driver
+    if (photoAnalysis.body_fat_range) {
+      const midpoint = (photoAnalysis.body_fat_range.low + photoAnalysis.body_fat_range.high) / 2
+      observations.push({
+        driver_key: 'body_fat',
+        value: midpoint,
+        unit: 'percent',
+        measured_at: photoDate,
+        source_type: 'image_estimate',
+        metadata: {
+          entry_method: 'body_photo_analysis',
+          upload_id: photoAnalysis.upload_id,
+          range_low: photoAnalysis.body_fat_range.low,
+          range_high: photoAnalysis.body_fat_range.high,
+        },
+      })
+    }
+
+    // Lean mass -> lean_mass driver
+    if (photoAnalysis.lean_mass_range_kg) {
+      const midpoint = (photoAnalysis.lean_mass_range_kg.low + photoAnalysis.lean_mass_range_kg.high) / 2
+      observations.push({
+        driver_key: 'lean_mass',
+        value: midpoint,
+        unit: 'kg',
+        measured_at: photoDate,
+        source_type: 'image_estimate',
+        metadata: {
+          entry_method: 'body_photo_analysis',
+          upload_id: photoAnalysis.upload_id,
+          derived_from: 'body_fat_estimate + weight',
+          range_low: photoAnalysis.lean_mass_range_kg.low,
+          range_high: photoAnalysis.lean_mass_range_kg.high,
+        },
+      })
+    }
+
+    // Midsection adiposity -> waist_to_height proxy (only if no measured waist)
+    if (photoAnalysis.midsection_adiposity && !userHasMeasuredWaist) {
+      const estimatedWHR = MIDSECTION_TO_WHR[photoAnalysis.midsection_adiposity]
+      if (estimatedWHR) {
+        observations.push({
+          driver_key: 'waist_to_height',
+          value: estimatedWHR,
+          measured_at: photoDate,
+          source_type: 'image_estimate',
+          metadata: {
+            entry_method: 'body_photo_analysis',
+            upload_id: photoAnalysis.upload_id,
+            derived_from: 'midsection_adiposity',
+            original_value: photoAnalysis.midsection_adiposity,
+          },
+        })
+      }
+    }
   }
 
   return observations

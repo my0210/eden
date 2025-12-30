@@ -17,6 +17,7 @@ import { PrimeDomain } from '../types'
  * - test: Objective test (PVT-lite when implemented)
  * - device: Apple Health, wearables
  * - measured_self_report: User-entered with numeric value + date (BP, RHR)
+ * - image_estimate: AI analysis of body photos (body fat, midsection adiposity)
  * - self_report_proxy: Quick check answers (cardio self-rating, pushup bucket)
  * - prior: Population prior when nothing else available
  */
@@ -25,6 +26,7 @@ export type SourceType =
   | 'test'
   | 'device'
   | 'measured_self_report'
+  | 'image_estimate'
   | 'self_report_proxy'
   | 'prior'
 
@@ -36,19 +38,21 @@ export const DEFAULT_SOURCE_PRIORITY: SourceType[] = [
   'test',
   'device',
   'measured_self_report',
+  'image_estimate',
   'self_report_proxy',
   'prior',
 ]
 
 /**
  * Quality multipliers for confidence calculation
- * lab=1.0, test=0.9, device=0.8, measured_self_report=0.7, proxy=0.4, prior=0.2
+ * lab=1.0, test=0.9, device=0.8, measured_self_report=0.7, image_estimate=0.55, proxy=0.4, prior=0.2
  */
 export const SOURCE_QUALITY_MULTIPLIERS: Record<SourceType, number> = {
   lab: 1.0,
   test: 0.9,
   device: 0.8,
   measured_self_report: 0.7,
+  image_estimate: 0.55,
   self_report_proxy: 0.4,
   prior: 0.2,
 }

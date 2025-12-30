@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { PushupCapability, PainLimitation } from '@/lib/onboarding/types'
+import { PushupCapability, PainLimitation, PhotoAnalysisResult, MidsectionAdiposityLevel } from '@/lib/onboarding/types'
+import BodyPhotoAnalyzer from '@/components/uploads/BodyPhotoAnalyzer'
 
 interface FrameCardProps {
   initialData?: {
@@ -9,6 +10,7 @@ interface FrameCardProps {
     pain_limitation?: PainLimitation
     waist_cm?: number
     waist_measured_correctly?: boolean
+    photo_analysis?: PhotoAnalysisResult
   }
   appleHealthData?: {
     weight?: number
@@ -19,7 +21,10 @@ interface FrameCardProps {
     pain_limitation?: PainLimitation
     waist_cm?: number
     waist_measured_correctly?: boolean
+    photo_analysis?: PhotoAnalysisResult
   }) => void
+  /** User's weight in kg (for lean mass calculation) */
+  userWeightKg?: number
 }
 
 const PUSHUP_OPTIONS: { value: PushupCapability; label: string; description: string }[] = [
@@ -37,7 +42,7 @@ const PAIN_OPTIONS: { value: PainLimitation; label: string }[] = [
   { value: 'severe', label: 'Severe' },
 ]
 
-export default function FrameCard({ initialData, appleHealthData, onChange }: FrameCardProps) {
+export default function FrameCard({ initialData, appleHealthData, onChange, userWeightKg }: FrameCardProps) {
   const [pushupCapability, setPushupCapability] = useState<PushupCapability | undefined>(
     initialData?.pushup_capability
   )
@@ -49,18 +54,24 @@ export default function FrameCard({ initialData, appleHealthData, onChange }: Fr
   const [waistMeasuredCorrectly, setWaistMeasuredCorrectly] = useState(
     initialData?.waist_measured_correctly || false
   )
+  const [showPhotoAnalyzer, setShowPhotoAnalyzer] = useState(!!initialData?.photo_analysis)
+  const [photoAnalysis, setPhotoAnalysis] = useState<PhotoAnalysisResult | undefined>(
+    initialData?.photo_analysis
+  )
 
   const emitChange = (updates: Partial<{
     pushup_capability: PushupCapability
     pain_limitation: PainLimitation
     waist_cm: number
     waist_measured_correctly: boolean
+    photo_analysis: PhotoAnalysisResult
   }>) => {
     const data: {
       pushup_capability?: PushupCapability
       pain_limitation?: PainLimitation
       waist_cm?: number
       waist_measured_correctly?: boolean
+      photo_analysis?: PhotoAnalysisResult
     } = {
       pushup_capability: updates.pushup_capability ?? pushupCapability,
       pain_limitation: updates.pain_limitation ?? painLimitation,
@@ -72,7 +83,31 @@ export default function FrameCard({ initialData, appleHealthData, onChange }: Fr
       data.waist_measured_correctly = updates.waist_measured_correctly ?? waistMeasuredCorrectly
     }
 
+    // Include photo analysis if present
+    const photo = updates.photo_analysis ?? photoAnalysis
+    if (photo) {
+      data.photo_analysis = photo
+    }
+
     onChange(data)
+  }
+
+  const handlePhotoAnalysisComplete = (result: {
+    uploadId: string
+    bodyFatRange?: { low: number; high: number }
+    midsectionAdiposityLevel?: MidsectionAdiposityLevel
+    leanMassRange?: { low: number; high: number }
+    estimatedWaistToHeight?: number
+  }) => {
+    const photoResult: PhotoAnalysisResult = {
+      upload_id: result.uploadId,
+      body_fat_range: result.bodyFatRange,
+      midsection_adiposity: result.midsectionAdiposityLevel,
+      lean_mass_range_kg: result.leanMassRange,
+      analyzed_at: new Date().toISOString(),
+    }
+    setPhotoAnalysis(photoResult)
+    emitChange({ photo_analysis: photoResult })
   }
 
   const handlePushupChange = (value: PushupCapability) => {
@@ -207,8 +242,66 @@ export default function FrameCard({ initialData, appleHealthData, onChange }: Fr
                 Measured at navel, relaxed
               </label>
               <p className="text-[12px] text-[#8E8E93]">
-                💡 For accuracy, measure at your navel level while standing relaxed, not sucking in.
+                For accuracy, measure at your navel level while standing relaxed, not sucking in.
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* Add body photo for better accuracy */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowPhotoAnalyzer(!showPhotoAnalyzer)}
+            className="flex items-center gap-2 text-[15px] text-[#007AFF] font-medium"
+          >
+            <span>{showPhotoAnalyzer ? '−' : '+'}</span>
+            Add body photo for better accuracy
+          </button>
+
+          {showPhotoAnalyzer && (
+            <div className="mt-3 p-4 bg-[#F2F2F7] rounded-xl">
+              {photoAnalysis ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[15px] font-medium text-[#34C759]">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Photo analyzed
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {photoAnalysis.body_fat_range && (
+                      <span className="text-[12px] px-2 py-1 bg-[#007AFF]/10 text-[#007AFF] rounded-full">
+                        Body fat: {photoAnalysis.body_fat_range.low}-{photoAnalysis.body_fat_range.high}%
+                      </span>
+                    )}
+                    {photoAnalysis.lean_mass_range_kg && (
+                      <span className="text-[12px] px-2 py-1 bg-[#34C759]/10 text-[#34C759] rounded-full">
+                        Lean mass: {photoAnalysis.lean_mass_range_kg.low}-{photoAnalysis.lean_mass_range_kg.high} kg
+                      </span>
+                    )}
+                    {photoAnalysis.midsection_adiposity && !waistCm && (
+                      <span className="text-[12px] px-2 py-1 bg-[#FF9500]/10 text-[#FF9500] rounded-full">
+                        Midsection: {photoAnalysis.midsection_adiposity}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPhotoAnalysis(undefined)}
+                    className="text-[13px] text-[#8E8E93] hover:text-[#3C3C43]"
+                  >
+                    Replace photo
+                  </button>
+                </div>
+              ) : (
+                <BodyPhotoAnalyzer
+                  source="onboarding"
+                  weightKg={userWeightKg || appleHealthData?.weight}
+                  hasMeasuredWaist={!!waistCm}
+                  onAnalysisComplete={handlePhotoAnalysisComplete}
+                />
+              )}
             </div>
           )}
         </div>
