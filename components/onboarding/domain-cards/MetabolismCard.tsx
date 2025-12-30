@@ -267,7 +267,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf"
         onChange={(e) => {
           const file = e.target.files?.[0]
           if (file) handleLabUpload(file)

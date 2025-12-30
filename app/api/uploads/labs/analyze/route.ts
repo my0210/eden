@@ -16,7 +16,7 @@ import {
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Analysis may take time for complex reports
 
-// Allowed MIME types for lab reports (images only for now, PDF via Document AI coming soon)
+// Allowed MIME types for lab reports
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
@@ -24,7 +24,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/webp',
   'image/heic', // iPhone photos
   'image/heif',
-  // Note: PDF support will be added via Google Document AI
+  'application/pdf',
 ])
 
 // Max file size: 20MB (lab reports can be larger than photos)
@@ -38,6 +38,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/webp': 'webp',
   'image/heic': 'heic',
   'image/heif': 'heif',
+  'application/pdf': 'pdf',
 }
 
 /**
@@ -191,7 +192,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
         success: false,
         validation: { is_valid: false },
         markers_found: 0,
-        error: 'Please take a photo or screenshot of your lab report (JPEG, PNG, WebP).',
+        error: 'Please upload a photo, screenshot, or PDF of your lab report.',
       }, { status: 400 })
     }
 
@@ -244,56 +245,122 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       }, { status: 500 })
     }
 
-    // 8. Call OpenAI Vision API for image analysis
+    // 8. Call OpenAI API (Files API for PDFs, Vision API for images)
+    const isPdf = file.type === 'application/pdf'
     let analysis: RawLabAnalysis
+    let uploadedFileId: string | null = null
 
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     })
 
     try {
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: LAB_ANALYSIS_SYSTEM_PROMPT,
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: LAB_ANALYSIS_USER_PROMPT,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: signedUrlData.signedUrl,
-                  detail: 'high' as const,
+      if (isPdf) {
+        // For PDFs: Upload to OpenAI Files API and reference in chat
+        const pdfBlob = new Blob([fileBuffer], { type: 'application/pdf' })
+        const openaiFile = await openai.files.create({
+          file: pdfBlob,
+          purpose: 'assistants',
+        })
+        uploadedFileId = openaiFile.id
+
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: LAB_ANALYSIS_SYSTEM_PROMPT,
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: LAB_ANALYSIS_USER_PROMPT,
                 },
-              },
-            ],
-          },
-        ],
-        max_tokens: 2000,
-        temperature: 0.1, // Lower temperature for more consistent extraction
-      })
+                {
+                  type: 'file',
+                  file: {
+                    file_id: uploadedFileId,
+                  },
+                } as any, // OpenAI SDK types don't include file type yet
+              ],
+            },
+          ],
+          max_tokens: 2000,
+          temperature: 0.1,
+        })
 
-      const responseText = completion.choices[0]?.message?.content
-      if (!responseText) {
-        throw new Error('No response from OpenAI')
+        // Clean up OpenAI file
+        try {
+          await openai.files.delete(uploadedFileId)
+        } catch (cleanupErr) {
+          console.warn('Failed to delete OpenAI file:', cleanupErr)
+        }
+        uploadedFileId = null
+
+        const responseText = completion.choices[0]?.message?.content
+        if (!responseText) {
+          throw new Error('No response from OpenAI')
+        }
+
+        const parsed = parseLabAnalysisResponse(responseText)
+        if (!parsed.success || !parsed.data) {
+          throw new Error(parsed.error || 'Failed to parse response')
+        }
+
+        analysis = parsed.data
+      } else {
+        // For images: Use Vision API with signed URL
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: LAB_ANALYSIS_SYSTEM_PROMPT,
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: LAB_ANALYSIS_USER_PROMPT,
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: signedUrlData.signedUrl,
+                    detail: 'high' as const,
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 2000,
+          temperature: 0.1,
+        })
+
+        const responseText = completion.choices[0]?.message?.content
+        if (!responseText) {
+          throw new Error('No response from OpenAI')
+        }
+
+        const parsed = parseLabAnalysisResponse(responseText)
+        if (!parsed.success || !parsed.data) {
+          throw new Error(parsed.error || 'Failed to parse response')
+        }
+
+        analysis = parsed.data
       }
-
-      const parsed = parseLabAnalysisResponse(responseText)
-      if (!parsed.success || !parsed.data) {
-        throw new Error(parsed.error || 'Failed to parse response')
-      }
-
-      analysis = parsed.data
     } catch (e) {
       console.error('AI analysis error:', e)
-      // Clean up: delete uploaded file from Supabase
+      // Clean up OpenAI file if uploaded
+      if (uploadedFileId) {
+        try {
+          await openai.files.delete(uploadedFileId)
+        } catch {}
+      }
+      // Clean up Supabase file
       await supabase.storage.from('lab_reports').remove([filePath])
       return NextResponse.json({
         success: false,
@@ -326,7 +393,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
         user_id: user.id,
         file_name: file.name,
         file_path: filePath,
-        file_type: 'image',
+        file_type: isPdf ? 'pdf' : 'image',
         file_size_bytes: file.size,
         status: 'completed',
         extracted_values: analysis.extracted_values,

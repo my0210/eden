@@ -110,7 +110,7 @@ export default function LabUploadAnalyzer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*,application/pdf"
           onChange={handleInputChange}
           className="hidden"
         />
