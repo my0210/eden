@@ -188,8 +188,8 @@ function mapMetricCodeToDrivers(metricCode: string): string[] {
     'resting_heart_rate': ['rhr'],
     'resting_hr': ['rhr'],
     'resting_hr_and_recovery': ['rhr'],
-    'hrv': ['hrv', 'recovery_hrv'],  // HRV feeds both Heart and Recovery
-    'heart_rate_variability': ['hrv', 'recovery_hrv'],
+    'hrv': ['hrv'],  // HRV is multi-domain (Heart + Recovery) - handled by driver config
+    'heart_rate_variability': ['hrv'],
     'blood_pressure': ['bp'],
     'bp_systolic': ['bp'],
     'bp_diastolic': ['bp'],  // Will be paired with systolic

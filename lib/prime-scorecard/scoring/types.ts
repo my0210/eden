@@ -158,19 +158,27 @@ export interface TrendConfig {
 export type ScoringConfig = LadderConfig | ProxyMapConfig | PercentileConfig | TrendConfig
 
 /**
+ * Domain contribution - how a driver contributes to a specific domain
+ */
+export interface DomainContribution {
+  domain: PrimeDomain
+  /** Weight within this domain (0-1) */
+  weight: number
+  /** Max weight share after reallocation for this domain */
+  dominance_cap: number
+}
+
+/**
  * Configuration for a single driver (metric)
+ * 
+ * A driver can contribute to multiple domains via domain_contributions.
+ * For single-domain drivers, use the simpler domain/weight/dominance_cap fields.
  */
 export interface DriverConfig {
-  /** Domain this driver belongs to */
-  domain: PrimeDomain
   /** Unique key for this driver (e.g., 'bp', 'vo2max', 'rhr') */
   driver_key: string
   /** Display name for UI */
   display_name: string
-  /** Weight within domain (0-1, all domain drivers should sum to 1) */
-  weight: number
-  /** Max weight share after reallocation (prevents single driver dominance) */
-  dominance_cap: number
   /** Scoring configuration */
   scoring: ScoringConfig
   /** Source priority override (uses DEFAULT_SOURCE_PRIORITY if not specified) */
@@ -183,6 +191,41 @@ export interface DriverConfig {
   missing_copy: string
   /** Map of source_type to UI chip label (only needs entries for sources used by this driver) */
   evidence_label_map?: Partial<Record<SourceType, string>>
+  
+  // --- Domain contribution (use ONE of the following approaches) ---
+  
+  /** For multi-domain drivers: array of domain contributions */
+  domain_contributions?: DomainContribution[]
+  
+  /** For single-domain drivers: the domain (backwards compatible) */
+  domain?: PrimeDomain
+  /** For single-domain drivers: weight within domain */
+  weight?: number
+  /** For single-domain drivers: max weight share after reallocation */
+  dominance_cap?: number
+}
+
+/**
+ * Get all domain contributions for a driver (normalizes single vs multi-domain)
+ */
+export function getDriverDomainContributions(config: DriverConfig): DomainContribution[] {
+  // Multi-domain: use domain_contributions array
+  if (config.domain_contributions && config.domain_contributions.length > 0) {
+    return config.domain_contributions
+  }
+  
+  // Single-domain: convert to contribution array
+  if (config.domain && config.weight !== undefined && config.dominance_cap !== undefined) {
+    return [{
+      domain: config.domain,
+      weight: config.weight,
+      dominance_cap: config.dominance_cap,
+    }]
+  }
+  
+  // No valid domain configuration
+  console.warn(`Driver ${config.driver_key} has no valid domain configuration`)
+  return []
 }
 
 /**

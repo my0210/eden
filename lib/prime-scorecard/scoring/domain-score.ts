@@ -5,10 +5,27 @@
  * - Weight reallocation for missing drivers
  * - Dominance caps to prevent single driver from dominating
  * - Prior scores when no observations exist
+ * - Multi-domain drivers (one driver can contribute to multiple domains)
  */
 
 import { PrimeDomain } from '../types'
-import { DriverConfig, DriverScoringResult } from './types'
+import { DriverConfig, DriverScoringResult, getDriverDomainContributions, DomainContribution } from './types'
+
+/**
+ * Check if a driver contributes to a domain
+ */
+function driverContributesToDomain(config: DriverConfig, domain: PrimeDomain): boolean {
+  const contributions = getDriverDomainContributions(config)
+  return contributions.some(c => c.domain === domain)
+}
+
+/**
+ * Get the contribution config for a driver in a domain
+ */
+function getDomainContribution(config: DriverConfig, domain: PrimeDomain): DomainContribution | null {
+  const contributions = getDriverDomainContributions(config)
+  return contributions.find(c => c.domain === domain) || null
+}
 
 /**
  * Default prior scores by domain
@@ -40,10 +57,10 @@ export function calculateDomainScore(
   driverConfigs: Map<string, DriverConfig>,
   userProfile?: { age?: number; sex?: string }
 ): { score: number; usingPrior: boolean } {
-  // Filter to results for this domain
+  // Filter to results for this domain (includes multi-domain drivers)
   const domainResults = driverResults.filter(r => {
     const config = driverConfigs.get(r.driver_key)
-    return config?.domain === domain
+    return config && driverContributesToDomain(config, domain)
   })
   
   // Case 2: No observations - use prior
@@ -55,12 +72,15 @@ export function calculateDomainScore(
   }
   
   // Step 3: Raw reallocation
-  // Sum of configured weights for available drivers
+  // Sum of configured weights for available drivers (using domain-specific weights)
   let totalConfiguredWeight = 0
   for (const result of domainResults) {
     const config = driverConfigs.get(result.driver_key)
     if (config) {
-      totalConfiguredWeight += config.weight
+      const contribution = getDomainContribution(config, domain)
+      if (contribution) {
+        totalConfiguredWeight += contribution.weight
+      }
     }
   }
   
@@ -71,23 +91,28 @@ export function calculateDomainScore(
     }
   }
   
-  // Calculate reallocated weights
+  // Calculate reallocated weights (using domain-specific weights)
   const reallocatedWeights = new Map<string, number>()
   for (const result of domainResults) {
     const config = driverConfigs.get(result.driver_key)
     if (config) {
-      const wTmp = config.weight / totalConfiguredWeight
-      reallocatedWeights.set(result.driver_key, wTmp)
+      const contribution = getDomainContribution(config, domain)
+      if (contribution) {
+        const wTmp = contribution.weight / totalConfiguredWeight
+        reallocatedWeights.set(result.driver_key, wTmp)
+      }
     }
   }
   
-  // Step 4: Apply dominance caps
+  // Step 4: Apply dominance caps (using domain-specific caps)
   const cappedWeights = new Map<string, number>()
   for (const result of domainResults) {
     const config = driverConfigs.get(result.driver_key)
     const reallocated = reallocatedWeights.get(result.driver_key) ?? 0
     if (config) {
-      const capped = Math.min(reallocated, config.dominance_cap)
+      const contribution = getDomainContribution(config, domain)
+      const cap = contribution?.dominance_cap ?? 1.0
+      const capped = Math.min(reallocated, cap)
       cappedWeights.set(result.driver_key, capped)
     }
   }
@@ -154,7 +179,7 @@ export function getMissingDrivers(
   allDriverConfigs: DriverConfig[]
 ): DriverConfig[] {
   return allDriverConfigs.filter(config => 
-    config.domain === domain && !presentDriverKeys.has(config.driver_key)
+    driverContributesToDomain(config, domain) && !presentDriverKeys.has(config.driver_key)
   )
 }
 

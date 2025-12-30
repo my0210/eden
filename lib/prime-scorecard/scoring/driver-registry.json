@@ -67,11 +67,12 @@
       }
     },
     "hrv": {
-      "domain": "heart",
       "driver_key": "hrv",
       "display_name": "Heart Rate Variability",
-      "weight": 0.15,
-      "dominance_cap": 0.3,
+      "domain_contributions": [
+        { "domain": "heart", "weight": 0.15, "dominance_cap": 0.3 },
+        { "domain": "recovery", "weight": 0.15, "dominance_cap": 0.3 }
+      ],
       "freshness_half_life_days": 14,
       "missing_copy": "Connect Apple Health for HRV",
       "scoring": {
@@ -428,30 +429,6 @@
       },
       "evidence_label_map": {
         "self_report_proxy": "Self-report",
-        "prior": "Estimated"
-      }
-    },
-    "recovery_hrv": {
-      "domain": "recovery",
-      "driver_key": "recovery_hrv",
-      "display_name": "Recovery HRV",
-      "weight": 0.15,
-      "dominance_cap": 0.3,
-      "freshness_half_life_days": 7,
-      "missing_copy": "Connect Apple Health for HRV",
-      "scoring": {
-        "method": "ladder",
-        "bands": [
-          { "min": 70, "score": 100, "label": "excellent" },
-          { "min": 50, "max": 70, "score": 80, "label": "good" },
-          { "min": 30, "max": 50, "score": 60, "label": "average" },
-          { "min": 20, "max": 30, "score": 40, "label": "below_average" },
-          { "max": 20, "score": 25, "label": "poor" }
-        ],
-        "default_score": 50
-      },
-      "evidence_label_map": {
-        "device": "Device",
         "prior": "Estimated"
       }
     },

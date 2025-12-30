@@ -23,7 +23,25 @@ import {
   DEFAULT_DOMAIN_WEIGHTS,
   CONFIDENCE_COPY,
   getConfidenceLabel,
+  getDriverDomainContributions,
+  DomainContribution,
 } from './types'
+
+/**
+ * Check if a driver contributes to a specific domain
+ */
+function driverContributesToDomain(config: DriverConfig, domain: PrimeDomain): boolean {
+  const contributions = getDriverDomainContributions(config)
+  return contributions.some(c => c.domain === domain)
+}
+
+/**
+ * Get the domain contribution for a driver in a specific domain
+ */
+function getDomainContribution(config: DriverConfig, domain: PrimeDomain): DomainContribution | null {
+  const contributions = getDriverDomainContributions(config)
+  return contributions.find(c => c.domain === domain) || null
+}
 import {
   resolveBestObservation,
   detectConflict,
@@ -122,7 +140,7 @@ function buildEvidenceSummary(
   // Filter to domain results
   const domainResults = driverResults.filter(r => {
     const config = driverConfigs.get(r.driver_key)
-    return config?.domain === domain
+    return config && driverContributesToDomain(config, domain)
   })
   
   // Build drivers_used
@@ -171,7 +189,7 @@ function deriveDomainAtoms(
     // Check if this observation's driver belongs to this domain
     const registry = loadDriverRegistry()
     const config = registry.drivers[o.driver_key] as DriverConfig | undefined
-    return config?.domain === domain
+    return config && driverContributesToDomain(config, domain)
   })
   
   switch (domain) {
@@ -335,7 +353,7 @@ function buildHowCalculated(
   // Filter to domain results
   const domainResults = driverResults.filter(r => {
     const config = driverConfigs.get(r.driver_key)
-    return config?.domain === domain
+    return config && driverContributesToDomain(config, domain)
   })
   
   for (const result of domainResults) {
@@ -415,7 +433,7 @@ export function computeScorecard(
     // Filter domain driver results
     const domainDriverResults = driverResults.filter(r => {
       const config = driverConfigs.get(r.driver_key)
-      return config?.domain === domain
+      return config && driverContributesToDomain(config, domain)
     })
     
     domainResults[domain] = {

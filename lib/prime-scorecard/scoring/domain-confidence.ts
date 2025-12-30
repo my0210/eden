@@ -6,6 +6,7 @@
  * - Quality: Source quality multipliers
  * - Freshness: Age-based decay using half-life
  * - Stability: Time-series baseline (simplified for v1)
+ * - Multi-domain drivers (one driver can contribute to multiple domains)
  */
 
 import { PrimeDomain } from '../types'
@@ -17,7 +18,25 @@ import {
   CONFIDENCE_THRESHOLDS,
   CONFIDENCE_COPY,
   getConfidenceLabel,
+  getDriverDomainContributions,
+  DomainContribution,
 } from './types'
+
+/**
+ * Check if a driver contributes to a domain
+ */
+function driverContributesToDomain(config: DriverConfig, domain: PrimeDomain): boolean {
+  const contributions = getDriverDomainContributions(config)
+  return contributions.some(c => c.domain === domain)
+}
+
+/**
+ * Get the contribution config for a driver in a domain
+ */
+function getDomainContribution(config: DriverConfig, domain: PrimeDomain): DomainContribution | null {
+  const contributions = getDriverDomainContributions(config)
+  return contributions.find(c => c.domain === domain) || null
+}
 
 /**
  * Confidence formula weights
@@ -32,19 +51,23 @@ const CONFIDENCE_WEIGHTS = {
 
 /**
  * Calculate coverage component
- * Coverage = sum(w_i for drivers present) using configured weights
+ * Coverage = sum(w_i for drivers present) using domain-specific weights
  */
 function calculateCoverage(
   domain: PrimeDomain,
   presentDriverKeys: Set<string>,
   allDriverConfigs: DriverConfig[]
 ): number {
-  const domainConfigs = allDriverConfigs.filter(c => c.domain === domain)
+  // Filter to drivers that contribute to this domain
+  const domainConfigs = allDriverConfigs.filter(c => driverContributesToDomain(c, domain))
   
   let coveredWeight = 0
   for (const config of domainConfigs) {
     if (presentDriverKeys.has(config.driver_key)) {
-      coveredWeight += config.weight
+      const contribution = getDomainContribution(config, domain)
+      if (contribution) {
+        coveredWeight += contribution.weight
+      }
     }
   }
   
@@ -182,10 +205,10 @@ export function calculateDomainConfidence(
     }
   }
   
-  // Filter to domain results
+  // Filter to domain results (includes multi-domain drivers)
   const domainResults = driverResults.filter(r => {
     const config = driverConfigs.get(r.driver_key)
-    return config?.domain === domain
+    return config && driverContributesToDomain(config, domain)
   })
   
   // Calculate present drivers
