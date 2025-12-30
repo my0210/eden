@@ -278,127 +278,139 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
       {/* Content */}
       <div className="p-4 space-y-6">
         {/* Section 1: Lab Results (priority) */}
-        <div className="p-4 bg-[#F2F2F7] rounded-xl space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-[13px] font-medium text-[#3C3C43]">
-              Recent lab results
-            </label>
-            <span className="text-[11px] text-[#FF9500] bg-[#FF9500]/10 px-2 py-0.5 rounded font-medium">
-              recommended
-            </span>
-          </div>
-
-          {/* Mode toggle */}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setLabInputMode('upload')}
-              className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium transition-all flex items-center justify-center gap-2 ${
-                labInputMode === 'upload' || labInputMode === 'extracted'
-                  ? 'bg-[#FF9500] text-white'
-                  : 'bg-white border border-[#C6C6C8] text-[#3C3C43] hover:bg-[#E5E5EA]'
-              }`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              Upload Report
-            </button>
-            <button
-              type="button"
-              onClick={() => setLabInputMode('manual')}
-              className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium transition-all ${
-                labInputMode === 'manual'
-                  ? 'bg-[#FF9500] text-white'
-                  : 'bg-white border border-[#C6C6C8] text-[#3C3C43] hover:bg-[#E5E5EA]'
-              }`}
-            >
-              Enter Manually
-            </button>
-          </div>
-
-          {/* Upload Mode */}
-          {labInputMode === 'upload' && (
-            <div className="text-center py-4">
-              {uploadState === 'idle' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full py-3 border-2 border-dashed border-[#C6C6C8] rounded-lg text-[#3C3C43] hover:border-[#FF9500] hover:text-[#FF9500] transition-colors"
-                  >
-                    <svg className="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Choose PDF or take photo
-                  </button>
-                  <p className="text-[11px] text-[#8E8E93] mt-2">
-                    PDF, photo, or screenshot • Any language
-                  </p>
-                </>
-              )}
-              {(uploadState === 'uploading' || uploadState === 'analyzing') && (
-                <div className="py-4">
-                  <div className="w-8 h-8 mx-auto mb-2 border-2 border-[#FF9500] border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-[13px] text-[#3C3C43]">
-                    {uploadState === 'uploading' ? 'Uploading...' : 'Analyzing lab report...'}
-                  </p>
-                </div>
-              )}
-              {uploadState === 'error' && (
-                <div className="py-2">
-                  <p className="text-[13px] text-[#FF3B30] mb-2">{uploadError}</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUploadState('idle')
-                      setUploadError(null)
-                      // Clear file input to allow re-selecting same file
-                      if (fileInputRef.current) {
-                        fileInputRef.current.value = ''
-                      }
-                    }}
-                    className="text-[13px] text-[#FF9500] font-medium"
-                  >
-                    Try Again
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Extracted Values Display */}
-          {labInputMode === 'extracted' && extractedValues.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-[12px] text-[#34C759] font-medium">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Success state - matches BodyPhotoAnalyzer pattern */}
+        {labInputMode === 'extracted' && extractedValues.length > 0 ? (
+          <div className="space-y-3">
+            <div className="p-4 rounded-xl bg-[#34C759]/10 space-y-3">
+              {/* Success header */}
+              <div className="flex items-center gap-2 text-[15px] font-medium text-[#34C759]">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 {extractedValues.length} values extracted
               </div>
+              
+              {/* Extracted values grid */}
               <div className="grid grid-cols-2 gap-2">
-                {extractedValues.slice(0, 6).map((val, idx) => (
-                  <div key={idx} className="p-2 bg-white rounded-lg border border-[#E5E5EA]">
-                    <p className="text-[10px] text-[#8E8E93]">{getMarkerDisplayName(val.marker_key)}</p>
-                    <p className="text-[13px] font-semibold text-[#1C1C1E]">{val.value} {val.unit}</p>
+                {extractedValues.map((val, idx) => (
+                  <div key={idx} className="p-2 bg-white/60 rounded-lg">
+                    <p className="text-[11px] text-[#3C3C43]/70">{getMarkerDisplayName(val.marker_key)}</p>
+                    <p className="text-[14px] font-semibold text-[#1C1C1E]">{val.value} {val.unit}</p>
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Subtle replace action */}
+            <button
+              type="button"
+              onClick={() => {
+                setLabInputMode('upload')
+                setExtractedValues([])
+                setUploadState('idle')
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = ''
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-[13px] text-[#8E8E93] hover:text-[#3C3C43] transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Upload different report
+            </button>
+          </div>
+        ) : (
+          <div className="p-4 bg-[#F2F2F7] rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[13px] font-medium text-[#3C3C43]">
+                Recent lab results
+              </label>
+              <span className="text-[11px] text-[#FF9500] bg-[#FF9500]/10 px-2 py-0.5 rounded font-medium">
+                recommended
+              </span>
+            </div>
+
+            {/* Mode toggle */}
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setLabInputMode('upload')
-                  setExtractedValues([])
-                }}
-                className="text-[12px] text-[#FF9500] font-medium"
+                onClick={() => setLabInputMode('upload')}
+                className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium transition-all flex items-center justify-center gap-2 ${
+                  labInputMode === 'upload'
+                    ? 'bg-[#FF9500] text-white'
+                    : 'bg-white border border-[#C6C6C8] text-[#3C3C43] hover:bg-[#E5E5EA]'
+                }`}
               >
-                Upload different report
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Upload Report
+              </button>
+              <button
+                type="button"
+                onClick={() => setLabInputMode('manual')}
+                className={`flex-1 px-3 py-2 rounded-lg text-[13px] font-medium transition-all ${
+                  labInputMode === 'manual'
+                    ? 'bg-[#FF9500] text-white'
+                    : 'bg-white border border-[#C6C6C8] text-[#3C3C43] hover:bg-[#E5E5EA]'
+                }`}
+              >
+                Enter Manually
               </button>
             </div>
-          )}
 
-          {/* Manual Entry */}
-          {labInputMode === 'manual' && (
+            {/* Upload Mode */}
+            {labInputMode === 'upload' && (
+              <div className="text-center py-4">
+                {uploadState === 'idle' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-3 border-2 border-dashed border-[#C6C6C8] rounded-lg text-[#3C3C43] hover:border-[#FF9500] hover:text-[#FF9500] transition-colors"
+                    >
+                      <svg className="w-6 h-6 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Choose PDF or take photo
+                    </button>
+                    <p className="text-[11px] text-[#8E8E93] mt-2">
+                      PDF, photo, or screenshot • Any language
+                    </p>
+                  </>
+                )}
+                {(uploadState === 'uploading' || uploadState === 'analyzing') && (
+                  <div className="py-4">
+                    <div className="w-8 h-8 mx-auto mb-2 border-2 border-[#FF9500] border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-[13px] text-[#3C3C43]">
+                      {uploadState === 'uploading' ? 'Uploading...' : 'Analyzing lab report...'}
+                    </p>
+                  </div>
+                )}
+                {uploadState === 'error' && (
+                  <div className="py-2">
+                    <p className="text-[13px] text-[#FF3B30] mb-2">{uploadError}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadState('idle')
+                        setUploadError(null)
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = ''
+                        }
+                      }}
+                      className="text-[13px] text-[#FF9500] font-medium"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Manual Entry */}
+            {labInputMode === 'manual' && (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -528,12 +540,13 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
             </>
           )}
           
-          {!hasLabValues && labInputMode !== 'upload' && labInputMode !== 'extracted' && (
+          {!hasLabValues && labInputMode !== 'upload' && (
             <p className="text-[11px] text-[#8E8E93]">
               Lab values significantly improve your Metabolism score accuracy. Without labs, confidence is limited.
             </p>
           )}
-        </div>
+          </div>
+        )}
 
         {/* Section 2: Diagnosed Conditions */}
         <div>
