@@ -26,7 +26,7 @@ export type RhrSource = 'wearable' | 'doctor' | 'other'
 export interface BloodPressureEntry {
   systolic: number
   diastolic: number
-  measured_date: string // YYYY-MM format
+  measured_date?: string // YYYY-MM format (optional)
 }
 
 export interface RestingHeartRateEntry {

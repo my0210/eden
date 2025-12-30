@@ -398,7 +398,7 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
               Body photo analysis
             </label>
             <span className="text-[11px] text-[#8E8E93] bg-white px-2 py-0.5 rounded">
-              optional · improves accuracy
+              optional
             </span>
           </div>
           

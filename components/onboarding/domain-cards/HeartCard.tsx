@@ -192,7 +192,7 @@ export default function HeartCard({ initialData, appleHealthData, onChange }: He
               Blood pressure
             </label>
             <span className="text-[11px] text-[#8E8E93] bg-white px-2 py-0.5 rounded">
-              optional · high value
+              optional
             </span>
           </div>
           
