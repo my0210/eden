@@ -24,7 +24,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/webp',
   'image/heic', // iPhone photos
   'image/heif',
-  'application/pdf', // PDFs sent directly to GPT-4o
+  'application/pdf', // PDFs via OpenAI Files API
 ])
 
 // Max file size: 20MB (lab reports can be larger than photos)
@@ -252,71 +252,126 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
 
     const isPdf = file.type === 'application/pdf'
     let analysis: RawLabAnalysis
+    let uploadedFileId: string | null = null
 
     try {
-      // Prepare the image/document URL
-      let documentUrl: string
-      
       if (isPdf) {
-        // For PDFs: Send as base64 data URL (GPT-4o supports this)
-        const base64 = Buffer.from(fileBuffer).toString('base64')
-        documentUrl = `data:application/pdf;base64,${base64}`
-      } else {
-        // For images: Use the signed URL from Supabase
-        documentUrl = signedUrlData.signedUrl
-      }
+        // For PDFs: Upload to OpenAI Files API first, then use file_id
+        const uploadedFile = await openai.files.create({
+          file: new File([fileBuffer], file.name || 'lab_report.pdf', { type: 'application/pdf' }),
+          purpose: 'user_data',
+        })
+        uploadedFileId = uploadedFile.id
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: LAB_ANALYSIS_SYSTEM_PROMPT,
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: LAB_ANALYSIS_USER_PROMPT,
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: documentUrl,
-                  detail: 'high' as const,
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: LAB_ANALYSIS_SYSTEM_PROMPT,
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: LAB_ANALYSIS_USER_PROMPT,
                 },
-              },
-            ],
-          },
-        ],
-        max_tokens: 2000,
-        temperature: 0.2,
-      })
+                {
+                  type: 'file',
+                  file: {
+                    file_id: uploadedFileId,
+                  },
+                } as any, // OpenAI SDK types may not include 'file' type yet
+              ],
+            },
+          ],
+          max_tokens: 2000,
+          temperature: 0.2,
+        })
 
-      const responseText = completion.choices[0]?.message?.content
-      if (!responseText) {
-        throw new Error('No response from OpenAI')
+        const responseText = completion.choices[0]?.message?.content
+        if (!responseText) {
+          throw new Error('No response from OpenAI')
+        }
+
+        const parsed = parseLabAnalysisResponse(responseText)
+        if (!parsed.success || !parsed.data) {
+          throw new Error(parsed.error || 'Failed to parse response')
+        }
+
+        analysis = parsed.data
+      } else {
+        // For images: Use Vision API with signed URL
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: LAB_ANALYSIS_SYSTEM_PROMPT,
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: LAB_ANALYSIS_USER_PROMPT,
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: signedUrlData.signedUrl,
+                    detail: 'high' as const,
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 2000,
+          temperature: 0.2,
+        })
+
+        const responseText = completion.choices[0]?.message?.content
+        if (!responseText) {
+          throw new Error('No response from OpenAI')
+        }
+
+        const parsed = parseLabAnalysisResponse(responseText)
+        if (!parsed.success || !parsed.data) {
+          throw new Error(parsed.error || 'Failed to parse response')
+        }
+
+        analysis = parsed.data
       }
-
-      const parsed = parseLabAnalysisResponse(responseText)
-      if (!parsed.success || !parsed.data) {
-        throw new Error(parsed.error || 'Failed to parse response')
-      }
-
-      analysis = parsed.data
     } catch (e) {
       console.error('OpenAI analysis error:', e)
       // Clean up: delete uploaded file from Supabase
       await supabase.storage.from('lab_reports').remove([filePath])
+      // Clean up: delete uploaded file from OpenAI if it was a PDF
+      if (uploadedFileId) {
+        try {
+          await openai.files.delete(uploadedFileId)
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
       return NextResponse.json({
         success: false,
         validation: { is_valid: false },
         markers_found: 0,
         error: isPdf 
-          ? 'PDF analysis failed. Please try taking a photo of your lab report instead.'
+          ? 'PDF analysis failed. Please try again or use a photo instead.'
           : 'Lab analysis failed. Please try again.',
       }, { status: 500 })
+    }
+
+    // Clean up OpenAI file after successful processing
+    if (uploadedFileId) {
+      try {
+        await openai.files.delete(uploadedFileId)
+      } catch {
+        // Ignore cleanup errors
+      }
     }
 
     // 9. Handle validation rejection
