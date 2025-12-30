@@ -79,6 +79,7 @@ function calculateCoverage(
  * Quality = weighted mean of source quality multipliers for drivers present
  */
 function calculateQuality(
+  domain: PrimeDomain,
   driverResults: DriverScoringResult[],
   driverConfigs: Map<string, DriverConfig>
 ): number {
@@ -93,9 +94,12 @@ function calculateQuality(
     const config = driverConfigs.get(result.driver_key)
     if (!config) continue
     
+    const contribution = getDomainContribution(config, domain)
+    const weight = contribution?.weight ?? config.weight ?? 0
+    
     const qualityMultiplier = SOURCE_QUALITY_MULTIPLIERS[result.source_type] ?? 0.2
-    weightedQualitySum += config.weight * qualityMultiplier
-    totalWeight += config.weight
+    weightedQualitySum += weight * qualityMultiplier
+    totalWeight += weight
   }
   
   if (totalWeight === 0) {
@@ -110,6 +114,7 @@ function calculateQuality(
  * Freshness = weighted mean of freshness scores for drivers present
  */
 function calculateFreshness(
+  domain: PrimeDomain,
   driverResults: DriverScoringResult[],
   driverConfigs: Map<string, DriverConfig>
 ): number {
@@ -124,8 +129,11 @@ function calculateFreshness(
     const config = driverConfigs.get(result.driver_key)
     if (!config) continue
     
-    weightedFreshnessSum += config.weight * result.freshness_score
-    totalWeight += config.weight
+    const contribution = getDomainContribution(config, domain)
+    const weight = contribution?.weight ?? config.weight ?? 0
+    
+    weightedFreshnessSum += weight * result.freshness_score
+    totalWeight += weight
   }
   
   if (totalWeight === 0) {
@@ -216,8 +224,8 @@ export function calculateDomainConfidence(
   
   // Calculate components
   const coverage = calculateCoverage(domain, presentDriverKeys, allDriverConfigs)
-  const quality = calculateQuality(domainResults, driverConfigs)
-  const freshness = calculateFreshness(domainResults, driverConfigs)
+  const quality = calculateQuality(domain, domainResults, driverConfigs)
+  const freshness = calculateFreshness(domain, domainResults, driverConfigs)
   const stability = calculateStability(domainResults, driverConfigs)
   
   // Combine using weights
