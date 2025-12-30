@@ -333,7 +333,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                     Choose file or take photo
                   </button>
                   <p className="text-[11px] text-[#8E8E93] mt-2">
-                    JPEG, PNG, or PDF • We extract key biomarkers automatically
+                    JPEG, PNG, or PDF • Supports German, English, and other languages
                   </p>
                 </>
               )}
@@ -353,6 +353,10 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                     onClick={() => {
                       setUploadState('idle')
                       setUploadError(null)
+                      // Clear file input to allow re-selecting same file
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = ''
+                      }
                     }}
                     className="text-[13px] text-[#FF9500] font-medium"
                   >

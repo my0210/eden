@@ -47,7 +47,6 @@ export interface LabValidationResult {
     | 'not_lab_report'
     | 'unreadable'
     | 'no_values_found'
-    | 'wrong_language'
     | 'incomplete_image'
   user_message?: string
 }

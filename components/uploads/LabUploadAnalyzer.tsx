@@ -137,8 +137,8 @@ export default function LabUploadAnalyzer({
         </button>
 
         <p className="mt-3 text-[11px] text-[#8E8E93]">
-          We extract key biomarkers like HbA1c, ApoB, LDL, and more.
-          Your data is processed securely and never shared.
+          We extract HbA1c, ApoB, LDL, and more from your lab report.
+          Supports German, English, and other languages.
         </p>
       </div>
     )

@@ -246,6 +246,32 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       apiKey: process.env.OPENAI_API_KEY,
     })
 
+    // For PDFs, use base64 encoding; for images, use the signed URL
+    const isPdf = file.type === 'application/pdf'
+    let imageContent: { type: 'image_url'; image_url: { url: string; detail: string } }
+
+    if (isPdf) {
+      // Convert PDF to base64 for OpenAI
+      const base64 = Buffer.from(fileBuffer).toString('base64')
+      const mimeType = 'application/pdf'
+      imageContent = {
+        type: 'image_url',
+        image_url: {
+          url: `data:${mimeType};base64,${base64}`,
+          detail: 'high',
+        },
+      }
+    } else {
+      // Use signed URL for images
+      imageContent = {
+        type: 'image_url',
+        image_url: {
+          url: signedUrlData.signedUrl,
+          detail: 'high',
+        },
+      }
+    }
+
     let analysis: RawLabAnalysis
     try {
       const completion = await openai.chat.completions.create({
@@ -262,13 +288,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
                 type: 'text',
                 text: LAB_ANALYSIS_USER_PROMPT,
               },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: signedUrlData.signedUrl,
-                  detail: 'high', // Higher detail for reading small text
-                },
-              },
+              imageContent,
             ],
           },
         ],
