@@ -252,109 +252,63 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
 
     const isPdf = file.type === 'application/pdf'
     let analysis: RawLabAnalysis
-    let uploadedFileId: string | null = null
 
     try {
+      // Prepare the image/document URL
+      let documentUrl: string
+      
       if (isPdf) {
-        // For PDFs: Upload to OpenAI Files API first, then use file_id
-        const uploadedFile = await openai.files.create({
-          file: new File([fileBuffer], file.name || 'lab_report.pdf', { type: 'application/pdf' }),
-          purpose: 'user_data',
-        })
-        uploadedFileId = uploadedFile.id
-
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: LAB_ANALYSIS_SYSTEM_PROMPT,
-            },
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: LAB_ANALYSIS_USER_PROMPT,
-                },
-                {
-                  type: 'file',
-                  file: {
-                    file_id: uploadedFileId,
-                  },
-                } as any, // OpenAI SDK types may not be up-to-date for file type
-              ],
-            },
-          ],
-          max_tokens: 2000,
-          temperature: 0.2,
-        })
-
-        const responseText = completion.choices[0]?.message?.content
-        if (!responseText) {
-          throw new Error('No response from OpenAI')
-        }
-
-        const parsed = parseLabAnalysisResponse(responseText)
-        if (!parsed.success || !parsed.data) {
-          throw new Error(parsed.error || 'Failed to parse response')
-        }
-
-        analysis = parsed.data
+        // For PDFs: Send as base64 data URL (GPT-4o supports this)
+        const base64 = Buffer.from(fileBuffer).toString('base64')
+        documentUrl = `data:application/pdf;base64,${base64}`
       } else {
-        // For images: Use Vision API with signed URL
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: LAB_ANALYSIS_SYSTEM_PROMPT,
-            },
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: LAB_ANALYSIS_USER_PROMPT,
-                },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: signedUrlData.signedUrl,
-                    detail: 'high' as const,
-                  },
-                },
-              ],
-            },
-          ],
-          max_tokens: 2000,
-          temperature: 0.2,
-        })
-
-        const responseText = completion.choices[0]?.message?.content
-        if (!responseText) {
-          throw new Error('No response from OpenAI')
-        }
-
-        const parsed = parseLabAnalysisResponse(responseText)
-        if (!parsed.success || !parsed.data) {
-          throw new Error(parsed.error || 'Failed to parse response')
-        }
-
-        analysis = parsed.data
+        // For images: Use the signed URL from Supabase
+        documentUrl = signedUrlData.signedUrl
       }
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: LAB_ANALYSIS_SYSTEM_PROMPT,
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: LAB_ANALYSIS_USER_PROMPT,
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: documentUrl,
+                  detail: 'high' as const,
+                },
+              },
+            ],
+          },
+        ],
+        max_tokens: 2000,
+        temperature: 0.2,
+      })
+
+      const responseText = completion.choices[0]?.message?.content
+      if (!responseText) {
+        throw new Error('No response from OpenAI')
+      }
+
+      const parsed = parseLabAnalysisResponse(responseText)
+      if (!parsed.success || !parsed.data) {
+        throw new Error(parsed.error || 'Failed to parse response')
+      }
+
+      analysis = parsed.data
     } catch (e) {
       console.error('OpenAI analysis error:', e)
       // Clean up: delete uploaded file from Supabase
       await supabase.storage.from('lab_reports').remove([filePath])
-      // Clean up: delete uploaded file from OpenAI if it was a PDF
-      if (uploadedFileId) {
-        try {
-          await openai.files.delete(uploadedFileId)
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
       return NextResponse.json({
         success: false,
         validation: { is_valid: false },
@@ -365,16 +319,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       }, { status: 500 })
     }
 
-    // 9. Clean up OpenAI file (we're done with it)
-    if (uploadedFileId) {
-      try {
-        await openai.files.delete(uploadedFileId)
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
-
-    // 10. Handle validation rejection
+    // 9. Handle validation rejection
     if (!analysis.validation.is_valid) {
       await supabase.storage.from('lab_reports').remove([filePath])
       
