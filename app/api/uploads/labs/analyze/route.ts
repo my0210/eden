@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import {
   LabAnalysisResponse,
@@ -245,54 +246,46 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       }, { status: 500 })
     }
 
-    // 8. Call OpenAI API
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    })
-
+    // 8. Call AI API (Claude for PDFs, OpenAI for images)
     const isPdf = file.type === 'application/pdf'
     let analysis: RawLabAnalysis
-    let uploadedFileId: string | null = null
 
     try {
       if (isPdf) {
-        // For PDFs: Upload to OpenAI Files API first, then use file_id
-        const uploadedFile = await openai.files.create({
-          file: new File([fileBuffer], file.name || 'lab_report.pdf', { type: 'application/pdf' }),
-          purpose: 'user_data',
+        // For PDFs: Use Claude (better at reading complex documents)
+        const anthropic = new Anthropic({
+          apiKey: process.env.ANTHROPIC_API_KEY,
         })
-        uploadedFileId = uploadedFile.id
 
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
+        const base64 = Buffer.from(fileBuffer).toString('base64')
+
+        const message = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
           messages: [
-            {
-              role: 'system',
-              content: LAB_ANALYSIS_SYSTEM_PROMPT,
-            },
             {
               role: 'user',
               content: [
                 {
-                  type: 'text',
-                  text: LAB_ANALYSIS_USER_PROMPT,
+                  type: 'document',
+                  source: {
+                    type: 'base64',
+                    media_type: 'application/pdf',
+                    data: base64,
+                  },
                 },
                 {
-                  type: 'file',
-                  file: {
-                    file_id: uploadedFileId,
-                  },
-                } as any, // OpenAI SDK types may not include 'file' type yet
+                  type: 'text',
+                  text: `${LAB_ANALYSIS_SYSTEM_PROMPT}\n\n${LAB_ANALYSIS_USER_PROMPT}`,
+                },
               ],
             },
           ],
-          max_tokens: 2000,
-          temperature: 0.2,
         })
 
-        const responseText = completion.choices[0]?.message?.content
+        const responseText = message.content[0].type === 'text' ? message.content[0].text : null
         if (!responseText) {
-          throw new Error('No response from OpenAI')
+          throw new Error('No response from Claude')
         }
 
         const parsed = parseLabAnalysisResponse(responseText)
@@ -302,7 +295,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
 
         analysis = parsed.data
       } else {
-        // For images: Use Vision API with signed URL
+        // For images: Use OpenAI Vision API
+        const openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        })
+
         const completion = await openai.chat.completions.create({
           model: 'gpt-4o',
           messages: [
@@ -344,34 +341,17 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
         analysis = parsed.data
       }
     } catch (e) {
-      console.error('OpenAI analysis error:', e)
+      console.error('AI analysis error:', e)
       // Clean up: delete uploaded file from Supabase
       await supabase.storage.from('lab_reports').remove([filePath])
-      // Clean up: delete uploaded file from OpenAI if it was a PDF
-      if (uploadedFileId) {
-        try {
-          await openai.files.delete(uploadedFileId)
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
       return NextResponse.json({
         success: false,
         validation: { is_valid: false },
         markers_found: 0,
         error: isPdf 
-          ? 'PDF analysis failed. Please try again or use a photo instead.'
+          ? 'PDF analysis failed. Please try again.'
           : 'Lab analysis failed. Please try again.',
       }, { status: 500 })
-    }
-
-    // Clean up OpenAI file after successful processing
-    if (uploadedFileId) {
-      try {
-        await openai.files.delete(uploadedFileId)
-      } catch {
-        // Ignore cleanup errors
-      }
     }
 
     // 9. Handle validation rejection
