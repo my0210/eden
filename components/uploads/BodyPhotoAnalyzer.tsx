@@ -115,7 +115,9 @@ export default function BodyPhotoAnalyzer({
           midsectionAdiposityLevel: midsectionEst && !isUnableToEstimate(midsectionEst)
             ? midsectionEst.level
             : undefined,
-          leanMassRange: result.derived?.lean_mass_estimate_kg,
+          leanMassRange: result.derived?.lean_mass_estimate_kg
+            ? { low: result.derived.lean_mass_estimate_kg.range_low, high: result.derived.lean_mass_estimate_kg.range_high }
+            : undefined,
           estimatedWaistToHeight: midsectionEst && !isUnableToEstimate(midsectionEst) && !hasMeasuredWaist
             ? MIDSECTION_TO_WHR[midsectionEst.level]
             : undefined,
