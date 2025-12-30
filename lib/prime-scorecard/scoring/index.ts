@@ -231,15 +231,22 @@ function deriveDomainAtoms(
       }
       
       // Strength bucket
-      const pushupObs = domainObs.find(o => o.driver_key === 'pushups')
+      const pushupObs = domainObs.find(o => o.driver_key === 'strength_proxy')
       if (pushupObs) {
         atoms.strength_bucket = String(pushupObs.value)
       }
       
-      // Limitation flag
-      const painObs = domainObs.find(o => o.driver_key === 'pain_limitation')
-      if (painObs) {
-        atoms.limitation_flag = painObs.value === 'moderate' || painObs.value === 'severe'
+      // Limitation flag (from structural_integrity)
+      const siObs = domainObs.find(o => o.driver_key === 'structural_integrity')
+      if (siObs) {
+        // Check metadata for movement_restriction_flag if available, otherwise infer from score
+        const metadata = siObs.metadata as { movement_restriction_flag?: boolean } | undefined
+        if (metadata?.movement_restriction_flag !== undefined) {
+          atoms.limitation_flag = metadata.movement_restriction_flag
+        } else {
+          // Score < 50 indicates moderate/severe limitation
+          atoms.limitation_flag = typeof siObs.value === 'number' && siObs.value < 50
+        }
       }
       break
     }
@@ -319,10 +326,16 @@ function extractRiskFlags(
     flags.bp_crisis_flag = isBpCrisis(bpObs.value)
   }
   
-  // Severe pain flag
-  const painObs = observations.find(o => o.driver_key === 'pain_limitation')
-  if (painObs) {
-    flags.severe_pain_flag = painObs.value === 'severe'
+  // Severe pain flag (from structural_integrity)
+  const siObs = observations.find(o => o.driver_key === 'structural_integrity')
+  if (siObs) {
+    // Check metadata or infer from score (score < 35 = severe)
+    const metadata = siObs.metadata as { movement_restriction_flag?: boolean; severity?: string } | undefined
+    if (metadata?.severity === 'severe') {
+      flags.severe_pain_flag = true
+    } else if (typeof siObs.value === 'number') {
+      flags.severe_pain_flag = siObs.value <= 35
+    }
   }
   
   // Diabetes flag

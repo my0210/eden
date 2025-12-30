@@ -99,8 +99,9 @@ export default function Step5PrimeCheck({ state }: Step5PrimeCheckProps) {
     if (!frameData.pushup_capability) {
       return 'Please select your push-up capability in the Frame section'
     }
-    if (!frameData.pain_limitation) {
-      return 'Please select your pain level in the Frame section'
+    // Accept either new structural_integrity or legacy pain_limitation
+    if (!frameData.structural_integrity?.severity && !frameData.pain_limitation) {
+      return 'Please answer the limitation questions in the Frame section'
     }
     if (!metabolismData.diagnoses?.length) {
       return 'Please select diagnosed conditions in the Metabolism section'
@@ -120,11 +121,10 @@ export default function Step5PrimeCheck({ state }: Step5PrimeCheckProps) {
     if (!recoveryData.insomnia_frequency) {
       return 'Please select insomnia frequency in the Recovery section'
     }
-    if (!mindData.focus_stability) {
-      return 'Please rate your focus stability in the Mind section'
-    }
-    if (!mindData.brain_fog) {
-      return 'Please rate brain fog frequency in the Mind section'
+    // Accept either focus_check test OR self-report fallback
+    const hasMindData = mindData.focus_check || (mindData.focus_stability && mindData.brain_fog)
+    if (!hasMindData) {
+      return 'Please complete the Focus Check or answer the fallback questions in the Mind section'
     }
     return null
   }
@@ -184,10 +184,10 @@ export default function Step5PrimeCheck({ state }: Step5PrimeCheckProps) {
   // Count completed domains
   const completedDomains = [
     heartData.cardio_self_rating,
-    frameData.pushup_capability && frameData.pain_limitation,
+    frameData.pushup_capability && (frameData.structural_integrity?.severity || frameData.pain_limitation),
     metabolismData.diagnoses?.length && metabolismData.family_history?.length,
     recoveryData.sleep_duration && recoveryData.insomnia_frequency,
-    mindData.focus_stability && mindData.brain_fog,
+    mindData.focus_check || (mindData.focus_stability && mindData.brain_fog),
   ].filter(Boolean).length
 
   return (
