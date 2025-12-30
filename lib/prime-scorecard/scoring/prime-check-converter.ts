@@ -12,6 +12,7 @@ import {
   PhotoAnalysisResult,
   StructuralIntegrityEntry,
   LimitationSeverity,
+  FocusCheckResult,
 } from '@/lib/onboarding/types'
 import { Observation, SourceType } from './types'
 import { calculateWaistToHeight, calculateBmi, deriveMetabolicRiskCategory } from './driver-scorers'
@@ -497,7 +498,55 @@ function convertMindData(
   const observations: Observation[] = []
   const now = completedAt || new Date().toISOString()
 
-  // Focus stability -> focus_stability driver
+  // Focus Check (PVT-lite) -> 3 objective drivers
+  if (mind.focus_check) {
+    const fc = mind.focus_check
+    const testTime = fc.completed_at || now
+
+    // Reaction time driver
+    observations.push({
+      driver_key: 'focus_check_rt',
+      value: fc.median_rt_ms,
+      unit: 'ms',
+      measured_at: testTime,
+      source_type: 'test',
+      metadata: {
+        entry_method: 'onboarding_focus_check',
+        total_stimuli: fc.total_stimuli,
+        duration_seconds: fc.duration_seconds,
+        // Store all RTs for baseline comparison later
+        reaction_times: fc.reaction_times_ms,
+      },
+    })
+
+    // Lapses driver
+    observations.push({
+      driver_key: 'focus_check_lapses',
+      value: fc.lapses,
+      measured_at: testTime,
+      source_type: 'test',
+      metadata: {
+        entry_method: 'onboarding_focus_check',
+        total_stimuli: fc.total_stimuli,
+        lapse_threshold_ms: 500,
+      },
+    })
+
+    // Variability driver
+    observations.push({
+      driver_key: 'focus_check_variability',
+      value: fc.variability_ms,
+      unit: 'ms',
+      measured_at: testTime,
+      source_type: 'test',
+      metadata: {
+        entry_method: 'onboarding_focus_check',
+        variability_metric: 'iqr',
+      },
+    })
+  }
+
+  // Focus stability -> focus_stability driver (fallback or additional context)
   if (mind.focus_stability) {
     observations.push({
       driver_key: 'focus_stability',

@@ -195,8 +195,36 @@ export type FocusStability =
 
 export type BrainFogFrequency = 'rarely' | 'sometimes' | 'often'
 
+/**
+ * PVT-lite Focus Check result
+ * 60-second reaction time test measuring sustained attention
+ */
+export interface FocusCheckResult {
+  /** Median reaction time in milliseconds */
+  median_rt_ms: number
+  /** Number of lapses (RT > 500ms threshold) */
+  lapses: number
+  /** Variability (IQR of reaction times in ms) */
+  variability_ms: number
+  /** Total number of stimuli presented */
+  total_stimuli: number
+  /** All individual reaction times (for baseline comparison later) */
+  reaction_times_ms: number[]
+  /** ISO timestamp when test was completed */
+  completed_at: string
+  /** Test duration in seconds */
+  duration_seconds: number
+}
+
+/**
+ * Derived focus level from Focus Check metrics
+ */
+export type FocusLevel = 'strong' | 'ok' | 'low'
+
 export interface MindPrimeCheck {
-  // Quick checks (fallback, since PVT-lite deferred)
+  // PVT-lite Focus Check (primary, objective)
+  focus_check?: FocusCheckResult
+  // Quick checks (fallback if test skipped)
   focus_stability?: FocusStability
   brain_fog?: BrainFogFrequency
 }

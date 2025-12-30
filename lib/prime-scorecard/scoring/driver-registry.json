@@ -455,14 +455,89 @@
         "prior": "Estimated"
       }
     },
+    "focus_check_rt": {
+      "domain": "mind",
+      "driver_key": "focus_check_rt",
+      "display_name": "Reaction Time",
+      "weight": 0.35,
+      "dominance_cap": 0.5,
+      "freshness_half_life_days": 7,
+      "missing_copy": "Take the Focus Check test",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 250, "score": 100, "label": "excellent" },
+          { "min": 250, "max": 300, "score": 85, "label": "great" },
+          { "min": 300, "max": 350, "score": 70, "label": "good" },
+          { "min": 350, "max": 400, "score": 55, "label": "average" },
+          { "min": 400, "max": 500, "score": 40, "label": "below_average" },
+          { "min": 500, "score": 25, "label": "impaired" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "test": "Focus Check",
+        "prior": "Estimated"
+      }
+    },
+    "focus_check_lapses": {
+      "domain": "mind",
+      "driver_key": "focus_check_lapses",
+      "display_name": "Attention Lapses",
+      "weight": 0.30,
+      "dominance_cap": 0.45,
+      "freshness_half_life_days": 7,
+      "missing_copy": "Take the Focus Check test",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 2, "score": 95, "label": "excellent" },
+          { "min": 2, "max": 4, "score": 80, "label": "good" },
+          { "min": 4, "max": 6, "score": 60, "label": "moderate" },
+          { "min": 6, "max": 10, "score": 40, "label": "elevated" },
+          { "min": 10, "score": 20, "label": "high" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "test": "Focus Check",
+        "prior": "Estimated"
+      }
+    },
+    "focus_check_variability": {
+      "domain": "mind",
+      "driver_key": "focus_check_variability",
+      "display_name": "Response Consistency",
+      "weight": 0.20,
+      "dominance_cap": 0.35,
+      "freshness_half_life_days": 7,
+      "missing_copy": "Take the Focus Check test",
+      "scoring": {
+        "method": "ladder",
+        "bands": [
+          { "max": 50, "score": 95, "label": "very_consistent" },
+          { "min": 50, "max": 80, "score": 80, "label": "consistent" },
+          { "min": 80, "max": 120, "score": 60, "label": "moderate" },
+          { "min": 120, "max": 180, "score": 40, "label": "variable" },
+          { "min": 180, "score": 20, "label": "highly_variable" }
+        ],
+        "default_score": 50
+      },
+      "evidence_label_map": {
+        "test": "Focus Check",
+        "prior": "Estimated"
+      }
+    },
     "focus_stability": {
       "domain": "mind",
       "driver_key": "focus_stability",
-      "display_name": "Focus Stability",
-      "weight": 0.50,
-      "dominance_cap": 0.6,
+      "display_name": "Focus Stability (Self-Report)",
+      "weight": 0.10,
+      "dominance_cap": 0.3,
       "freshness_half_life_days": 30,
       "missing_copy": "Rate your focus stability",
+      "fallback_only": true,
+      "suppress_if_present": ["focus_check_rt", "focus_check_lapses"],
       "scoring": {
         "method": "proxy_map",
         "mapping": {
@@ -474,7 +549,6 @@
         "default_score": 50
       },
       "evidence_label_map": {
-        "test": "Focus Test",
         "self_report_proxy": "Self-report",
         "prior": "Estimated"
       }
@@ -483,8 +557,8 @@
       "domain": "mind",
       "driver_key": "brain_fog",
       "display_name": "Brain Fog Frequency",
-      "weight": 0.50,
-      "dominance_cap": 0.6,
+      "weight": 0.05,
+      "dominance_cap": 0.2,
       "freshness_half_life_days": 30,
       "missing_copy": "Rate brain fog frequency",
       "scoring": {
