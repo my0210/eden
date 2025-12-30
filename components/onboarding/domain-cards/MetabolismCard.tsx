@@ -53,19 +53,38 @@ const MEDICATION_OPTIONS: { value: MetabolismMedication; label: string }[] = [
 
 type LabInputMode = 'manual' | 'upload' | 'extracted'
 
-// Generate month options for the last 2 years
-function getMonthOptions(): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = []
-  const now = new Date()
-  
-  for (let i = 0; i < 24; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const value = date.toISOString().substring(0, 7) // YYYY-MM
-    const label = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-    options.push({ value, label })
-  }
-  
-  return options
+const MONTHS = [
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+]
+
+// Generate year options (current year and previous 3 years)
+function getYearOptions(): string[] {
+  const currentYear = new Date().getFullYear()
+  return [currentYear, currentYear - 1, currentYear - 2, currentYear - 3].map(String)
+}
+
+// Parse YYYY-MM to { month, year }
+function parseLabDate(dateStr: string): { month: string; year: string } {
+  if (!dateStr || dateStr.length < 7) return { month: '', year: '' }
+  const [year, month] = dateStr.split('-')
+  return { month: month || '', year: year || '' }
+}
+
+// Combine month and year to YYYY-MM
+function formatLabDate(month: string, year: string): string {
+  if (!month || !year) return ''
+  return `${year}-${month}`
 }
 
 export default function MetabolismCard({ initialData, onChange }: MetabolismCardProps) {
@@ -85,7 +104,11 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
   const [ldl, setLdl] = useState<number | ''>(initialData?.labs?.ldl_mg_dl || '')
   const [triglycerides, setTriglycerides] = useState<number | ''>(initialData?.labs?.triglycerides_mg_dl || '')
   const [fastingGlucose, setFastingGlucose] = useState<number | ''>(initialData?.labs?.fasting_glucose_mg_dl || '')
-  const [labDate, setLabDate] = useState(initialData?.labs?.test_date || '')
+  
+  // Separate month/year for better UX
+  const initialDate = parseLabDate(initialData?.labs?.test_date || '')
+  const [labMonth, setLabMonth] = useState(initialDate.month)
+  const [labYear, setLabYear] = useState(initialDate.year)
   
   // Lab upload state
   const [labInputMode, setLabInputMode] = useState<LabInputMode>(
@@ -129,7 +152,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
         ...(ldl ? { ldl_mg_dl: Number(ldl) } : {}),
         ...(triglycerides ? { triglycerides_mg_dl: Number(triglycerides) } : {}),
         ...(fastingGlucose ? { fasting_glucose_mg_dl: Number(fastingGlucose) } : {}),
-        ...(labDate ? { test_date: labDate } : {}),
+        ...(labMonth && labYear ? { test_date: formatLabDate(labMonth, labYear) } : {}),
         ...(updates.labs?.upload_id ? { upload_id: updates.labs.upload_id } : {}),
       }
     }
@@ -175,7 +198,11 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
       if (normalized.ldl_mg_dl) setLdl(normalized.ldl_mg_dl)
       if (normalized.triglycerides_mg_dl) setTriglycerides(normalized.triglycerides_mg_dl)
       if (normalized.fasting_glucose_mg_dl) setFastingGlucose(normalized.fasting_glucose_mg_dl)
-      if (data.lab_info?.test_date) setLabDate(data.lab_info.test_date.substring(0, 7))
+      if (data.lab_info?.test_date) {
+        const parsed = parseLabDate(data.lab_info.test_date.substring(0, 7))
+        setLabMonth(parsed.month)
+        setLabYear(parsed.year)
+      }
 
       // Emit change with upload_id
       emitChange({
@@ -187,7 +214,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
           ...(normalized.triglycerides_mg_dl ? { triglycerides_mg_dl: normalized.triglycerides_mg_dl } : {}),
           ...(normalized.fasting_glucose_mg_dl ? { fasting_glucose_mg_dl: normalized.fasting_glucose_mg_dl } : {}),
           ...(data.lab_info?.test_date ? { test_date: data.lab_info.test_date.substring(0, 7) } : 
-              labDate ? { test_date: labDate } : {}),
+              (labMonth && labYear) ? { test_date: formatLabDate(labMonth, labYear) } : {}),
           upload_id: data.upload_id,
         }
       })
@@ -461,23 +488,37 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                   />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-[11px] text-[#8E8E93] mb-1">Test date (month/year)</label>
-                  <select
-                    value={labDate}
-                    onChange={e => {
-                      setLabDate(e.target.value)
-                      emitChange({})
-                    }}
-                    className="w-full px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none appearance-none cursor-pointer"
-                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238E8E93'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px' }}
-                  >
-                    <option value="">Select month</option>
-                    {getMonthOptions().map(opt => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="block text-[11px] text-[#8E8E93] mb-1">Test date</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={labMonth}
+                      onChange={e => {
+                        setLabMonth(e.target.value)
+                        if (e.target.value && labYear) emitChange({})
+                      }}
+                      className="flex-1 px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none appearance-none cursor-pointer"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238E8E93'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '14px' }}
+                    >
+                      <option value="">Month</option>
+                      {MONTHS.map(m => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={labYear}
+                      onChange={e => {
+                        setLabYear(e.target.value)
+                        if (labMonth && e.target.value) emitChange({})
+                      }}
+                      className="w-24 px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#FF9500] outline-none appearance-none cursor-pointer"
+                      style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%238E8E93'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '14px' }}
+                    >
+                      <option value="">Year</option>
+                      {getYearOptions().map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             </>
