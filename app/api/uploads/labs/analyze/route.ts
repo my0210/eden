@@ -16,13 +16,14 @@ import {
 export const runtime = 'nodejs'
 export const maxDuration = 60 // Analysis may take 15-20 seconds for complex reports
 
-// Allowed MIME types for lab reports
+// Allowed MIME types for lab reports (images only - OpenAI Vision doesn't support PDFs)
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/png',
   'image/webp',
-  'application/pdf', // PDF support through Vision API
+  'image/heic', // iPhone photos
+  'image/heif',
 ])
 
 // Max file size: 20MB (lab reports can be larger than photos)
@@ -34,7 +35,8 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/jpg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
-  'application/pdf': 'pdf',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
 }
 
 /**
@@ -188,7 +190,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
         success: false,
         validation: { is_valid: false },
         markers_found: 0,
-        error: 'Please upload a JPEG, PNG, WebP image, or PDF.',
+        error: 'Please upload a photo or screenshot (JPEG, PNG, WebP). PDFs are not supported - please take a photo of your lab report instead.',
       }, { status: 400 })
     }
 
@@ -246,19 +248,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       apiKey: process.env.OPENAI_API_KEY,
     })
 
-    // For PDFs, use base64 encoding; for images, use the signed URL
-    const isPdf = file.type === 'application/pdf'
-    let imageUrl: string
-
-    if (isPdf) {
-      // Convert PDF to base64 for OpenAI
-      const base64 = Buffer.from(fileBuffer).toString('base64')
-      imageUrl = `data:application/pdf;base64,${base64}`
-    } else {
-      // Use signed URL for images
-      imageUrl = signedUrlData.signedUrl
-    }
-
     let analysis: RawLabAnalysis
     try {
       const completion = await openai.chat.completions.create({
@@ -278,7 +267,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
               {
                 type: 'image_url',
                 image_url: {
-                  url: imageUrl,
+                  url: signedUrlData.signedUrl,
                   detail: 'high' as const,
                 },
               },
