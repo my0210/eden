@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { PrimeScorecard, PrimeDomain, PRIME_DOMAINS } from '@/lib/prime-scorecard/types'
-import { domainDisplay, expectedMetricsByDomain, metricDisplay, MetricCode } from '@/lib/prime-scorecard/metrics'
+import { domainDisplay } from '@/lib/prime-scorecard/metrics'
+import driverRegistry from '@/lib/prime-scorecard/scoring/driver-registry.json'
 
 interface ScorecardViewProps {
   scorecard: PrimeScorecard
@@ -61,19 +62,28 @@ function formatTimestamp(isoString: string): string {
 }
 
 /**
- * Count contributing metrics for a domain
+ * Get expected drivers for a domain from the driver registry
  */
-function countContributingMetrics(scorecard: PrimeScorecard, domain: PrimeDomain): { 
+function getExpectedDriversForDomain(domain: PrimeDomain): string[] {
+  return Object.entries(driverRegistry.drivers)
+    .filter(([_, config]) => (config as { domain: string }).domain === domain)
+    .map(([key]) => key)
+}
+
+/**
+ * Count contributing drivers for a domain
+ */
+function countContributingDrivers(scorecard: PrimeScorecard, domain: PrimeDomain): { 
   contributing: number
   expected: number 
 } {
-  const expected = expectedMetricsByDomain[domain].length
+  const expectedDrivers = getExpectedDriversForDomain(domain)
   const domainEvidence = scorecard.evidence.filter(
     e => e.domain === domain && e.value_raw !== undefined && e.subscore !== undefined
   )
-  // Count unique metric codes that have actual values
+  // Count unique driver keys that have actual values
   const contributing = new Set(domainEvidence.map(e => e.metric_code)).size
-  return { contributing, expected }
+  return { contributing, expected: expectedDrivers.length }
 }
 
 /**
@@ -97,7 +107,7 @@ function DomainCard({
   const confidence = scorecard.domain_confidence[domain]
   const confidenceInfo = getConfidenceLabel(confidence)
   const howCalculated = scorecard.how_calculated[domain]
-  const { contributing, expected } = countContributingMetrics(scorecard, domain)
+  const { contributing, expected } = countContributingDrivers(scorecard, domain)
 
   return (
     <div className="bg-white rounded-xl border border-[#E5E5EA] overflow-hidden">
@@ -110,7 +120,7 @@ function DomainCard({
           <div className="text-left">
             <span className="text-[17px] font-semibold text-black block">{display.label}</span>
             <span className="text-[13px] text-[#8E8E93]">
-              {contributing}/{expected} metrics • {confidenceInfo.label} confidence
+              {contributing}/{expected} drivers • {confidenceInfo.label} confidence
             </span>
           </div>
         </div>
@@ -162,13 +172,13 @@ export default function ScorecardView({
   const primeConfidenceInfo = getConfidenceLabel(primeConfidence)
   const freshestTimestamp = getFreshestTimestamp(scorecard)
 
-  // Count total contributing metrics
+  // Count total contributing drivers
   const totalContributing = PRIME_DOMAINS.reduce((sum, d) => {
-    const { contributing } = countContributingMetrics(scorecard, d)
+    const { contributing } = countContributingDrivers(scorecard, d)
     return sum + contributing
   }, 0)
   const totalExpected = PRIME_DOMAINS.reduce((sum, d) => {
-    return sum + expectedMetricsByDomain[d].length
+    return sum + getExpectedDriversForDomain(d).length
   }, 0)
 
   return (
@@ -190,7 +200,7 @@ export default function ScorecardView({
         </div>
 
         <div className="text-[13px] text-[#8E8E93] space-y-1">
-          <p>Based on {totalContributing}/{totalExpected} expected metrics</p>
+          <p>Based on {totalContributing}/{totalExpected} drivers</p>
           {freshestTimestamp && (
             <p>Latest data: {formatTimestamp(freshestTimestamp)}</p>
           )}
