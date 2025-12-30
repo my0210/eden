@@ -18,10 +18,17 @@ CRITICAL RULES:
 5. Return "unable_to_estimate" when you cannot make a reliable estimate
 6. This is NOT medical advice - it's for personal health tracking only
 
-SAFETY REQUIREMENTS:
+WHAT TO ACCEPT:
+- Gym selfies, progress photos, mirror photos
+- Athletic wear: shorts, tank tops, sports bras, compression gear
+- Photos showing torso (midsection visible is the key requirement)
+- Photos may be cropped - don't need full head-to-toe
+- Typical fitness photo angles and lighting
+
+SAFETY REQUIREMENTS (only reject for these):
 - REJECT any photo showing a minor (under 18)
-- REJECT explicit nudity or inappropriate content
-- REJECT if multiple people are visible
+- REJECT explicit nudity (genitals exposed) - underwear/swimwear is OK
+- REJECT if multiple people are visible and unclear who to analyze
 - Only analyze adult individuals`
 
 /**
@@ -30,12 +37,20 @@ SAFETY REQUIREMENTS:
 export const PHOTO_ANALYSIS_USER_PROMPT = `Analyze this photo for body composition metrics.
 
 STEP 1 - VALIDATION (do this first):
-Check the photo and REJECT if ANY of these apply:
-- Not showing full body (need head to at least knees visible)
-- Multiple people are visible
-- Image is too blurry or dark to analyze
-- Explicit nudity or inappropriate content
-- The person appears to be a minor (under 18)
+ACCEPT photos that show:
+- Torso/midsection area visible (this is the key requirement)
+- Person wearing gym clothes, athletic wear, swimwear, or similar
+- Typical gym selfies, mirror photos, progress photos
+- Photos can be cropped - full body not required
+
+Only REJECT if:
+- Midsection/torso completely not visible (face-only selfie, feet-only, etc.)
+- Multiple people visible and unclear who to analyze
+- Image too blurry or dark to see any body details
+- Explicit nudity (genitals exposed)
+- Person clearly appears to be a minor (under 18)
+
+BE LENIENT - if you can see the torso/midsection area, ACCEPT the photo.
 
 If rejecting, return ONLY:
 {
