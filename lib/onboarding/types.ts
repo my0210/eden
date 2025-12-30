@@ -116,7 +116,6 @@ export interface FramePrimeCheck {
   pain_limitation?: PainLimitation
   // Measurement (optional)
   waist_cm?: number
-  waist_measured_correctly?: boolean
   // Photo analysis (optional)
   photo_analysis?: PhotoAnalysisResult
 }

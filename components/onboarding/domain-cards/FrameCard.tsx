@@ -18,7 +18,6 @@ interface FrameCardProps {
     pushup_capability?: PushupCapability
     structural_integrity?: StructuralIntegrityEntry
     waist_cm?: number
-    waist_measured_correctly?: boolean
     photo_analysis?: PhotoAnalysisResult
   }
   appleHealthData?: {
@@ -29,7 +28,6 @@ interface FrameCardProps {
     pushup_capability?: PushupCapability
     structural_integrity?: StructuralIntegrityEntry
     waist_cm?: number
-    waist_measured_correctly?: boolean
     photo_analysis?: PhotoAnalysisResult
   }) => void
   userWeightKg?: number
@@ -94,9 +92,6 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
   )
   
   const [waistCm, setWaistCm] = useState<number | ''>(initialData?.waist_cm || '')
-  const [waistMeasuredCorrectly, setWaistMeasuredCorrectly] = useState(
-    initialData?.waist_measured_correctly || false
-  )
   const [photoAnalysis, setPhotoAnalysis] = useState<PhotoAnalysisResult | undefined>(
     initialData?.photo_analysis
   )
@@ -105,14 +100,12 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
     pushup_capability: PushupCapability
     structural_integrity: StructuralIntegrityEntry
     waist_cm: number
-    waist_measured_correctly: boolean
     photo_analysis: PhotoAnalysisResult
   }>) => {
     const data: {
       pushup_capability?: PushupCapability
       structural_integrity?: StructuralIntegrityEntry
       waist_cm?: number
-      waist_measured_correctly?: boolean
       photo_analysis?: PhotoAnalysisResult
     } = {
       pushup_capability: updates.pushup_capability ?? pushupCapability,
@@ -132,7 +125,6 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
     const waist = updates.waist_cm ?? waistCm
     if (waist) {
       data.waist_cm = Number(waist)
-      data.waist_measured_correctly = updates.waist_measured_correctly ?? waistMeasuredCorrectly
     }
 
     const photo = updates.photo_analysis ?? photoAnalysis
@@ -363,6 +355,7 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
           <div className="flex gap-3 items-center">
             <input
               type="number"
+              inputMode="numeric"
               value={waistCm}
               onChange={e => {
                 const v = e.target.value ? Number(e.target.value) : ''
@@ -370,24 +363,12 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
               }}
               onBlur={() => emitChange({})}
               placeholder="85"
-              className="w-24 px-3 py-2 text-[15px] text-black bg-white border border-[#C6C6C8] rounded-lg focus:border-[#5856D6] outline-none"
+              className="w-24 px-3 py-2.5 text-[17px] text-center text-black bg-white border border-[#C6C6C8] rounded-xl focus:border-[#5856D6] outline-none"
             />
             <span className="text-[15px] text-[#8E8E93]">cm</span>
-            <label className="flex items-center gap-2 text-[13px] text-[#3C3C43] ml-auto">
-              <input
-                type="checkbox"
-                checked={waistMeasuredCorrectly}
-                onChange={e => {
-                  setWaistMeasuredCorrectly(e.target.checked)
-                  emitChange({ waist_measured_correctly: e.target.checked })
-                }}
-                className="w-4 h-4 rounded border-[#C6C6C8] text-[#5856D6] focus:ring-[#5856D6]"
-              />
-              At navel, relaxed
-            </label>
           </div>
-          <p className="text-[11px] text-[#8E8E93]">
-            Measure at navel level while standing relaxed, not sucking in.
+          <p className="text-[12px] text-[#8E8E93]">
+            At navel level, standing relaxed
           </p>
         </div>
 
