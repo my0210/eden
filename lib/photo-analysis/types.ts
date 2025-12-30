@@ -35,13 +35,13 @@ export interface PhotoValidationResult {
  * User-facing messages for different rejection reasons
  */
 export const REJECTION_MESSAGES: Record<PhotoRejectionReason, string> = {
-  not_full_body: 'Please upload a photo showing your full body for accurate analysis.',
+  not_full_body: 'Please upload a photo showing your torso/midsection area. Gym selfies and progress photos work great!',
   multiple_people: 'Please upload a photo with only yourself visible.',
-  too_blurry: 'The photo quality isn\'t clear enough. Try better lighting or a steadier shot.',
-  too_dark: 'The photo is too dark. Please try again with better lighting.',
-  inappropriate_content: 'Please upload a photo with appropriate clothing.',
+  too_blurry: 'The photo is a bit blurry. Try better lighting or hold the camera steadier.',
+  too_dark: 'The photo is too dark. Try again with better lighting.',
+  inappropriate_content: 'Please upload a photo with appropriate clothing (gym wear, swimwear, etc. are fine).',
   appears_minor: 'For safety reasons, we cannot analyze photos that appear to show minors.',
-  other: 'We couldn\'t analyze this photo. Please try a different one.',
+  other: 'We couldn\'t analyze this photo. Please try a different angle or lighting.',
 }
 
 // ============================================================================
