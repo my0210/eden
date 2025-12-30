@@ -350,7 +350,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
       // Clean up: delete uploaded file from OpenAI if it was a PDF
       if (uploadedFileId) {
         try {
-          await openai.files.del(uploadedFileId)
+          await openai.files.delete(uploadedFileId)
         } catch {
           // Ignore cleanup errors
         }
@@ -368,7 +368,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<LabAnalys
     // 9. Clean up OpenAI file (we're done with it)
     if (uploadedFileId) {
       try {
-        await openai.files.del(uploadedFileId)
+        await openai.files.delete(uploadedFileId)
       } catch {
         // Ignore cleanup errors
       }
