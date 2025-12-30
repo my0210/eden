@@ -110,7 +110,7 @@ export default function LabUploadAnalyzer({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,application/pdf"
+          accept="image/*"
           onChange={handleInputChange}
           className="hidden"
         />
@@ -125,7 +125,7 @@ export default function LabUploadAnalyzer({
             Upload Lab Results
           </h3>
           <p className="text-[13px] text-[#8E8E93]">
-            Photo, screenshot, or PDF of your lab report
+            Photo or screenshot of your lab report
           </p>
         </div>
 
