@@ -265,6 +265,18 @@ export function calculateDomainConfidence(
     }
   }
   
+  // Recovery domain: if device sleep data present (Apple Watch/sleep tracker),
+  // boost confidence since this is objective measurement from a sleep tracker
+  if (domain === 'recovery') {
+    const hasDeviceSleepData = domainResults.some(r => 
+      r.driver_key === 'sleep_duration' && r.source_type === 'device'
+    )
+    if (hasDeviceSleepData) {
+      // Sleep tracker data is comprehensive - boost to High threshold minimum
+      rawConfidence = Math.max(rawConfidence, CONFIDENCE_THRESHOLDS.HIGH)
+    }
+  }
+  
   // Clamp to valid range
   const confidence = Math.max(0, Math.min(100, Math.round(rawConfidence)))
   
