@@ -77,12 +77,12 @@ export default function DashboardScorecard() {
     }
   }
 
-  async function handleGenerate() {
+  async function handleGenerate(force = false) {
     setGenerating(true)
     setError(null)
 
     try {
-      const res = await fetch('/api/prime-scorecard/generate', {
+      const res = await fetch(`/api/prime-scorecard/generate${force ? '?force=true' : ''}`, {
         method: 'POST',
       })
 
@@ -206,7 +206,7 @@ export default function DashboardScorecard() {
             </div>
           )}
           <button
-            onClick={handleGenerate}
+            onClick={() => handleGenerate(true)}
             disabled={generating}
             className="text-[13px] text-[#007AFF] font-medium hover:opacity-70 disabled:opacity-50"
           >

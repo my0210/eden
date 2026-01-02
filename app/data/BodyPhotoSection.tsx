@@ -106,6 +106,8 @@ export default function BodyPhotoSection() {
       }
 
       await loadUploads()
+      // Trigger scorecard refresh so Frame domain picks up the new photo analysis
+      window.dispatchEvent(new Event('scorecard-updated'))
     } catch (err) {
       console.error('Upload error:', err)
       setError('Something went wrong')

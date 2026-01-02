@@ -52,6 +52,24 @@ function getFreshestEvidenceTimestamp(scorecard: PrimeScorecard): string | null 
 }
 
 /**
+ * Create a simple hash of prime_check_json for cache invalidation
+ * We use photo_analysis.analyzed_at as a quick check for photo changes
+ */
+function getPrimeCheckCacheKey(primeCheck?: Record<string, unknown>): string {
+  if (!primeCheck) return 'none'
+  
+  // Check for photo_analysis timestamp
+  const frame = primeCheck.frame as { photo_analysis?: { analyzed_at?: string } } | undefined
+  const photoAnalyzedAt = frame?.photo_analysis?.analyzed_at || ''
+  
+  // Check for lab data timestamp
+  const metabolism = primeCheck.metabolism as { labs_uploaded_at?: string } | undefined
+  const labsAt = metabolism?.labs_uploaded_at || ''
+  
+  return `photo:${photoAnalyzedAt}|labs:${labsAt}`
+}
+
+/**
  * POST /api/prime-scorecard/generate
  * 
  * Generates a new Prime Scorecard from current evidence.
@@ -84,7 +102,11 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle()
 
-    if (latestScorecard) {
+    // Check for force refresh parameter
+    const url = new URL(req.url)
+    const forceRefresh = url.searchParams.get('force') === 'true'
+
+    if (latestScorecard && !forceRefresh) {
       const existing = latestScorecard.scorecard_json as PrimeScorecard
       const generatedAt = new Date(latestScorecard.generated_at).getTime()
       const now = new Date(nowIso).getTime()
@@ -101,7 +123,12 @@ export async function POST(req: NextRequest) {
           ? inputs.metrics[0].measured_at // Sorted by measured_at desc
           : null
 
-        if (existingFreshest === newInputsFreshest) {
+        // Also check if prime_check has changed (e.g., new photo analysis)
+        const newPrimeCheckKey = getPrimeCheckCacheKey(inputs.prime_check as Record<string, unknown> | undefined)
+        // Compare with stored key or default to 'none' for old scorecards
+        const existingPrimeCheckKey = (existing as unknown as { _prime_check_key?: string })._prime_check_key || 'none'
+
+        if (existingFreshest === newInputsFreshest && existingPrimeCheckKey === newPrimeCheckKey) {
           // Return existing scorecard instead of creating new one
           return NextResponse.json({ 
             scorecard: existing, 
@@ -114,6 +141,10 @@ export async function POST(req: NextRequest) {
 
     // Compute new scorecard
     const scorecard = computePrimeScorecard(inputs, nowIso, SCORING_REVISION)
+    
+    // Store prime_check_key for cache invalidation on future requests
+    const primeCheckKey = getPrimeCheckCacheKey(inputs.prime_check as Record<string, unknown> | undefined)
+    ;(scorecard as unknown as { _prime_check_key: string })._prime_check_key = primeCheckKey
 
     // Persist to eden_user_scorecards
     const { data: insertedRow, error: insertError } = await supabase
