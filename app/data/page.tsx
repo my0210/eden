@@ -26,8 +26,6 @@ export default async function DataPage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
-        <h1 className="text-[28px] font-bold tracking-tight text-black mb-6">Data</h1>
-
         <div className="space-y-6">
           {/* Profile - Basic info */}
           <ProfileSection />
