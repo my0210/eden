@@ -285,8 +285,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<PhotoAnal
         },
       }
 
+      // Debug log what we're storing
+      console.log('[Photo Analyze] Storing photo_analysis:', JSON.stringify(photoAnalysisForScoring))
+      console.log('[Photo Analyze] Updated prime_check_json.frame:', JSON.stringify(updatedPrimeCheck.frame))
+      console.log('[Photo Analyze] schema_version:', updatedPrimeCheck.schema_version)
+
       // Upsert to eden_user_state
-      await supabase
+      const { error: upsertError } = await supabase
         .from('eden_user_state')
         .upsert(
           { 
@@ -295,6 +300,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<PhotoAnal
           },
           { onConflict: 'user_id' }
         )
+      
+      if (upsertError) {
+        console.error('[Photo Analyze] Upsert error:', upsertError)
+      } else {
+        console.log('[Photo Analyze] Successfully updated prime_check_json')
+      }
     } catch (updateErr) {
       // Non-fatal: log but don't fail the request
       console.error('Failed to update prime_check_json with photo analysis:', updateErr)

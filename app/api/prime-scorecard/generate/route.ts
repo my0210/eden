@@ -139,8 +139,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Debug: Log what we're working with
+    console.log('[Scorecard Generate] schema_version:', inputs.prime_check?.schema_version)
+    console.log('[Scorecard Generate] has frame:', !!inputs.prime_check?.frame)
+    console.log('[Scorecard Generate] has photo_analysis:', !!(inputs.prime_check?.frame as { photo_analysis?: unknown })?.photo_analysis)
+    if ((inputs.prime_check?.frame as { photo_analysis?: { body_fat_range?: unknown } })?.photo_analysis) {
+      const pa = (inputs.prime_check?.frame as { photo_analysis: { body_fat_range?: { low: number; high: number } } }).photo_analysis
+      console.log('[Scorecard Generate] photo_analysis.body_fat_range:', pa.body_fat_range)
+    }
+
     // Compute new scorecard
     const scorecard = computePrimeScorecard(inputs, nowIso, SCORING_REVISION)
+    
+    // Debug: Log frame how_calculated to see what drivers were used
+    console.log('[Scorecard Generate] frame how_calculated:', scorecard.how_calculated.frame)
     
     // Store prime_check_key for cache invalidation on future requests
     const primeCheckKey = getPrimeCheckCacheKey(inputs.prime_check as Record<string, unknown> | undefined)
