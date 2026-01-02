@@ -165,7 +165,7 @@ export default function DashboardScorecard() {
             No scorecard generated yet. Generate your first Prime Scorecard to see your health overview.
           </p>
           <button
-            onClick={handleGenerate}
+            onClick={() => handleGenerate()}
             disabled={generating}
             className="bg-[#007AFF] text-white py-2 px-6 rounded-lg text-[15px] font-semibold hover:bg-[#0066DD] transition-colors disabled:opacity-50"
           >
