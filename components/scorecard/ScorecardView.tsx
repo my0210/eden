@@ -21,6 +21,32 @@ const domainDisplay: Record<PrimeDomain, { label: string; icon: string; color: s
 }
 
 /**
+ * Domain descriptions explaining what each domain measures and why it matters
+ */
+const domainDescriptions: Record<PrimeDomain, { what: string; why: string }> = {
+  heart: {
+    what: 'Cardiovascular fitness, blood pressure, heart rate variability, and aerobic capacity.',
+    why: 'Heart health is the #1 predictor of longevity. Strong cardiovascular function reduces risk of heart disease, stroke, and cognitive decline.',
+  },
+  frame: {
+    what: 'Body composition, muscle mass, and structural health including bone density and posture.',
+    why: 'Maintaining muscle mass and healthy body composition protects against frailty, metabolic disease, and preserves mobility as you age.',
+  },
+  metabolism: {
+    what: 'Blood sugar regulation, lipid profile, and inflammatory markers.',
+    why: 'Metabolic health underlies most chronic diseases. Optimal markers dramatically reduce risk of diabetes, heart disease, and cancer.',
+  },
+  recovery: {
+    what: 'Sleep quality, duration, consistency, and autonomic recovery measured through HRV.',
+    why: 'Recovery is when your body repairs and regenerates. Poor sleep accelerates aging and impairs every other health domain.',
+  },
+  mind: {
+    what: 'Cognitive function, focus, mood stability, and stress resilience.',
+    why: 'Mental clarity and emotional wellbeing are essential for quality of life. Cognitive health predicts independence in later years.',
+  },
+}
+
+/**
  * Upgrade action suggestions by domain
  */
 const upgradeActions: Record<PrimeDomain, string> = {
@@ -212,11 +238,21 @@ function DomainCard({
       {/* Expanded content with structured sections */}
       {showHowCalculated && expanded && (
         <div className="px-4 py-3 bg-[#F2F2F7] border-t border-[#E5E5EA] space-y-3">
+          {/* Domain explanation */}
+          <div className="space-y-1">
+            <p className="text-[13px] text-[#3C3C43]">
+              <span className="font-medium">What it measures:</span> {domainDescriptions[domain].what}
+            </p>
+            <p className="text-[13px] text-[#8E8E93]">
+              <span className="font-medium text-[#3C3C43]">Why it matters:</span> {domainDescriptions[domain].why}
+            </p>
+          </div>
+
           {/* How calculated with dates */}
           {howCalculated.length > 0 && (
-            <div className="space-y-1">
+            <div className="space-y-1 pt-2 border-t border-[#E5E5EA]">
               <p className="text-[12px] font-medium text-[#8E8E93] uppercase tracking-wide">
-                How we calculated this
+                Your data
               </p>
               {howCalculated.map((line, idx) => {
                 // Find matching evidence for this line to show date
