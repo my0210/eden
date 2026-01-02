@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
 import ProfileMenu from '../dashboard/ProfileMenu'
 import ResetUserDataCard from './ResetUserDataCard'
+import QuickChecksSection from './QuickChecksSection'
 import AppleHealthSection from './AppleHealthSection'
 import BodyPhotoSection from './BodyPhotoSection'
 import LabSection from './LabSection'
@@ -27,6 +28,9 @@ export default async function DataPage() {
         <h1 className="text-[28px] font-bold tracking-tight text-black mb-6">Data Sources</h1>
 
         <div className="space-y-6">
+          {/* Quick Checks - Onboarding Answers */}
+          <QuickChecksSection />
+
           {/* Apple Health Section */}
           <AppleHealthSection />
 
