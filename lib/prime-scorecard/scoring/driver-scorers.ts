@@ -70,15 +70,33 @@ function scorePercentile(
   userAge?: number,
   userSex?: string
 ): { score: number } {
-  // Percentile method requires numeric values
-  if (typeof value !== 'number') {
-    return { score: 50 }
+  // Percentile method requires numeric values (and NaN check since typeof NaN === 'number')
+  if (typeof value !== 'number' || isNaN(value)) {
+    return { score: config.default_score ?? 50 }
   }
   
-  // For v1, use a simplified scoring based on population averages
-  // TODO: Implement proper percentile lookup tables
+  // For lean_mass specifically, use a simplified percentile estimation
+  // based on typical ranges by sex
+  if (config.percentile_table === 'lean_mass_by_age_sex') {
+    // Typical lean mass ranges:
+    // Male: 50-70 kg is average, 70+ is above average
+    // Female: 35-50 kg is average, 50+ is above average
+    const isMale = userSex === 'male'
+    const minLean = isMale ? 45 : 32
+    const maxLean = isMale ? 80 : 60
+    const midLean = (minLean + maxLean) / 2
+    
+    // Map to 0-100 score (higher lean mass = higher score, capped at bounds)
+    if (value <= minLean) return { score: 30 }
+    if (value >= maxLean) return { score: 95 }
+    
+    // Linear interpolation between min and max
+    const normalized = (value - minLean) / (maxLean - minLean)
+    const score = Math.round(30 + normalized * 65) // 30-95 range
+    return { score }
+  }
   
-  // This is a placeholder that maps the raw value directly to a score
+  // For other percentile tables, use default behavior
   // In production, this would lookup age/sex-specific percentile tables
   const score = Math.max(0, Math.min(100, value))
   

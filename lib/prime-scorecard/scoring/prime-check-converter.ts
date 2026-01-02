@@ -329,21 +329,26 @@ function convertFrameData(
 
     // Lean mass -> lean_mass driver
     if (photoAnalysis.lean_mass_range_kg) {
-      const midpoint = (photoAnalysis.lean_mass_range_kg.low + photoAnalysis.lean_mass_range_kg.high) / 2
-      observations.push({
-        driver_key: 'lean_mass',
-        value: midpoint,
-        unit: 'kg',
-        measured_at: photoDate,
-        source_type: 'image_estimate',
-        metadata: {
-          entry_method: 'body_photo_analysis',
-          upload_id: photoAnalysis.upload_id,
-          derived_from: 'body_fat_estimate + weight',
-          range_low: photoAnalysis.lean_mass_range_kg.low,
-          range_high: photoAnalysis.lean_mass_range_kg.high,
-        },
-      })
+      const low = photoAnalysis.lean_mass_range_kg.low
+      const high = photoAnalysis.lean_mass_range_kg.high
+      // Only create observation if we have valid numbers
+      if (typeof low === 'number' && typeof high === 'number' && !isNaN(low) && !isNaN(high)) {
+        const midpoint = (low + high) / 2
+        observations.push({
+          driver_key: 'lean_mass',
+          value: midpoint,
+          unit: 'kg',
+          measured_at: photoDate,
+          source_type: 'image_estimate',
+          metadata: {
+            entry_method: 'body_photo_analysis',
+            upload_id: photoAnalysis.upload_id,
+            derived_from: 'body_fat_estimate + weight',
+            range_low: low,
+            range_high: high,
+          },
+        })
+      }
     }
 
     // Midsection adiposity -> waist_to_height proxy (only if no measured waist)
