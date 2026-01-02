@@ -328,9 +328,11 @@ function convertFrameData(
     }
 
     // Lean mass -> lean_mass driver
+    // Note: lean_mass_range_kg can have either {low, high} or {range_low, range_high} format
     if (photoAnalysis.lean_mass_range_kg) {
-      const low = photoAnalysis.lean_mass_range_kg.low
-      const high = photoAnalysis.lean_mass_range_kg.high
+      const leanMass = photoAnalysis.lean_mass_range_kg as { low?: number; high?: number; range_low?: number; range_high?: number }
+      const low = leanMass.low ?? leanMass.range_low
+      const high = leanMass.high ?? leanMass.range_high
       // Only create observation if we have valid numbers
       if (typeof low === 'number' && typeof high === 'number' && !isNaN(low) && !isNaN(high)) {
         const midpoint = (low + high) / 2

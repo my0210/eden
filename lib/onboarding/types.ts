@@ -102,7 +102,7 @@ export interface PhotoAnalysisResult {
   /** Midsection adiposity level (direct from image) → waist_to_height proxy */
   midsection_adiposity?: MidsectionAdiposityLevel
   /** Lean body mass range in kg (derived from weight + body fat) → lean_mass driver */
-  lean_mass_range_kg?: { low: number; high: number }
+  lean_mass_range_kg?: { low: number; high: number } | { range_low: number; range_high: number }
   /** ISO timestamp when analysis was performed */
   analyzed_at: string
 }
