@@ -277,6 +277,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<PhotoAnal
       
       const updatedPrimeCheck = {
         ...currentPrimeCheck,
+        // Ensure schema_version exists so scoring uses V3 flow with photo analysis
+        schema_version: currentPrimeCheck.schema_version || 1,
         frame: {
           ...currentFrame,
           photo_analysis: photoAnalysisForScoring,

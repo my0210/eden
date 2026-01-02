@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 
 type UploadStatus = 'pending' | 'completed' | 'failed'
 
@@ -31,6 +31,22 @@ export default function BodyPhotoSection() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [consentChecked, setConsentChecked] = useState(false)
+  const [userWeightKg, setUserWeightKg] = useState<number | null>(null)
+
+  // Fetch user's weight for lean mass calculation
+  const loadUserWeight = useCallback(async () => {
+    try {
+      const res = await fetch('/api/user/identity')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.weight) {
+          setUserWeightKg(data.weight)
+        }
+      }
+    } catch (err) {
+      console.error('Error loading user weight:', err)
+    }
+  }, [])
 
   const loadUploads = async () => {
     try {
@@ -48,7 +64,8 @@ export default function BodyPhotoSection() {
 
   useEffect(() => {
     loadUploads()
-  }, [])
+    loadUserWeight()
+  }, [loadUserWeight])
 
   const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return ''
@@ -89,6 +106,9 @@ export default function BodyPhotoSection() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('source', 'data_page')
+      if (userWeightKg) {
+        formData.append('weight_kg', userWeightKg.toString())
+      }
 
       setUploading(false)
       setAnalyzing(true)
