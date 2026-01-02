@@ -240,7 +240,65 @@ export async function POST(request: NextRequest): Promise<NextResponse<PhotoAnal
       // Just return the analysis results
     }
 
-    // 13. Return success response
+    // 13. Update prime_check_json.frame.photo_analysis for scorecard
+    // This is needed so the scoring engine picks up the photo analysis results
+    try {
+      // Get current user state
+      const { data: currentState } = await supabase
+        .from('eden_user_state')
+        .select('prime_check_json')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      // Build photo_analysis object for scoring
+      const bodyFatRange = !isUnableToEstimate(analysis.body_fat_estimate) 
+        ? {
+            low: (analysis.body_fat_estimate as BodyFatEstimate).range_low,
+            high: (analysis.body_fat_estimate as BodyFatEstimate).range_high,
+          }
+        : undefined
+
+      const midsectionAdiposityLevel = 
+        analysis.midsection_adiposity && !isUnableToEstimate(analysis.midsection_adiposity)
+          ? (analysis.midsection_adiposity as { level: string }).level
+          : undefined
+
+      const photoAnalysisForScoring = {
+        upload_id: photoRecord?.id || uuid,
+        body_fat_range: bodyFatRange,
+        midsection_adiposity: midsectionAdiposityLevel,
+        lean_mass_range_kg: derived?.lean_mass_estimate_kg,
+        analyzed_at: new Date().toISOString(),
+      }
+
+      // Merge into prime_check_json.frame
+      const currentPrimeCheck = (currentState?.prime_check_json || {}) as Record<string, unknown>
+      const currentFrame = (currentPrimeCheck.frame || {}) as Record<string, unknown>
+      
+      const updatedPrimeCheck = {
+        ...currentPrimeCheck,
+        frame: {
+          ...currentFrame,
+          photo_analysis: photoAnalysisForScoring,
+        },
+      }
+
+      // Upsert to eden_user_state
+      await supabase
+        .from('eden_user_state')
+        .upsert(
+          { 
+            user_id: user.id, 
+            prime_check_json: updatedPrimeCheck,
+          },
+          { onConflict: 'user_id' }
+        )
+    } catch (updateErr) {
+      // Non-fatal: log but don't fail the request
+      console.error('Failed to update prime_check_json with photo analysis:', updateErr)
+    }
+
+    // 14. Return success response
     return NextResponse.json({
       success: true,
       upload_id: photoRecord?.id || uuid,

@@ -49,7 +49,7 @@ import {
   calculateFreshnessScore,
 } from './resolve-observations'
 import { scoreDriver, getBpCategory, isBpCrisis } from './driver-scorers'
-import { calculateDomainScore, getFastestUpgradeAction, getMissingDrivers } from './domain-score'
+import { calculateDomainScore, getFastestUpgradeAction, getMissingDrivers, shouldSuppressDriver } from './domain-score'
 import { calculateDomainConfidence, calculatePrimeConfidence } from './domain-confidence'
 
 // Import the driver registry
@@ -138,9 +138,19 @@ function buildEvidenceSummary(
   allDriverConfigs: DriverConfig[]
 ): DomainEvidenceSummary {
   // Filter to domain results
-  const domainResults = driverResults.filter(r => {
+  let domainResults = driverResults.filter(r => {
     const config = driverConfigs.get(r.driver_key)
     return config && driverContributesToDomain(config, domain)
+  })
+  
+  // Build set of present driver keys for suppression check
+  const presentDriverKeys = new Set(domainResults.map(r => r.driver_key))
+  
+  // Filter out suppressed fallback drivers (e.g., BMI when body_fat is present)
+  domainResults = domainResults.filter(r => {
+    const config = driverConfigs.get(r.driver_key)
+    if (!config) return false
+    return !shouldSuppressDriver(config, presentDriverKeys)
   })
   
   // Build drivers_used
@@ -364,9 +374,19 @@ function buildHowCalculated(
   }
   
   // Filter to domain results
-  const domainResults = driverResults.filter(r => {
+  let domainResults = driverResults.filter(r => {
     const config = driverConfigs.get(r.driver_key)
     return config && driverContributesToDomain(config, domain)
+  })
+  
+  // Build set of present driver keys for suppression check
+  const presentDriverKeys = new Set(domainResults.map(r => r.driver_key))
+  
+  // Filter out suppressed fallback drivers (e.g., BMI when body_fat is present)
+  domainResults = domainResults.filter(r => {
+    const config = driverConfigs.get(r.driver_key)
+    if (!config) return false
+    return !shouldSuppressDriver(config, presentDriverKeys)
   })
   
   for (const result of domainResults) {

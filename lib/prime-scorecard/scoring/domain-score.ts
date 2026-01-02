@@ -41,15 +41,31 @@ const PRIOR_DOMAIN_SCORES: Record<PrimeDomain, number> = {
 }
 
 /**
+ * Check if a fallback driver should be suppressed
+ * Returns true if the driver has `suppress_if_present` and any of those drivers are present
+ */
+export function shouldSuppressDriver(
+  config: DriverConfig,
+  presentDriverKeys: Set<string>
+): boolean {
+  if (!config.fallback_only || !config.suppress_if_present) {
+    return false
+  }
+  // Suppress if ANY of the suppress_if_present drivers are present
+  return config.suppress_if_present.some(key => presentDriverKeys.has(key))
+}
+
+/**
  * Calculate domain score from driver results
  * 
  * Formula:
  * 1. Let A = set of drivers with scores present
  * 2. If A is empty, return prior score
- * 3. Reallocate weights: w_i_tmp = w_i / sum(w_j for j in A)
- * 4. Apply dominance cap: w_i_capped = min(w_i_tmp, cap_i)
- * 5. Renormalize: w_i_final = w_i_capped / sum(w_k_capped for k in A)
- * 6. DomainScore = sum(w_i_final * s_i for i in A)
+ * 3. Filter out fallback drivers if their primary drivers are present
+ * 4. Reallocate weights: w_i_tmp = w_i / sum(w_j for j in A)
+ * 5. Apply dominance cap: w_i_capped = min(w_i_tmp, cap_i)
+ * 6. Renormalize: w_i_final = w_i_capped / sum(w_k_capped for k in A)
+ * 7. DomainScore = sum(w_i_final * s_i for i in A)
  */
 export function calculateDomainScore(
   domain: PrimeDomain,
@@ -58,9 +74,19 @@ export function calculateDomainScore(
   userProfile?: { age?: number; sex?: string }
 ): { score: number; usingPrior: boolean } {
   // Filter to results for this domain (includes multi-domain drivers)
-  const domainResults = driverResults.filter(r => {
+  let domainResults = driverResults.filter(r => {
     const config = driverConfigs.get(r.driver_key)
     return config && driverContributesToDomain(config, domain)
+  })
+  
+  // Build set of present driver keys for suppression check
+  const presentDriverKeys = new Set(domainResults.map(r => r.driver_key))
+  
+  // Filter out fallback drivers when their primary drivers are present
+  domainResults = domainResults.filter(r => {
+    const config = driverConfigs.get(r.driver_key)
+    if (!config) return false
+    return !shouldSuppressDriver(config, presentDriverKeys)
   })
   
   // Case 2: No observations - use prior
@@ -172,15 +198,27 @@ export function getPriorScore(
 
 /**
  * Calculate which drivers are missing for a domain
+ * Excludes fallback drivers when their primary drivers are present
  */
 export function getMissingDrivers(
   domain: PrimeDomain,
   presentDriverKeys: Set<string>,
   allDriverConfigs: DriverConfig[]
 ): DriverConfig[] {
-  return allDriverConfigs.filter(config => 
-    driverContributesToDomain(config, domain) && !presentDriverKeys.has(config.driver_key)
-  )
+  return allDriverConfigs.filter(config => {
+    // Must be in this domain and not present
+    if (!driverContributesToDomain(config, domain)) return false
+    if (presentDriverKeys.has(config.driver_key)) return false
+    
+    // Don't show fallback drivers as "missing" if their primary drivers are present
+    // e.g., don't say "BMI is missing" if body_fat is present
+    if (config.fallback_only && config.suppress_if_present) {
+      const hasPrimary = config.suppress_if_present.some(key => presentDriverKeys.has(key))
+      if (hasPrimary) return false
+    }
+    
+    return true
+  })
 }
 
 /**
