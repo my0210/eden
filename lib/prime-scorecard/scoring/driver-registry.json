@@ -71,7 +71,7 @@
       "display_name": "Heart Rate Variability",
       "domain_contributions": [
         { "domain": "heart", "weight": 0.15, "dominance_cap": 0.3 },
-        { "domain": "recovery", "weight": 0.15, "dominance_cap": 0.3 }
+        { "domain": "recovery", "weight": 0.30, "dominance_cap": 0.5 }
       ],
       "freshness_half_life_days": 14,
       "missing_copy": "Connect Apple Health for HRV",
@@ -491,8 +491,8 @@
       "domain": "recovery",
       "driver_key": "sleep_duration",
       "display_name": "Sleep Duration",
-      "weight": 0.35,
-      "dominance_cap": 0.5,
+      "weight": 0.45,
+      "dominance_cap": 0.6,
       "freshness_half_life_days": 14,
       "missing_copy": "Add sleep duration",
       "scoring": {
@@ -515,8 +515,8 @@
       "domain": "recovery",
       "driver_key": "sleep_regularity",
       "display_name": "Sleep Regularity",
-      "weight": 0.25,
-      "dominance_cap": 0.4,
+      "weight": 0.15,
+      "dominance_cap": 0.25,
       "freshness_half_life_days": 14,
       "missing_copy": "Rate your sleep regularity",
       "scoring": {
@@ -537,8 +537,8 @@
       "domain": "recovery",
       "driver_key": "insomnia",
       "display_name": "Insomnia Frequency",
-      "weight": 0.25,
-      "dominance_cap": 0.4,
+      "weight": 0.10,
+      "dominance_cap": 0.2,
       "freshness_half_life_days": 30,
       "missing_copy": "Rate insomnia frequency",
       "scoring": {
