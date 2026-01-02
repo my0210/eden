@@ -106,28 +106,6 @@ function formatTimestamp(isoString: string): string {
 }
 
 /**
- * Evidence chip showing source type
- */
-function EvidenceChip({ type }: { type: string }) {
-  const chipConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-    device: { label: 'Device', color: 'text-[#34C759]', bgColor: 'bg-[#34C759]/10' },
-    lab: { label: 'Lab', color: 'text-[#5856D6]', bgColor: 'bg-[#5856D6]/10' },
-    measurement: { label: 'Measurement', color: 'text-[#007AFF]', bgColor: 'bg-[#007AFF]/10' },
-    self_report: { label: 'Self-report', color: 'text-[#FF9500]', bgColor: 'bg-[#FF9500]/10' },
-    estimated: { label: 'Estimated', color: 'text-[#8E8E93]', bgColor: 'bg-[#8E8E93]/10' },
-    pending: { label: 'Pending', color: 'text-[#8E8E93]', bgColor: 'bg-[#8E8E93]/10' },
-  }
-  
-  const config = chipConfig[type] || chipConfig.estimated
-  
-  return (
-    <span className={`text-[11px] px-2 py-0.5 rounded-full ${config.color} ${config.bgColor}`}>
-      {config.label}
-    </span>
-  )
-}
-
-/**
  * Get newest evidence timestamp for a domain
  */
 function getDomainLatestTimestamp(scorecard: PrimeScorecard, domain: PrimeDomain): string | null {
@@ -187,17 +165,6 @@ function DomainCard({
   const howCalculated = scorecard.how_calculated[domain]
   const latestTimestamp = getDomainLatestTimestamp(scorecard, domain)
 
-  // Determine primary evidence type from how_calculated
-  const getEvidenceType = (): string => {
-    const calc = howCalculated.join(' ').toLowerCase()
-    if (calc.includes('device')) return 'device'
-    if (calc.includes('lab')) return 'lab'
-    if (calc.includes('measurement')) return 'measurement'
-    if (calc.includes('self-report') || calc.includes('proxy')) return 'self_report'
-    if (calc.includes('prior') || calc.includes('estimated')) return 'estimated'
-    return 'self_report'
-  }
-
   return (
     <div className="bg-white rounded-xl border border-[#E5E5EA] overflow-hidden">
       <button
@@ -212,10 +179,7 @@ function DomainCard({
             <span className="text-xl">{display.icon}</span>
           </div>
           <div className="text-left">
-            <div className="flex items-center gap-2">
-              <span className="text-[17px] font-semibold text-black">{display.label}</span>
-              <EvidenceChip type={getEvidenceType()} />
-            </div>
+            <span className="text-[17px] font-semibold text-black">{display.label}</span>
             <div className="flex items-center gap-2">
               <span className={`text-[13px] ${confidenceDisplay.color}`}>
                 {confidenceDisplay.label} confidence
