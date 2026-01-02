@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useCallback } from 'react'
-import { LabAnalysisResponse, ExtractedLabValue, MARKER_DISPLAY_NAMES, LabMarkerKey } from '@/lib/lab-analysis/types'
+import { LabAnalysisResponse, ExtractedLabValue, MARKER_DISPLAY_NAMES, MARKER_EXPLANATIONS, LabMarkerKey } from '@/lib/lab-analysis/types'
 
 type UploadState = 'empty' | 'uploading' | 'analyzing' | 'rejected' | 'review' | 'confirmed' | 'error'
 
@@ -42,6 +42,7 @@ export default function LabUploadAnalyzer({
   const [confirming, setConfirming] = useState(false)
   const [editedTestDate, setEditedTestDate] = useState<string>('')
   const [showDateEdit, setShowDateEdit] = useState(false)
+  const [expandedMarker, setExpandedMarker] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -100,6 +101,7 @@ export default function LabUploadAnalyzer({
     setConfirming(false)
     setEditedTestDate('')
     setShowDateEdit(false)
+    setExpandedMarker(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -285,32 +287,70 @@ export default function LabUploadAnalyzer({
 
         {/* Extracted Values */}
         <div className="p-4">
-          <div className="space-y-2">
-            {extractedValues.map((val: ExtractedLabValue, idx: number) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between py-2 border-b border-[#E5E5EA] last:border-0"
-              >
-                <div>
-                  <p className="text-[14px] font-medium text-[#1C1C1E]">
-                    {getMarkerDisplayName(val.marker_key)}
-                  </p>
-                  {val.reference_range && (
-                    <p className="text-[11px] text-[#8E8E93]">
+          <div className="space-y-1">
+            {extractedValues.map((val: ExtractedLabValue, idx: number) => {
+              const markerKey = val.marker_key as LabMarkerKey
+              const explanation = MARKER_EXPLANATIONS[markerKey]
+              const isExpanded = expandedMarker === val.marker_key
+              
+              return (
+                <div key={idx} className="border-b border-[#E5E5EA] last:border-0">
+                  {/* Main row - tappable */}
+                  <button
+                    onClick={() => setExpandedMarker(isExpanded ? null : val.marker_key)}
+                    className="w-full flex items-center justify-between py-2.5 text-left"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-[14px] font-medium text-[#1C1C1E]">
+                        {getMarkerDisplayName(val.marker_key)}
+                      </p>
+                      {explanation && (
+                        <svg 
+                          className={`w-3.5 h-3.5 text-[#8E8E93] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[15px] font-semibold text-[#1C1C1E]">
+                        {val.value} {val.unit}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${getFlagColor(val.flag)}`}>
+                        {getFlagLabel(val.flag)}
+                      </span>
+                    </div>
+                  </button>
+                  
+                  {/* Expanded explanation */}
+                  {isExpanded && explanation && (
+                    <div className="pb-3 pl-0.5 space-y-1.5">
+                      <p className="text-[12px] text-[#3C3C43]">
+                        <span className="font-medium">Measures:</span> {explanation.measures}
+                      </p>
+                      <p className="text-[12px] text-[#3C3C43]">
+                        <span className="font-medium">Why it matters:</span> {explanation.matters}
+                      </p>
+                      {val.reference_range && (
+                        <p className="text-[11px] text-[#8E8E93]">
+                          Reference range: {val.reference_range}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* Show ref range inline if not expanded */}
+                  {!isExpanded && val.reference_range && (
+                    <p className="text-[11px] text-[#8E8E93] pb-2 -mt-1">
                       Ref: {val.reference_range}
                     </p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[15px] font-semibold text-[#1C1C1E]">
-                    {val.value} {val.unit}
-                  </span>
-                  <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${getFlagColor(val.flag)}`}>
-                    {getFlagLabel(val.flag)}
-                  </span>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {state === 'review' && (

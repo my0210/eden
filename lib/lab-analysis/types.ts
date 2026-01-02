@@ -155,3 +155,75 @@ export const MARKER_DISPLAY_NAMES: Record<LabMarkerKey, string> = {
   tsh: 'TSH'
 }
 
+// Explanations for each marker (what it measures + why it matters)
+export const MARKER_EXPLANATIONS: Record<LabMarkerKey, { measures: string; matters: string }> = {
+  apob: {
+    measures: 'Number of atherogenic (artery-clogging) lipoprotein particles in your blood.',
+    matters: 'Best single predictor of cardiovascular risk. Lower is better for heart health.',
+  },
+  hba1c: {
+    measures: 'Average blood sugar over the past 2-3 months.',
+    matters: 'Key marker for diabetes risk and metabolic health. Reflects long-term glucose control.',
+  },
+  hscrp: {
+    measures: 'Systemic inflammation levels in your body.',
+    matters: 'High levels linked to heart disease, metabolic dysfunction, and chronic disease risk.',
+  },
+  ldl: {
+    measures: '"Bad" cholesterol that carries fat to arteries.',
+    matters: 'Elevated LDL contributes to plaque buildup. ApoB is more accurate for risk.',
+  },
+  hdl: {
+    measures: '"Good" cholesterol that removes fat from arteries.',
+    matters: 'Higher levels are protective. Exercise and healthy fats can raise HDL.',
+  },
+  triglycerides: {
+    measures: 'Fat circulating in your bloodstream.',
+    matters: 'High levels indicate metabolic issues, often from excess carbs or alcohol.',
+  },
+  total_cholesterol: {
+    measures: 'Sum of all cholesterol types (LDL + HDL + others).',
+    matters: 'Less useful alone. Ratio to HDL or ApoB is more informative.',
+  },
+  fasting_glucose: {
+    measures: 'Blood sugar level after 8+ hours without eating.',
+    matters: 'Elevated fasting glucose is an early sign of insulin resistance.',
+  },
+  fasting_insulin: {
+    measures: 'Insulin level after 8+ hours without eating.',
+    matters: 'High fasting insulin often precedes high glucose—early metabolic warning sign.',
+  },
+  alt: {
+    measures: 'Liver enzyme released when liver cells are damaged.',
+    matters: 'Elevated ALT can indicate fatty liver disease or liver stress.',
+  },
+  ast: {
+    measures: 'Enzyme found in liver, heart, and muscles.',
+    matters: 'Elevated levels may indicate liver or muscle damage. Often checked with ALT.',
+  },
+  ggt: {
+    measures: 'Liver enzyme involved in detoxification.',
+    matters: 'Elevated GGT is linked to liver disease, metabolic syndrome, and alcohol use.',
+  },
+  egfr: {
+    measures: 'How well your kidneys filter waste from blood.',
+    matters: 'Lower values indicate reduced kidney function. Important for overall health.',
+  },
+  creatinine: {
+    measures: 'Waste product from muscle metabolism filtered by kidneys.',
+    matters: 'Used to calculate eGFR. High levels may indicate kidney issues.',
+  },
+  vitamin_d: {
+    measures: 'Hormone-like vitamin essential for bones and immune function.',
+    matters: 'Deficiency is common and linked to fatigue, weak bones, and immune issues.',
+  },
+  vitamin_b12: {
+    measures: 'Vitamin essential for nerve function and red blood cells.',
+    matters: 'Deficiency causes fatigue, numbness, and cognitive issues. Common in vegans.',
+  },
+  tsh: {
+    measures: 'Thyroid-stimulating hormone that controls metabolism.',
+    matters: 'High TSH suggests underactive thyroid; low TSH suggests overactive.',
+  },
+}
+
