@@ -512,10 +512,10 @@ export default function QuickChecksSection() {
   return (
     <section>
       <h2 className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-wide mb-3">
-        Quick Checks
+        Prime Check
       </h2>
       <p className="text-[14px] text-[#8E8E93] mb-3">
-        Answers from your onboarding. Edit anytime to update your scores.
+        Your health assessment answers. Edit anytime to update your scores.
       </p>
       
       <div className="space-y-2">

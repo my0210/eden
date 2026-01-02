@@ -299,6 +299,21 @@ export default function BodyPhotoSection() {
         )}
       </div>
 
+      {/* DEXA Scan Coming Soon */}
+      <div className="mt-3 bg-white rounded-xl border border-[#E5E5EA] p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#E5E5EA] flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-[#8E8E93]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-[17px] font-semibold text-[#8E8E93]">DEXA Scan</h3>
+            <p className="text-[14px] text-[#AEAEB2]">Coming soon — upload DEXA results for precise body composition</p>
+          </div>
+        </div>
+      </div>
+
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">

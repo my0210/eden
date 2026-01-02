@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
 import ProfileMenu from '../dashboard/ProfileMenu'
 import ResetUserDataCard from './ResetUserDataCard'
+import ProfileSection from './ProfileSection'
 import QuickChecksSection from './QuickChecksSection'
 import AppleHealthSection from './AppleHealthSection'
 import BodyPhotoSection from './BodyPhotoSection'
@@ -25,22 +26,25 @@ export default async function DataPage() {
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
-        <h1 className="text-[28px] font-bold tracking-tight text-black mb-6">Data Sources</h1>
+        <h1 className="text-[28px] font-bold tracking-tight text-black mb-6">Data</h1>
 
         <div className="space-y-6">
-          {/* Quick Checks - Onboarding Answers */}
+          {/* Profile - Basic info */}
+          <ProfileSection />
+
+          {/* Prime Check - Health assessment answers */}
           <QuickChecksSection />
 
-          {/* Apple Health Section */}
+          {/* Apple Health */}
           <AppleHealthSection />
 
-          {/* Body Photo Section */}
+          {/* Body Composition */}
           <BodyPhotoSection />
 
-          {/* Lab Results Section */}
+          {/* Lab Reports */}
           <LabSection />
 
-          {/* Coming Soon */}
+          {/* Coming Soon - Wearables */}
           <section>
             <h2 className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-wide mb-3">Coming Soon</h2>
             <div className="bg-white rounded-xl shadow-sm p-4 border border-[#E5E5EA]">
