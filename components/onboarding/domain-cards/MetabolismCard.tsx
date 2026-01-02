@@ -7,7 +7,7 @@ import {
   MetabolismMedication,
   LabsEntry,
 } from '@/lib/onboarding/types'
-import { LabAnalysisResponse, ExtractedLabValue, MARKER_DISPLAY_NAMES, LabMarkerKey } from '@/lib/lab-analysis/types'
+import { LabAnalysisResponse, ExtractedLabValue, MARKER_DISPLAY_NAMES, MARKER_EXPLANATIONS, LabMarkerKey } from '@/lib/lab-analysis/types'
 
 interface MetabolismCardProps {
   initialData?: {
@@ -119,6 +119,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
   const [extractedValues, setExtractedValues] = useState<ExtractedLabValue[]>([])
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [expandedMarker, setExpandedMarker] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const emitChange = (updates: Partial<{
@@ -337,14 +338,48 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                 {extractedValues.length} values extracted
               </div>
               
-              {/* Extracted values grid */}
-              <div className="grid grid-cols-2 gap-2">
-                {extractedValues.map((val, idx) => (
-                  <div key={idx} className="p-2 bg-white/60 rounded-lg">
-                    <p className="text-[11px] text-[#3C3C43]/70">{getMarkerDisplayName(val.marker_key)}</p>
-                    <p className="text-[14px] font-semibold text-[#1C1C1E]">{val.value} {val.unit}</p>
-                  </div>
-                ))}
+              {/* Extracted values - tap for explanation */}
+              <div className="space-y-1">
+                {extractedValues.map((val, idx) => {
+                  const markerKey = val.marker_key as LabMarkerKey
+                  const explanation = MARKER_EXPLANATIONS[markerKey]
+                  const isExpanded = expandedMarker === val.marker_key
+                  
+                  return (
+                    <div key={idx} className="bg-white/60 rounded-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedMarker(isExpanded ? null : val.marker_key)}
+                        className="w-full p-2 flex items-center justify-between text-left"
+                      >
+                        <div className="flex items-center gap-1">
+                          <p className="text-[12px] text-[#3C3C43]/70">{getMarkerDisplayName(val.marker_key)}</p>
+                          {explanation && (
+                            <svg 
+                              className={`w-3 h-3 text-[#8E8E93] transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          )}
+                        </div>
+                        <p className="text-[14px] font-semibold text-[#1C1C1E]">{val.value} {val.unit}</p>
+                      </button>
+                      {isExpanded && explanation && (
+                        <div className="px-2 pb-2 space-y-1 border-t border-[#E5E5EA]/50">
+                          <p className="text-[11px] text-[#3C3C43] pt-1.5">
+                            <span className="font-medium">Measures:</span> {explanation.measures}
+                          </p>
+                          <p className="text-[11px] text-[#3C3C43]">
+                            <span className="font-medium">Why it matters:</span> {explanation.matters}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
 
@@ -373,6 +408,7 @@ export default function MetabolismCard({ initialData, onChange }: MetabolismCard
                 setExtractedValues([])
                 setPendingUploadId(null)
                 setUploadState('idle')
+                setExpandedMarker(null)
                 if (fileInputRef.current) {
                   fileInputRef.current.value = ''
                 }
