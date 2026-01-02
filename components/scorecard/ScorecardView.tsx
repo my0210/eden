@@ -179,7 +179,7 @@ function DomainCard({
               <EvidenceChip type={getEvidenceType()} />
             </div>
             <span className={`text-[13px] ${confidenceDisplay.color}`}>
-              {confidenceDisplay.label} confidence
+              {confidenceDisplay.label} confidence ({confidence}%)
             </span>
           </div>
         </div>
@@ -272,7 +272,7 @@ export default function ScorecardView({
         
         <div className="flex items-center justify-center gap-2 mb-2">
           <span className={`text-[15px] font-medium ${primeConfidenceDisplay.color}`}>
-            {primeConfidenceDisplay.label} Confidence
+            {primeConfidenceDisplay.label} Confidence ({primeConfidence}%)
           </span>
         </div>
 
