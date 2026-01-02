@@ -220,6 +220,13 @@ export interface DriverConfig {
   weight?: number
   /** For single-domain drivers: max weight share after reallocation */
   dominance_cap?: number
+  
+  // --- Fallback driver configuration ---
+  
+  /** If true, this driver is only used when primary drivers are missing */
+  fallback_only?: boolean
+  /** Array of driver keys - if any are present, suppress this fallback driver */
+  suppress_if_present?: string[]
 }
 
 /**
