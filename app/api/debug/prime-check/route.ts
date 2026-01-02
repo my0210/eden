@@ -25,16 +25,44 @@ export async function GET() {
       return NextResponse.json({ error: stateError.message }, { status: 500 })
     }
 
+    // Also get latest photo upload to see what was stored there
+    const { data: latestPhoto } = await supabase
+      .from('eden_photo_uploads')
+      .select('id, metadata_json, created_at')
+      .eq('user_id', user.id)
+      .eq('kind', 'body_photo')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
     const primeCheck = userState?.prime_check_json as Record<string, unknown> | null
     const identity = userState?.identity_json as Record<string, unknown> | null
+    const photoMetadata = latestPhoto?.metadata_json as Record<string, unknown> | null
 
     return NextResponse.json({
+      // Identity info
+      identity_weight: identity?.weight,
+      identity_height: identity?.height,
+      
+      // Prime check info
       has_prime_check: !!primeCheck,
       schema_version: primeCheck?.schema_version,
       has_frame: !!primeCheck?.frame,
       frame_keys: primeCheck?.frame ? Object.keys(primeCheck.frame as object) : [],
+      
+      // Photo analysis from prime_check_json
       photo_analysis: (primeCheck?.frame as { photo_analysis?: unknown })?.photo_analysis || null,
-      identity_weight: identity?.weight,
+      
+      // Latest photo upload metadata (for comparison)
+      latest_photo: latestPhoto ? {
+        id: latestPhoto.id,
+        created_at: latestPhoto.created_at,
+        has_analysis: !!photoMetadata?.analysis,
+        has_derived: !!photoMetadata?.derived,
+        body_fat_estimate: (photoMetadata?.analysis as { body_fat_estimate?: unknown })?.body_fat_estimate,
+        lean_mass_from_metadata: (photoMetadata?.derived as { lean_mass_estimate_kg?: unknown })?.lean_mass_estimate_kg,
+        weight_used: photoMetadata?.weight_kg,
+      } : null,
     })
   } catch (error) {
     console.error('Debug endpoint error:', error)
