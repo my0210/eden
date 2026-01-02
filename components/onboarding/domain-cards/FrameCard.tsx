@@ -399,7 +399,7 @@ export default function FrameCard({ initialData, appleHealthData, onChange, user
                 )}
                 {photoAnalysis.lean_mass_range_kg && (
                   <span className="text-[12px] px-2 py-1 bg-white text-[#34C759] rounded-full border border-[#34C759]/20">
-                    Lean mass: {photoAnalysis.lean_mass_range_kg.low.toFixed(1)}-{photoAnalysis.lean_mass_range_kg.high.toFixed(1)} kg
+                    Lean mass: {('low' in photoAnalysis.lean_mass_range_kg ? photoAnalysis.lean_mass_range_kg.low : photoAnalysis.lean_mass_range_kg.range_low).toFixed(1)}-{('high' in photoAnalysis.lean_mass_range_kg ? photoAnalysis.lean_mass_range_kg.high : photoAnalysis.lean_mass_range_kg.range_high).toFixed(1)} kg
                   </span>
                 )}
                 {photoAnalysis.midsection_adiposity && !waistCm && (
