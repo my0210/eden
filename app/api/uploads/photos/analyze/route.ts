@@ -104,7 +104,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<PhotoAnal
     // 6. Get source and user weight (for lean mass calculation)
     const source = (formData.get('source') as string) || 'onboarding'
     const weightKgStr = formData.get('weight_kg') as string | null
-    const weightKg = weightKgStr ? parseFloat(weightKgStr) : undefined
+    let weightKg = weightKgStr ? parseFloat(weightKgStr) : undefined
+    
+    // If weight not provided, try to get it from user's identity
+    if (!weightKg) {
+      const { data: userState } = await supabase
+        .from('eden_user_state')
+        .select('identity_json')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      
+      const identity = userState?.identity_json as { weight?: number } | null
+      if (identity?.weight) {
+        weightKg = identity.weight
+        console.log('[Photo Analyze] Using weight from identity_json:', weightKg)
+      }
+    }
 
     // 7. Upload to Supabase Storage
     const uuid = crypto.randomUUID()
@@ -200,7 +215,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<PhotoAnal
     }
 
     // 11. Calculate derived values (lean mass)
+    // Formula: Lean Mass = Weight × (1 - Body Fat %)
     let derived: { lean_mass_estimate_kg?: { range_low: number; range_high: number } } | undefined
+    console.log('[Photo Analyze] Calculating lean mass - weightKg:', weightKg, 'body_fat_estimate:', analysis.body_fat_estimate)
+    
     if (
       weightKg &&
       analysis.body_fat_estimate &&
@@ -209,6 +227,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<PhotoAnal
       derived = {
         lean_mass_estimate_kg: calculateLeanMass(weightKg, analysis.body_fat_estimate as BodyFatEstimate),
       }
+      console.log('[Photo Analyze] Lean mass calculated:', derived.lean_mass_estimate_kg)
+    } else {
+      console.log('[Photo Analyze] Could not calculate lean mass - missing weight or body fat estimate')
     }
 
     // 12. Create database record
