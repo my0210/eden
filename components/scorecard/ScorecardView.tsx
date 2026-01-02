@@ -39,14 +39,14 @@ function getConfidenceDisplay(confidence: number): {
   label: 'Low' | 'Medium' | 'High'
   color: string 
   bgColor: string
-  copy: string
+  tip: string
 } {
   if (confidence < 40) {
     return {
       label: 'Low',
       color: 'text-[#FF9500]',
       bgColor: 'bg-[#FF9500]/10',
-      copy: 'Estimated from quick checks',
+      tip: 'Add more measurements to improve accuracy',
     }
   }
   if (confidence < 70) {
@@ -54,14 +54,14 @@ function getConfidenceDisplay(confidence: number): {
       label: 'Medium',
       color: 'text-[#007AFF]',
       bgColor: 'bg-[#007AFF]/10',
-      copy: 'Based on measurements you provided',
+      tip: 'Good data coverage—objective measurements would improve this',
     }
   }
   return {
     label: 'High',
     color: 'text-[#34C759]',
     bgColor: 'bg-[#34C759]/10',
-    copy: 'Based on device, lab, or test data',
+    tip: 'Strong data coverage',
   }
 }
 
@@ -182,7 +182,7 @@ function DomainCard({
             <span className="text-[17px] font-semibold text-black">{display.label}</span>
             <div className="flex items-center gap-2">
               <span className={`text-[13px] ${confidenceDisplay.color}`}>
-                {confidenceDisplay.label} confidence
+                {Math.round(confidence)}% confidence
               </span>
               {latestTimestamp && (
                 <span className="text-[11px] text-[#8E8E93]">
@@ -212,13 +212,6 @@ function DomainCard({
       {/* Expanded content with structured sections */}
       {showHowCalculated && expanded && (
         <div className="px-4 py-3 bg-[#F2F2F7] border-t border-[#E5E5EA] space-y-3">
-          {/* Confidence explanation */}
-          <div className={`p-2 rounded-lg ${confidenceDisplay.bgColor}`}>
-            <p className={`text-[13px] ${confidenceDisplay.color}`}>
-              {confidenceDisplay.copy}
-            </p>
-          </div>
-          
           {/* How calculated with dates */}
           {howCalculated.length > 0 && (
             <div className="space-y-1">
@@ -297,13 +290,15 @@ export default function ScorecardView({
         
         <div className="flex items-center justify-center gap-2 mb-2">
           <span className={`text-[15px] font-medium ${primeConfidenceDisplay.color}`}>
-            {primeConfidenceDisplay.label} Confidence ({primeConfidence}%)
+            {Math.round(primeConfidence)}% confidence
           </span>
         </div>
 
-        <p className="text-[13px] text-[#8E8E93]">
-          {primeConfidenceDisplay.copy}
-        </p>
+        {primeConfidenceDisplay.label !== 'High' && (
+          <p className="text-[13px] text-[#8E8E93]">
+            {primeConfidenceDisplay.tip}
+          </p>
+        )}
 
         {/* Show latest data timestamp if available */}
         {freshestTimestamp && !compact && (
