@@ -33,6 +33,8 @@ interface PhotoUpload {
   mime_type: string | null
   status: string
   created_at: string
+  taken_at: string | null
+  uploaded_at: string
 }
 
 export async function POST(request: NextRequest) {
@@ -66,6 +68,9 @@ export async function POST(request: NextRequest) {
 
     const source = (formData.get('source') as string) || 'onboarding'
     const kind = (formData.get('kind') as string) || 'body_photo'
+    // Optional: when was the photo taken (YYYY-MM-DD format)
+    const takenAtRaw = formData.get('taken_at') as string | null
+    const takenAt = takenAtRaw && /^\d{4}-\d{2}-\d{2}$/.test(takenAtRaw) ? takenAtRaw : null
 
     if (files.length === 0) {
       return NextResponse.json(
@@ -114,6 +119,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Insert into eden_photo_uploads
+        const nowIso = new Date().toISOString()
         const { data: photoData, error: insertError } = await supabase
           .from('eden_photo_uploads')
           .insert({
@@ -123,13 +129,15 @@ export async function POST(request: NextRequest) {
             file_size: file.size,
             mime_type: file.type,
             status: 'uploaded',
+            taken_at: takenAt, // When photo was taken (null = not specified)
+            uploaded_at: nowIso,
             metadata_json: {
               original_filename: file.name,
               source: source,
               upload_method: 'multipart',
             },
           })
-          .select('id, user_id, kind, file_path, file_size, mime_type, status, created_at')
+          .select('id, user_id, kind, file_path, file_size, mime_type, status, created_at, taken_at, uploaded_at')
           .single()
 
         if (insertError || !photoData) {

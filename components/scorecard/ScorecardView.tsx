@@ -128,6 +128,43 @@ function EvidenceChip({ type }: { type: string }) {
 }
 
 /**
+ * Get newest evidence timestamp for a domain
+ */
+function getDomainLatestTimestamp(scorecard: PrimeScorecard, domain: PrimeDomain): string | null {
+  let newest: string | null = null
+  for (const e of scorecard.evidence) {
+    if (e.domain === domain && e.measured_at && e.value_raw !== undefined) {
+      if (!newest || e.measured_at > newest) {
+        newest = e.measured_at
+      }
+    }
+  }
+  return newest
+}
+
+/**
+ * Format date compactly for inline display
+ */
+function formatDateCompact(isoString: string): string {
+  try {
+    const date = new Date(isoString)
+    const now = new Date()
+    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
+    
+    // Show relative for recent dates
+    if (diffDays === 0) return 'today'
+    if (diffDays === 1) return 'yesterday'
+    if (diffDays < 7) return `${diffDays}d ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+    
+    // Otherwise show month/year
+    return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
+/**
  * Domain Card Component
  */
 function DomainCard({ 
@@ -148,6 +185,7 @@ function DomainCard({
   const confidence = scorecard.domain_confidence[domain]
   const confidenceDisplay = getConfidenceDisplay(confidence)
   const howCalculated = scorecard.how_calculated[domain]
+  const latestTimestamp = getDomainLatestTimestamp(scorecard, domain)
 
   // Determine primary evidence type from how_calculated
   const getEvidenceType = (): string => {
@@ -178,9 +216,16 @@ function DomainCard({
               <span className="text-[17px] font-semibold text-black">{display.label}</span>
               <EvidenceChip type={getEvidenceType()} />
             </div>
-            <span className={`text-[13px] ${confidenceDisplay.color}`}>
-              {confidenceDisplay.label} confidence ({confidence}%)
-            </span>
+            <div className="flex items-center gap-2">
+              <span className={`text-[13px] ${confidenceDisplay.color}`}>
+                {confidenceDisplay.label} confidence
+              </span>
+              {latestTimestamp && (
+                <span className="text-[11px] text-[#8E8E93]">
+                  • {formatDateCompact(latestTimestamp)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -210,17 +255,33 @@ function DomainCard({
             </p>
           </div>
           
-          {/* How calculated */}
+          {/* How calculated with dates */}
           {howCalculated.length > 0 && (
             <div className="space-y-1">
               <p className="text-[12px] font-medium text-[#8E8E93] uppercase tracking-wide">
                 How we calculated this
               </p>
-              {howCalculated.map((line, idx) => (
-                <p key={idx} className="text-[13px] text-[#3C3C43]">
-                  {line}
-                </p>
-              ))}
+              {howCalculated.map((line, idx) => {
+                // Find matching evidence for this line to show date
+                const evidence = scorecard.evidence.find(e => 
+                  e.domain === domain && 
+                  line.toLowerCase().includes(e.metric_code.replace(/_/g, ' '))
+                )
+                const date = evidence?.measured_at ? formatDateCompact(evidence.measured_at) : null
+                
+                return (
+                  <div key={idx} className="flex items-center justify-between">
+                    <p className="text-[13px] text-[#3C3C43] flex-1">
+                      {line}
+                    </p>
+                    {date && (
+                      <span className="text-[11px] text-[#8E8E93] ml-2 flex-shrink-0">
+                        {date}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
           

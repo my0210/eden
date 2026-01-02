@@ -10,6 +10,28 @@ interface LabUploadAnalyzerProps {
   source?: string
 }
 
+/**
+ * Format date for display (e.g., "Dec 2025" or "Dec 15, 2025")
+ */
+function formatLabDate(dateStr: string | undefined): string {
+  if (!dateStr) return 'Date unknown'
+  
+  // Handle YYYY-MM format
+  if (/^\d{4}-\d{2}$/.test(dateStr)) {
+    const [year, month] = dateStr.split('-')
+    const date = new Date(parseInt(year), parseInt(month) - 1)
+    return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+  }
+  
+  // Handle YYYY-MM-DD format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  
+  return dateStr
+}
+
 export default function LabUploadAnalyzer({
   onAnalysisComplete,
   source = 'data_page',
@@ -18,6 +40,8 @@ export default function LabUploadAnalyzer({
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<LabAnalysisResponse | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [editedTestDate, setEditedTestDate] = useState<string>('')
+  const [showDateEdit, setShowDateEdit] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -52,6 +76,8 @@ export default function LabUploadAnalyzer({
       // Require explicit user confirmation before applying to scoring
       setState('review')
       setResult(data)
+      // Pre-fill the test date from AI extraction (can be edited by user)
+      setEditedTestDate(data.lab_info?.test_date || '')
       // Note: onAnalysisComplete is intentionally fired only after confirmation
     } catch (e) {
       console.error('Lab upload error:', e)
@@ -72,6 +98,8 @@ export default function LabUploadAnalyzer({
     setError(null)
     setResult(null)
     setConfirming(false)
+    setEditedTestDate('')
+    setShowDateEdit(false)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -202,7 +230,7 @@ export default function LabUploadAnalyzer({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <div>
+            <div className="flex-1">
               <p className="text-[15px] font-semibold text-[#1C1C1E]">
                 {state === 'confirmed'
                   ? 'Applied to your score'
@@ -211,10 +239,47 @@ export default function LabUploadAnalyzer({
               {result.lab_info?.lab_provider && (
                 <p className="text-[13px] text-[#8E8E93]">
                   {result.lab_info.lab_provider}
-                  {result.lab_info.test_date && ` • ${result.lab_info.test_date}`}
                 </p>
               )}
             </div>
+          </div>
+          
+          {/* Test Date - Prominent and editable */}
+          <div className="mt-3 pt-3 border-t border-[#34C759]/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-[#8E8E93]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-[13px] text-[#8E8E93]">Test date:</span>
+                {showDateEdit ? (
+                  <input
+                    type="date"
+                    value={editedTestDate}
+                    onChange={(e) => setEditedTestDate(e.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                    className="text-[14px] font-medium text-[#1C1C1E] bg-white border border-[#C6C6C8] rounded-lg px-2 py-1"
+                  />
+                ) : (
+                  <span className="text-[14px] font-medium text-[#1C1C1E]">
+                    {formatLabDate(editedTestDate || result.lab_info?.test_date)}
+                  </span>
+                )}
+              </div>
+              {state === 'review' && (
+                <button
+                  onClick={() => setShowDateEdit(!showDateEdit)}
+                  className="text-[13px] text-[#007AFF] font-medium"
+                >
+                  {showDateEdit ? 'Done' : 'Edit'}
+                </button>
+              )}
+            </div>
+            {!editedTestDate && !result.lab_info?.test_date && state === 'review' && (
+              <p className="text-[11px] text-[#FF9500] mt-1">
+                ⚠️ Please add the test date for accurate tracking
+              </p>
+            )}
           </div>
         </div>
 
@@ -261,7 +326,11 @@ export default function LabUploadAnalyzer({
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       normalized_values: result.normalized_values,
-                      lab_info: result.lab_info,
+                      lab_info: {
+                        ...result.lab_info,
+                        // Use edited date if provided, otherwise fall back to extracted
+                        test_date: editedTestDate || result.lab_info?.test_date,
+                      },
                     }),
                   })
 
