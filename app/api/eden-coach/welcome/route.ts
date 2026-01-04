@@ -74,8 +74,17 @@ export async function GET() {
     // Soft nudge toward goal
     parts.push("What would you like to work on? I'll help you set a clear goal and build a plan to get there.")
 
+    // Default suggestions based on context
+    let suggestions: string[] = []
+    if (edenContext.hasActiveGoal) {
+      suggestions = ["How am I doing?", "I'm struggling", "Update my plan"]
+    } else {
+      suggestions = ["Improve my fitness", "Sleep better", "Manage stress"]
+    }
+
     return NextResponse.json({ 
       message: parts.join("\n"),
+      suggestions,
       hasScorecard: edenContext.hasScorecard,
       hasActiveGoal: edenContext.hasActiveGoal,
     })

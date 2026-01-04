@@ -6,6 +6,7 @@ type Message = {
   id: string
   role: 'user' | 'assistant'
   content: string
+  suggestions?: string[]
 }
 
 // Simple markdown renderer for bold text and newlines
@@ -52,7 +53,8 @@ export default function EdenCoachChat() {
           setMessages([{
             id: 'welcome',
             role: 'assistant',
-            content: welcomeData.message
+            content: welcomeData.message,
+            suggestions: welcomeData.suggestions
           }])
         } else {
           // Fallback if welcome endpoint fails
@@ -114,6 +116,7 @@ export default function EdenCoachChat() {
           id: crypto.randomUUID(),
           role: 'assistant',
           content: data?.reply || 'Sorry, something went wrong.',
+          suggestions: data?.suggestions,
         },
       ])
     } catch {
@@ -141,17 +144,34 @@ export default function EdenCoachChat() {
           </div>
         ) : (
           <>
-            {messages.map((msg) => (
-              <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : 'flex'}>
-                <div
-                  className={
-                    msg.role === 'user'
-                      ? 'max-w-[75%] rounded-2xl rounded-br-md bg-[#007AFF] text-white px-4 py-2.5'
-                      : 'max-w-[75%] rounded-2xl rounded-bl-md bg-[#E5E5EA] text-black px-4 py-2.5'
-                  }
-                >
-                  <p className="text-[17px] leading-[22px] whitespace-pre-wrap">{renderMarkdown(msg.content)}</p>
+            {messages.map((msg, idx) => (
+              <div key={msg.id}>
+                <div className={msg.role === 'user' ? 'flex justify-end' : 'flex'}>
+                  <div
+                    className={
+                      msg.role === 'user'
+                        ? 'max-w-[75%] rounded-2xl rounded-br-md bg-[#007AFF] text-white px-4 py-2.5'
+                        : 'max-w-[75%] rounded-2xl rounded-bl-md bg-[#E5E5EA] text-black px-4 py-2.5'
+                    }
+                  >
+                    <p className="text-[17px] leading-[22px] whitespace-pre-wrap">{renderMarkdown(msg.content)}</p>
+                  </div>
                 </div>
+                {/* Show suggestions only for the last assistant message */}
+                {msg.role === 'assistant' && msg.suggestions && msg.suggestions.length > 0 && idx === messages.length - 1 && !isLoading && (
+                  <div className="flex flex-wrap gap-2 mt-2 ml-1">
+                    {msg.suggestions.map((suggestion, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSend(suggestion)}
+                        disabled={isLoading}
+                        className="px-3 py-1.5 text-sm rounded-full border border-[#007AFF] text-[#007AFF] bg-white hover:bg-[#007AFF]/10 transition-colors disabled:opacity-50"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
 

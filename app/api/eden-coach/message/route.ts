@@ -47,7 +47,7 @@ type CoachRequestBody = {
 }
 
 // Concise, goal-focused system prompt
-const SYSTEM_PROMPT = `You are Eden, a health coach helping users commit to goals and follow through.
+const SYSTEM_PROMPT = `You are Eden, helping users commit to goals and follow through.
 
 ## Your Approach
 - Warm but direct. No fluff.
@@ -77,7 +77,18 @@ domain should be "heart", "frame", "metabolism", "recovery", "mind", or null for
 - Reference their protocol and progress
 - Encourage wins, troubleshoot struggles
 - Keep responses short and actionable
-- If they want to change their goal, they can abandon and start fresh`
+- If they want to change their goal, they can abandon and start fresh
+
+## Suggested Replies
+At the end of EVERY response, add 2-3 suggested quick replies the user might want to send.
+Format them EXACTLY like this on a new line at the very end:
+[SUGGESTIONS]["Option 1", "Option 2", "Option 3"]
+
+Examples:
+- After asking about goals: [SUGGESTIONS]["Improve my cardio", "Sleep better", "Build strength"]
+- After asking about timeline: [SUGGESTIONS]["4 weeks", "8 weeks", "12 weeks"]
+- After asking about constraints: [SUGGESTIONS]["No injuries", "Bad knees", "Can't do mornings"]
+- After asking to confirm: [SUGGESTIONS]["Yes, let's do it", "Change something", "Not ready yet"]`
 
 export async function POST(req: NextRequest) {
   try {
@@ -254,7 +265,20 @@ I'm still setting up your detailed plan - check the Coaching tab in a moment.`
       }
     }
 
-    // Insert assistant reply
+    // Parse suggestions from response
+    let suggestions: string[] = []
+    const suggestionsMatch = replyText.match(/\[SUGGESTIONS\]\s*\[(.*?)\]/)
+    if (suggestionsMatch) {
+      try {
+        suggestions = JSON.parse(`[${suggestionsMatch[1]}]`)
+        // Remove suggestions from the reply text
+        replyText = replyText.replace(/\[SUGGESTIONS\]\s*\[.*?\]/, '').trim()
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    // Insert assistant reply (without suggestions marker)
     await supabase
       .from('eden_messages')
       .insert({
@@ -269,7 +293,7 @@ I'm still setting up your detailed plan - check the Coaching tab in a moment.`
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversationId)
 
-    return NextResponse.json({ reply: replyText })
+    return NextResponse.json({ reply: replyText, suggestions })
 
   } catch (err) {
     console.error('Eden Coach error:', err)
