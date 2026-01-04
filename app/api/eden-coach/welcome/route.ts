@@ -49,7 +49,7 @@ export async function GET() {
     const parts: string[] = []
 
     // Intro - avoid "health coach" terminology
-    parts.push("Hey! I'm Eden — here to help you feel and perform at your best.")
+    parts.push("Hey, I'm Eden. I'm here to help you feel and perform at your best.")
     parts.push("")
 
     // If they have a scorecard, give one insight
