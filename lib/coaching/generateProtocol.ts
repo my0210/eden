@@ -61,7 +61,7 @@ export async function generateProtocolForGoal(
 
     // 3) Call LLM
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: PROTOCOL_GENERATION_PROMPT },
@@ -106,7 +106,7 @@ export async function generateProtocolForGoal(
         status: 'active',
         effective_from: new Date().toISOString(),
         llm_raw: {
-          model: 'gpt-4.1-mini',
+          model: 'gpt-5',
           response: generated,
           generated_at: new Date().toISOString(),
         },

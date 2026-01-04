@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
 
     // Call OpenAI
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5',
       messages: openaiMessages,
       temperature: 0.7,
     })

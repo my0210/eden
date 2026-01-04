@@ -157,7 +157,7 @@ ${context.recentMessages?.length ? `\nRecent messages:\n${context.recentMessages
 
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5',
       messages: [
         { role: 'system', content: CHECKIN_PROMPT },
         { role: 'user', content: contextSummary },

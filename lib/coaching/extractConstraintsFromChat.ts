@@ -65,7 +65,7 @@ export async function extractConstraintsFromMessage(
 
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-5',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: CONSTRAINT_EXTRACTION_PROMPT },
