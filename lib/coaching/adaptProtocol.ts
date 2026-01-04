@@ -72,7 +72,7 @@ export async function adaptProtocol(
 
     // 3) Call LLM for adaptation suggestions
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-5',
+      model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: PROTOCOL_ADAPTATION_PROMPT },
@@ -128,7 +128,7 @@ export async function adaptProtocol(
       },
       changes,
       {
-        model: 'gpt-5',
+        model: 'gpt-4o',
         adaptation,
         generated_at: new Date().toISOString(),
       }

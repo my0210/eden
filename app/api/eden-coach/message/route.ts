@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       { role: 'system', content: `## User Context\n${contextSummary}` },
     ]
 
-    // Add conversation history
+      // Add conversation history
     for (const msg of messages) {
         openaiMessages.push({
           role: msg.role === 'user' ? 'user' : 'assistant',
@@ -202,7 +202,7 @@ export async function POST(req: NextRequest) {
 
     // Call OpenAI
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-5',
+      model: 'gpt-4o',
       messages: openaiMessages,
       temperature: 0.7,
     })
@@ -283,7 +283,7 @@ I'm still setting up your detailed plan - check the Coaching tab in a moment.`
     if (suggestions.length === 0) {
       if (!hasActiveGoal) {
         suggestions = ["Improve my fitness", "Sleep better", "Build strength"]
-      } else {
+    } else {
         suggestions = ["How am I doing?", "I need help", "What's next?"]
       }
     }
