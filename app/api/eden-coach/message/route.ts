@@ -50,14 +50,28 @@ function buildFallbackSuggestions(params: {
 
   // Goal-setting flow (no active goal)
   if (!params.hasActiveGoal) {
-    const asksTarget = r.includes('target') || r.includes('specific outcome') || r.includes('outcome')
-    const asksTimeline = r.includes('timeline') || r.includes('how many weeks') || r.includes('weeks')
+    // Check constraints FIRST (most specific) - look for question patterns
     const asksConstraints =
-      r.includes('constraints') ||
-      r.includes('injur') ||
-      r.includes('time restriction') ||
-      r.includes("won't do") ||
-      r.includes('limitations')
+      (r.includes('constraints') && (r.includes('?') || r.includes('do you have') || r.includes('any'))) ||
+      (r.includes('injur') && (r.includes('?') || r.includes('any'))) ||
+      (r.includes('time restriction') && (r.includes('?') || r.includes('any'))) ||
+      (r.includes("won't do") && (r.includes('?') || r.includes('any'))) ||
+      (r.includes('limitations') && (r.includes('?') || r.includes('any')))
+    
+    // Timeline - only match if explicitly asking "how many weeks" as a question
+    // Exclude confirmations like "12-week timeline it is"
+    const isTimelineConfirmation = r.includes('timeline it is') || r.includes('timeline is') || r.includes('weeks it is')
+    const asksTimeline = 
+      !isTimelineConfirmation &&
+      !asksConstraints &&
+      ((r.includes('how many weeks') && r.includes('?')) ||
+       (r.includes('timeline') && r.includes('?')))
+    
+    // Target - check for question patterns
+    const asksTarget = 
+      (r.includes('target') && r.includes('?')) ||
+      (r.includes('specific outcome') && r.includes('?')) ||
+      (r.includes('what\'s your') && (r.includes('target') || r.includes('outcome')))
 
     // If Eden asked for target + timeline + constraints in one go, give one option for each
     if (asksTarget && asksTimeline && asksConstraints) {
@@ -68,12 +82,13 @@ function buildFallbackSuggestions(params: {
       return ["Yes, let's do it", 'Change something', 'Not ready yet']
     }
 
-    if (asksTimeline) {
-      return ['4 weeks', '8 weeks', '12 weeks']
-    }
-
+    // Check constraints BEFORE timeline (more specific)
     if (asksConstraints) {
       return ['No injuries', 'Limited time', 'Bad knee']
+    }
+
+    if (asksTimeline) {
+      return ['4 weeks', '8 weeks', '12 weeks']
     }
 
     if (asksTarget) {
