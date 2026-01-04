@@ -9,7 +9,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { LLM_MODELS } from '@/lib/llm/models'
 import { CHECKIN_PROMPT } from './prompts'
-import { Checkin, CheckinType, CheckinSummary, Protocol, Habit } from './types'
+import { Checkin, CheckinType, CheckinSummary, Protocol } from './types'
 
 // Lazy initialization
 let openai: OpenAI | null = null
@@ -26,8 +26,6 @@ export interface CheckInContext {
   protocol: Protocol
   actionsCompleted: number
   actionsTotal: number
-  habitsLogged: number
-  habitsTarget: number
   currentWeek: number
   recentMessages?: string[]
 }
@@ -52,7 +50,6 @@ export async function shouldTriggerCheckIn(
 
   const startDate = new Date(protocol.effective_from)
   const daysSinceStart = Math.floor((Date.now() - startDate.getTime()) / (24 * 60 * 60 * 1000))
-  const currentWeek = Math.ceil(daysSinceStart / 7)
 
   // Check for weekly review (every 7 days)
   const dayOfWeek = new Date().getDay()
@@ -102,43 +99,6 @@ export async function shouldTriggerCheckIn(
     }
   }
 
-  // Check for daily nudge (if habits missed)
-  const today = new Date().toISOString().slice(0, 10)
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
-
-  const { data: habits } = await supabase
-    .from('eden_habits')
-    .select('id')
-    .eq('protocol_id', protocolId)
-    .eq('is_active', true)
-
-  if (habits && habits.length > 0) {
-    const habitIds = habits.map(h => h.id)
-
-    // Check yesterday's habit completion
-    const { count: yesterdayLogs } = await supabase
-      .from('eden_habit_logs')
-      .select('id', { count: 'exact', head: true })
-      .in('habit_id', habitIds)
-      .eq('logged_date', yesterday)
-      .eq('completed', true)
-
-    // If less than half habits were logged yesterday
-    if ((yesterdayLogs ?? 0) < habits.length / 2) {
-      // Check if we already sent a nudge today
-      const { count: todayNudges } = await supabase
-        .from('eden_checkins')
-        .select('id', { count: 'exact', head: true })
-        .eq('protocol_id', protocolId)
-        .eq('checkin_type', 'daily_nudge')
-        .gte('created_at', new Date(today).toISOString())
-
-      if ((todayNudges ?? 0) === 0) {
-        return { should: true, type: 'daily_nudge', reason: 'Habits missed yesterday' }
-      }
-    }
-  }
-
   return { should: false, type: null, reason: 'No check-in needed' }
 }
 
@@ -152,7 +112,6 @@ export async function generateCheckInMessage(
 Protocol: ${context.protocol.focus_summary || 'No summary'}
 Week: ${context.currentWeek}
 Actions completed: ${context.actionsCompleted}/${context.actionsTotal}
-Habits logged: ${context.habitsLogged}/${context.habitsTarget}
 ${context.recentMessages?.length ? `\nRecent messages:\n${context.recentMessages.join('\n')}` : ''}
 `.trim()
 
@@ -237,4 +196,3 @@ export async function getRecentCheckIns(
 
   return (data || []) as Checkin[]
 }
-

@@ -314,36 +314,6 @@ export async function buildEdenContext(
           .eq('protocol_id', activeProtocol.id)
           .or(`week_number.is.null,week_number.eq.${currentWeekNumber}`);
 
-        // Count habit completions this week
-        const { data: habits } = await supabase
-          .from('eden_habits')
-          .select('id')
-          .eq('protocol_id', activeProtocol.id)
-          .eq('is_active', true);
-
-        const habitIds = (habits ?? []).map(h => h.id);
-        let habitDaysCompleted = 0;
-        let habitDaysTarget = 0;
-
-        if (habitIds.length > 0) {
-          // Target = habits * days in week so far
-          const daysSoFar = Math.min(
-            7,
-            Math.ceil((Date.now() - weekStart.getTime()) / (24 * 60 * 60 * 1000))
-          );
-          habitDaysTarget = habitIds.length * daysSoFar;
-
-          const { count: logsCount } = await supabase
-            .from('eden_habit_logs')
-            .select('id', { count: 'exact', head: true })
-            .in('habit_id', habitIds)
-            .eq('completed', true)
-            .gte('logged_date', weekStart.toISOString().slice(0, 10))
-            .lte('logged_date', weekEnd.toISOString().slice(0, 10));
-
-          habitDaysCompleted = logsCount ?? 0;
-        }
-
         protocolContext = {
           id: activeProtocol.id,
           version: activeProtocol.version,
@@ -358,8 +328,6 @@ export async function buildEdenContext(
           weekly_adherence: {
             actions_completed: actionsCompleted ?? 0,
             actions_total: actionsTotal ?? 0,
-            habit_days_completed: habitDaysCompleted,
-            habit_days_target: habitDaysTarget,
           },
         };
       }
@@ -367,6 +335,8 @@ export async function buildEdenContext(
   } catch (e) {
     console.error('buildEdenContext: goal/protocol query failed', e);
   }
+
+  const hasActiveGoal = !!goalContext;
 
   const edenContext: EdenContext = {
     essentials,
@@ -377,7 +347,7 @@ export async function buildEdenContext(
     protocol: protocolContext,
     privacy_ack,
     hasScorecard: !!scorecardContext,
-    hasActiveGoal: !!goalContext,
+    hasActiveGoal,
     isFirstChat,
   };
 
@@ -531,8 +501,8 @@ export function summarizeContextForCoach(ctx: EdenContext): string {
     }
     
     const adh = p.weekly_adherence;
-    if (adh.actions_total > 0 || adh.habit_days_target > 0) {
-      parts.push(`  - This week: ${adh.actions_completed}/${adh.actions_total} actions, ${adh.habit_days_completed}/${adh.habit_days_target} habit completions`);
+    if (adh.actions_total > 0) {
+      parts.push(`  - This week: ${adh.actions_completed}/${adh.actions_total} actions done`);
     }
   }
 

@@ -73,7 +73,7 @@ export default function ResetUserDataCard() {
 
   const handleResetCoaching = async () => {
     const confirmed = window.confirm(
-      'This will clear coaching data only:\n\n• All chat messages with Eden\n• Goals & protocols\n• Actions, habits, check-ins\n\nYour onboarding, profile, scorecard, and uploads will be preserved.\n\nContinue?'
+      'This will clear coaching data only:\n\n• All chat messages with Eden\n• Goals & protocols\n• Actions & check-ins\n\nYour onboarding, profile, scorecard, and uploads will be preserved.\n\nContinue?'
     )
 
     if (!confirmed) return

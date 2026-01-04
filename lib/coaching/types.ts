@@ -1,7 +1,7 @@
 /**
  * Coaching System Types
  * 
- * Types for goals, protocols, milestones, actions, habits, and decisions.
+ * Types for goals, protocols, milestones, actions, and decisions.
  */
 
 import { PrimeDomain } from '@/lib/prime-scorecard/types'
@@ -75,11 +75,6 @@ export interface Protocol {
 
 export interface ProtocolChanges {
   actions?: {
-    added?: string[]
-    removed?: string[]
-    modified?: string[]
-  }
-  habits?: {
     added?: string[]
     removed?: string[]
     modified?: string[]
@@ -176,42 +171,6 @@ export interface ActionInput {
 }
 
 // ============================================================================
-// Habit Types
-// ============================================================================
-
-export type HabitFrequency = 'daily' | 'weekdays' | '3x_week' | '5x_week' | 'custom'
-
-export interface Habit {
-  id: string
-  protocol_id: string
-  title: string
-  description: string | null
-  frequency: HabitFrequency
-  custom_frequency_json: Record<string, unknown> | null
-  current_streak: number
-  best_streak: number
-  last_logged_at: string | null
-  is_active: boolean
-  created_at: string
-}
-
-export interface HabitInput {
-  title: string
-  description?: string
-  frequency: HabitFrequency
-  custom_frequency_json?: Record<string, unknown>
-}
-
-export interface HabitLog {
-  id: string
-  habit_id: string
-  logged_date: string
-  completed: boolean
-  notes: string | null
-  created_at: string
-}
-
-// ============================================================================
 // Check-in Types
 // ============================================================================
 
@@ -232,8 +191,6 @@ export interface Checkin {
 export interface CheckinSummary {
   actions_completed: number
   actions_total: number
-  habits_logged: number
-  habits_target: number
   notes?: string
 }
 
@@ -267,8 +224,6 @@ export interface ProtocolContext {
   weekly_adherence: {
     actions_completed: number
     actions_total: number
-    habit_days_completed: number
-    habit_days_target: number
   }
 }
 
@@ -291,6 +246,4 @@ export interface GeneratedProtocol {
   focus_summary: string
   milestones: MilestoneInput[]
   actions: ActionInput[]
-  habits: HabitInput[]
 }
-

@@ -73,7 +73,6 @@ export async function POST(req: NextRequest) {
       protocol: result.protocol,
       milestones: result.milestones,
       actions: result.actions,
-      habits: result.habits,
     })
   } catch (error) {
     console.error('Protocol generation error:', error)

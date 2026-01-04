@@ -8,30 +8,20 @@ interface Action {
   completed_at: string | null
 }
 
-interface Habit {
-  id: string
-  title: string
-}
-
 interface WeeklyAdherenceProps {
   protocolId: string
   actions: Action[]
-  habits: Habit[]
 }
 
 interface WeeklyStats {
   actionsCompleted: number
   actionsTotal: number
-  habitDaysCompleted: number
-  habitDaysTarget: number
 }
 
-export default function WeeklyAdherence({ protocolId, actions, habits }: WeeklyAdherenceProps) {
+export default function WeeklyAdherence({ protocolId, actions }: WeeklyAdherenceProps) {
   const [stats, setStats] = useState<WeeklyStats>({
     actionsCompleted: 0,
     actionsTotal: actions.length,
-    habitDaysCompleted: 0,
-    habitDaysTarget: 0,
   })
   const [loading, setLoading] = useState(true)
 
@@ -58,12 +48,9 @@ export default function WeeklyAdherence({ protocolId, actions, habits }: WeeklyA
     fetchStats()
   }, [protocolId])
 
-  // Calculate percentages
+  // Calculate percentage
   const actionPercent = stats.actionsTotal > 0 
     ? Math.round((stats.actionsCompleted / stats.actionsTotal) * 100) 
-    : 0
-  const habitPercent = stats.habitDaysTarget > 0 
-    ? Math.round((stats.habitDaysCompleted / stats.habitDaysTarget) * 100) 
     : 0
 
   // Get day of week (0 = Sunday)
@@ -79,11 +66,11 @@ export default function WeeklyAdherence({ protocolId, actions, habits }: WeeklyA
           <div className="w-6 h-6 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4">
-          {/* Actions */}
+        <div className="space-y-4">
+          {/* Actions Progress */}
           <div className="bg-[#F2F2F7] rounded-xl p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[13px] text-[#8E8E93]">Actions</span>
+              <span className="text-[13px] text-[#8E8E93]">Actions Completed</span>
               <span className="text-[15px] font-semibold text-black">
                 {stats.actionsCompleted}/{stats.actionsTotal}
               </span>
@@ -100,31 +87,7 @@ export default function WeeklyAdherence({ protocolId, actions, habits }: WeeklyA
             <p className="text-[11px] text-[#8E8E93] mt-2">
               {actionPercent >= 80 ? '🎉 Great progress!' : 
                actionPercent >= 50 ? '💪 Keep going!' : 
-               actionPercent > 0 ? '🌱 Just starting' : 'Not started'}
-            </p>
-          </div>
-
-          {/* Habits */}
-          <div className="bg-[#F2F2F7] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[13px] text-[#8E8E93]">Habits</span>
-              <span className="text-[15px] font-semibold text-black">
-                {stats.habitDaysCompleted}/{stats.habitDaysTarget}
-              </span>
-            </div>
-            
-            {/* Progress bar */}
-            <div className="h-2 bg-white rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-[#FF9500] rounded-full transition-all duration-500"
-                style={{ width: `${habitPercent}%` }}
-              />
-            </div>
-            
-            <p className="text-[11px] text-[#8E8E93] mt-2">
-              {habitPercent >= 80 ? '🔥 On fire!' : 
-               habitPercent >= 50 ? '⭐ Solid consistency' : 
-               habitPercent > 0 ? '🌱 Building momentum' : 'Log your first day'}
+               actionPercent > 0 ? '🌱 Just starting' : 'Start checking off actions'}
             </p>
           </div>
         </div>
@@ -162,4 +125,3 @@ export default function WeeklyAdherence({ protocolId, actions, habits }: WeeklyA
     </div>
   )
 }
-

@@ -2,7 +2,7 @@
  * Protocol Generation
  * 
  * Creates a new protocol for a goal using LLM.
- * Includes milestones, weekly actions, and daily habits.
+ * Includes milestones and weekly actions.
  */
 
 import { SupabaseClient } from '@supabase/supabase-js'
@@ -15,10 +15,8 @@ import {
   Protocol,
   Milestone,
   ProtocolAction,
-  Habit,
   MilestoneInput,
   ActionInput,
-  HabitInput,
   GeneratedProtocol,
   ProtocolDecision,
 } from './types'
@@ -39,7 +37,6 @@ export interface ProtocolGenerationResult {
   protocol?: Protocol
   milestones?: Milestone[]
   actions?: ProtocolAction[]
-  habits?: Habit[]
   decision?: ProtocolDecision
   error?: string
 }
@@ -90,7 +87,7 @@ export async function generateProtocolForGoal(
 
     // Validate response structure
     if (!generated.focus_summary || !Array.isArray(generated.milestones) || 
-        !Array.isArray(generated.actions) || !Array.isArray(generated.habits)) {
+        !Array.isArray(generated.actions)) {
       return { success: false, error: 'Missing required fields in protocol' }
     }
 
@@ -162,28 +159,7 @@ export async function generateProtocolForGoal(
       console.error('Failed to create actions:', actionsError)
     }
 
-    // 8) Create habits
-    const habitsData = generated.habits.map((h: HabitInput) => ({
-      protocol_id: protocol.id,
-      title: h.title,
-      description: h.description || null,
-      frequency: h.frequency || 'daily',
-      custom_frequency_json: h.custom_frequency_json || null,
-      current_streak: 0,
-      best_streak: 0,
-      is_active: true,
-    }))
-
-    const { data: habits, error: habitsError } = await supabase
-      .from('eden_habits')
-      .insert(habitsData)
-      .select()
-
-    if (habitsError) {
-      console.error('Failed to create habits:', habitsError)
-    }
-
-    // 9) Create decision log for initial generation
+    // 8) Create decision log for initial generation
     const { data: decision, error: decisionError } = await supabase
       .from('eden_protocol_decisions')
       .insert({
@@ -208,7 +184,7 @@ export async function generateProtocolForGoal(
       console.error('Failed to create decision log:', decisionError)
     }
 
-    // 10) Update goal to started
+    // 9) Update goal to started
     if (!goal.started_at) {
       await supabase
         .from('eden_goals')
@@ -224,7 +200,6 @@ export async function generateProtocolForGoal(
       protocol: protocol as Protocol,
       milestones: (milestones || []) as Milestone[],
       actions: (actions || []) as ProtocolAction[],
-      habits: (habits || []) as Habit[],
       decision: decision as ProtocolDecision,
     }
   } catch (error) {
@@ -303,4 +278,3 @@ function calculateFirstReevalDate(goal: Goal): string {
   reevalDate.setDate(reevalDate.getDate() + 7)
   return reevalDate.toISOString().slice(0, 10)
 }
-

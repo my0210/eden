@@ -12,10 +12,8 @@ import { PROTOCOL_ADAPTATION_PROMPT } from './prompts'
 import {
   Protocol,
   ProtocolAction,
-  Habit,
   DecisionTriggerType,
   ActionInput,
-  HabitInput,
   ProtocolChanges,
 } from './types'
 import { createNewVersion, calculateChanges, getProtocolWithDetails } from './protocolVersioning'
@@ -37,7 +35,6 @@ export interface AdaptationContext {
   weekNumber?: number
   actionsCompleted: number
   actionsTotal: number
-  habits: Record<string, { completed: number; target: number }>
   milestoneId?: string
   milestoneTitle?: string
   newConstraints?: string[]
@@ -62,14 +59,14 @@ export async function adaptProtocol(
 ): Promise<AdaptationResult> {
   try {
     // 1) Get current protocol with details
-    const { protocol, actions, habits, milestones } = await getProtocolWithDetails(supabase, protocolId)
+    const { protocol, actions, milestones } = await getProtocolWithDetails(supabase, protocolId)
 
     if (!protocol) {
       return { success: false, error: 'Protocol not found' }
     }
 
     // 2) Build adaptation context for LLM
-    const adaptationPrompt = buildAdaptationPrompt(protocol, actions, habits, context)
+    const adaptationPrompt = buildAdaptationPrompt(protocol, actions, context)
 
     // 3) Call LLM for adaptation suggestions
     const completion = await getOpenAI().chat.completions.create({
@@ -98,10 +95,8 @@ export async function adaptProtocol(
 
     // Check if any changes are suggested
     const noChanges = !adaptation.changes || 
-      (Object.keys(adaptation.changes.actions || {}).every(k => 
-        !adaptation.changes.actions[k]?.length) &&
-       Object.keys(adaptation.changes.habits || {}).every(k => 
-        !adaptation.changes.habits[k]?.length))
+      Object.keys(adaptation.changes.actions || {}).every(k => 
+        !adaptation.changes.actions[k]?.length)
 
     if (noChanges) {
       return { 
@@ -110,12 +105,11 @@ export async function adaptProtocol(
       }
     }
 
-    // 5) Build new actions and habits lists
+    // 5) Build new actions list
     const newActions = buildNewActionsList(actions, adaptation.changes.actions)
-    const newHabits = buildNewHabitsList(habits, adaptation.changes.habits)
 
     // 6) Calculate changes for logging
-    const changes = calculateChanges(actions, newActions, habits, newHabits)
+    const changes = calculateChanges(actions, newActions)
 
     // 7) Create new protocol version
     const versionResult = await createNewVersion(
@@ -124,7 +118,6 @@ export async function adaptProtocol(
       {
         focus_summary: protocol.focus_summary || undefined,
         actions: newActions,
-        habits: newHabits,
         milestones: adaptation.changes.milestones?.adjust_dates,
       },
       changes,
@@ -145,7 +138,6 @@ export async function adaptProtocol(
           week_number: context.weekNumber || 1,
           actions_completed: context.actionsCompleted,
           actions_total: context.actionsTotal,
-          habits: context.habits,
         })
       : context.triggerType === 'milestone_review'
         ? buildMilestoneReviewContext({
@@ -192,7 +184,6 @@ export async function adaptProtocol(
 function buildAdaptationPrompt(
   protocol: Protocol,
   actions: ProtocolAction[],
-  habits: Habit[],
   context: AdaptationContext
 ): string {
   const parts: string[] = []
@@ -208,22 +199,9 @@ function buildAdaptationPrompt(
     parts.push(`${i + 1}. ${a.title} (${a.cadence || 'ongoing'})${a.completed_at ? ' ✓' : ''}`)
   })
 
-  // Habits
-  parts.push('\nHABITS:')
-  habits.forEach((h, i) => {
-    parts.push(`${i + 1}. ${h.title} (${h.frequency}) - streak: ${h.current_streak}`)
-  })
-
   // Adherence data
   parts.push('\nADHERENCE THIS WEEK:')
   parts.push(`Actions: ${context.actionsCompleted}/${context.actionsTotal}`)
-  
-  if (Object.keys(context.habits).length > 0) {
-    parts.push('Habits:')
-    Object.entries(context.habits).forEach(([name, data]) => {
-      parts.push(`  - ${name}: ${data.completed}/${data.target}`)
-    })
-  }
 
   // Trigger info
   parts.push(`\nTRIGGER: ${context.triggerType}`)
@@ -299,50 +277,3 @@ function buildNewActionsList(
 
   return [...keptActions, ...addedActions]
 }
-
-/**
- * Build new habits list from adaptation changes
- */
-function buildNewHabitsList(
-  currentHabits: Habit[],
-  changes: {
-    add?: Array<{ title: string; description?: string; frequency?: string }>
-    remove?: string[]
-    modify?: Array<{ title: string; new_frequency?: string }>
-  } | undefined
-): HabitInput[] {
-  if (!changes) {
-    return currentHabits.map(h => ({
-      title: h.title,
-      description: h.description || undefined,
-      frequency: h.frequency as HabitInput['frequency'],
-    }))
-  }
-
-  const removeSet = new Set((changes.remove || []).map(t => t.toLowerCase()))
-  const modifyMap = new Map(
-    (changes.modify || []).map(m => [m.title.toLowerCase(), m])
-  )
-
-  // Filter out removed, apply modifications
-  const keptHabits = currentHabits
-    .filter(h => !removeSet.has(h.title.toLowerCase()))
-    .map(h => {
-      const mod = modifyMap.get(h.title.toLowerCase())
-      return {
-        title: h.title,
-        description: h.description || undefined,
-        frequency: (mod?.new_frequency || h.frequency) as HabitInput['frequency'],
-      }
-    })
-
-  // Add new habits
-  const addedHabits = (changes.add || []).map(h => ({
-    title: h.title,
-    description: h.description,
-    frequency: (h.frequency || 'daily') as HabitInput['frequency'],
-  }))
-
-  return [...keptHabits, ...addedHabits]
-}
-

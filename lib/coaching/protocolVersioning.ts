@@ -9,10 +9,8 @@ import {
   Protocol,
   ProtocolChanges,
   ProtocolAction,
-  Habit,
   Milestone,
   ActionInput,
-  HabitInput,
 } from './types'
 
 export interface VersionChainEntry {
@@ -67,7 +65,6 @@ export async function createNewVersion(
   newData: {
     focus_summary?: string
     actions: ActionInput[]
-    habits: HabitInput[]
     milestones?: {
       phase_number: number
       new_target_date?: string
@@ -156,42 +153,6 @@ export async function createNewVersion(
       await supabase.from('eden_protocol_actions').insert(actionsData)
     }
 
-    // 5) Create new habits
-    if (newData.habits.length > 0) {
-      // Get existing habit streaks to preserve them
-      const { data: existingHabits } = await supabase
-        .from('eden_habits')
-        .select('title, current_streak, best_streak')
-        .eq('protocol_id', currentProtocol.id)
-        .eq('is_active', true)
-
-      const streakMap = new Map(
-        (existingHabits || []).map(h => [h.title.toLowerCase(), h])
-      )
-
-      const habitsData = newData.habits.map(h => {
-        const existing = streakMap.get(h.title.toLowerCase())
-        return {
-          protocol_id: newProtocol.id,
-          title: h.title,
-          description: h.description || null,
-          frequency: h.frequency || 'daily',
-          custom_frequency_json: h.custom_frequency_json || null,
-          current_streak: existing?.current_streak || 0,
-          best_streak: existing?.best_streak || 0,
-          is_active: true,
-        }
-      })
-
-      await supabase.from('eden_habits').insert(habitsData)
-    }
-
-    // 6) Mark old habits as inactive
-    await supabase
-      .from('eden_habits')
-      .update({ is_active: false })
-      .eq('protocol_id', currentProtocol.id)
-
     return { success: true, newProtocol: newProtocol as Protocol }
   } catch (error) {
     console.error('Failed to create new version:', error)
@@ -203,13 +164,11 @@ export async function createNewVersion(
 }
 
 /**
- * Calculate diff between two sets of actions/habits
+ * Calculate diff between two sets of actions
  */
 export function calculateChanges(
   oldActions: ProtocolAction[],
-  newActions: ActionInput[],
-  oldHabits: Habit[],
-  newHabits: HabitInput[]
+  newActions: ActionInput[]
 ): ProtocolChanges {
   const changes: ProtocolChanges = {}
 
@@ -231,24 +190,6 @@ export function calculateChanges(
     if (removedActions.length > 0) changes.actions.removed = removedActions
   }
 
-  // Habit changes
-  const oldHabitTitles = new Set(oldHabits.map(h => h.title.toLowerCase()))
-  const newHabitTitles = new Set(newHabits.map(h => h.title.toLowerCase()))
-
-  const addedHabits = newHabits
-    .filter(h => !oldHabitTitles.has(h.title.toLowerCase()))
-    .map(h => h.title)
-  
-  const removedHabits = oldHabits
-    .filter(h => !newHabitTitles.has(h.title.toLowerCase()))
-    .map(h => h.title)
-
-  if (addedHabits.length > 0 || removedHabits.length > 0) {
-    changes.habits = {}
-    if (addedHabits.length > 0) changes.habits.added = addedHabits
-    if (removedHabits.length > 0) changes.habits.removed = removedHabits
-  }
-
   // Generate summary
   const summaryParts: string[] = []
   if (changes.actions?.added?.length) {
@@ -256,12 +197,6 @@ export function calculateChanges(
   }
   if (changes.actions?.removed?.length) {
     summaryParts.push(`Removed ${changes.actions.removed.length} action(s)`)
-  }
-  if (changes.habits?.added?.length) {
-    summaryParts.push(`Added ${changes.habits.added.length} habit(s)`)
-  }
-  if (changes.habits?.removed?.length) {
-    summaryParts.push(`Removed ${changes.habits.removed.length} habit(s)`)
   }
 
   if (summaryParts.length > 0) {
@@ -281,7 +216,6 @@ export async function getProtocolWithDetails(
   protocol: Protocol | null
   milestones: Milestone[]
   actions: ProtocolAction[]
-  habits: Habit[]
 }> {
   const { data: protocol } = await supabase
     .from('eden_protocols')
@@ -301,17 +235,9 @@ export async function getProtocolWithDetails(
     .eq('protocol_id', protocolId)
     .order('priority', { ascending: true })
 
-  const { data: habits } = await supabase
-    .from('eden_habits')
-    .select('*')
-    .eq('protocol_id', protocolId)
-    .eq('is_active', true)
-
   return {
     protocol: protocol as Protocol | null,
     milestones: (milestones || []) as Milestone[],
     actions: (actions || []) as ProtocolAction[],
-    habits: (habits || []) as Habit[],
   }
 }
-

@@ -209,12 +209,6 @@ export function formatDecisionForDisplay(decision: ProtocolDecision): {
     if (c.actions?.removed?.length) {
       changes.push(`Removed actions: ${c.actions.removed.join(', ')}`)
     }
-    if (c.habits?.added?.length) {
-      changes.push(`Added habits: ${c.habits.added.join(', ')}`)
-    }
-    if (c.habits?.removed?.length) {
-      changes.push(`Removed habits: ${c.habits.removed.join(', ')}`)
-    }
     if (c.summary && changes.length === 0) {
       changes.push(c.summary)
     }
@@ -249,7 +243,6 @@ export function buildWeeklyReviewContext(data: {
   week_number: number
   actions_completed: number
   actions_total: number
-  habits: Record<string, { completed: number; target: number }>
 }): Record<string, unknown> {
   return {
     trigger: 'weekly_review',
@@ -259,7 +252,6 @@ export function buildWeeklyReviewContext(data: {
     action_rate: data.actions_total > 0 
       ? Math.round((data.actions_completed / data.actions_total) * 100) 
       : 0,
-    habits: data.habits,
   }
 }
 
@@ -285,4 +277,3 @@ export function buildMilestoneReviewContext(data: {
     success_criteria_met: data.success_criteria_met,
   }
 }
-

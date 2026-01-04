@@ -76,46 +76,12 @@ export async function GET(req: NextRequest) {
       .select('id', { count: 'exact', head: true })
       .eq('protocol_id', protocolId)
 
-    // Get active habits
-    const { data: habits } = await supabase
-      .from('eden_habits')
-      .select('id')
-      .eq('protocol_id', protocolId)
-      .eq('is_active', true)
-
-    const habitIds = (habits || []).map(h => h.id)
-    let habitDaysCompleted = 0
-    let habitDaysTarget = 0
-
-    if (habitIds.length > 0) {
-      // Count days into week (Monday = 1)
-      const today = new Date().getDay()
-      const daysIntoWeek = today === 0 ? 7 : today
-
-      // Target = habits * days so far
-      habitDaysTarget = habitIds.length * daysIntoWeek
-
-      // Count completed habit logs this week
-      const { count: logsCount } = await supabase
-        .from('eden_habit_logs')
-        .select('id', { count: 'exact', head: true })
-        .in('habit_id', habitIds)
-        .eq('completed', true)
-        .gte('logged_date', weekStart.toISOString().slice(0, 10))
-        .lte('logged_date', weekEnd.toISOString().slice(0, 10))
-
-      habitDaysCompleted = logsCount ?? 0
-    }
-
     return NextResponse.json({
       actionsCompleted: actionsCompleted ?? 0,
       actionsTotal: actionsTotal ?? 0,
-      habitDaysCompleted,
-      habitDaysTarget,
     })
   } catch (error) {
     console.error('Adherence error:', error)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-

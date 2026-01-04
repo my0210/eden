@@ -47,7 +47,6 @@ export interface EvaluationContext {
   decision: ProtocolDecision
   adherenceSinceChange: {
     actionsCompletedRate: number // 0-100
-    habitCompletionRate: number // 0-100
     weeksTracked: number
   }
 }
@@ -79,7 +78,6 @@ ${decision.changes_made ? JSON.stringify(decision.changes_made, null, 2) : 'Init
 
 ADHERENCE SINCE CHANGE:
 - Action completion rate: ${adherenceSinceChange.actionsCompletedRate}%
-- Habit completion rate: ${adherenceSinceChange.habitCompletionRate}%
 - Weeks tracked: ${adherenceSinceChange.weeksTracked}
 `.trim()
 
@@ -165,7 +163,6 @@ async function getAdherenceSinceDecision(
   decision: ProtocolDecision
 ): Promise<{
   actionsCompletedRate: number
-  habitCompletionRate: number
   weeksTracked: number
 }> {
   const decisionDate = new Date(decision.created_at)
@@ -189,34 +186,8 @@ async function getAdherenceSinceDecision(
     ? Math.round((actionsCompleted / actionsTotal) * 100) 
     : 0
 
-  // Get habits and their logs
-  const { data: habits } = await supabase
-    .from('eden_habits')
-    .select('id')
-    .eq('protocol_id', decision.protocol_id)
-    .eq('is_active', true)
-
-  const habitIds = (habits || []).map(h => h.id)
-  let habitCompletionRate = 0
-
-  if (habitIds.length > 0) {
-    const { count: logsCount } = await supabase
-      .from('eden_habit_logs')
-      .select('id', { count: 'exact', head: true })
-      .in('habit_id', habitIds)
-      .eq('completed', true)
-      .gte('logged_date', decisionDate.toISOString().slice(0, 10))
-
-    // Expected: habits * days since
-    const expectedLogs = habitIds.length * daysSince
-    habitCompletionRate = expectedLogs > 0 
-      ? Math.round(((logsCount || 0) / expectedLogs) * 100) 
-      : 0
-  }
-
   return {
     actionsCompletedRate,
-    habitCompletionRate,
     weeksTracked,
   }
 }
@@ -274,4 +245,3 @@ export async function runReevaluationJob(
     results: allResults,
   }
 }
-

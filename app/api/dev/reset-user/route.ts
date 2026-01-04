@@ -97,7 +97,7 @@ export async function POST() {
     }
 
     // 2) coaching system: goals + protocols (cascade deletes handle related tables)
-    // Delete goals - this cascades to protocols, milestones, actions, habits, habit_logs, checkins, decisions
+    // Delete goals - this cascades to protocols, milestones, actions, checkins, decisions
     const { error: goalsDeleteError } = await supabase
       .from('eden_goals')
       .delete()

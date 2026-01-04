@@ -5,7 +5,6 @@ import ProfileMenu from '../dashboard/ProfileMenu'
 import MilestoneTimeline from './MilestoneTimeline'
 import WeeklyAdherence from './WeeklyAdherence'
 import ActionList from './ActionList'
-import HabitTracker from './HabitTracker'
 
 export default async function CoachingPage() {
   const { user } = await requireOnboardedUser()
@@ -40,14 +39,6 @@ export default async function CoachingPage() {
     completed_at: string | null
     priority: number
   }> = []
-  let habits: Array<{
-    id: string
-    title: string
-    description: string | null
-    frequency: string
-    current_streak: number
-    best_streak: number
-  }> = []
 
   if (activeGoal) {
     const { data: protocol } = await supabase
@@ -79,15 +70,6 @@ export default async function CoachingPage() {
         .order('priority', { ascending: true })
 
       actions = actionsData || []
-
-      // Get habits
-      const { data: habitsData } = await supabase
-        .from('eden_habits')
-        .select('*')
-        .eq('protocol_id', protocol.id)
-        .eq('is_active', true)
-
-      habits = habitsData || []
     }
   }
 
@@ -166,14 +148,10 @@ export default async function CoachingPage() {
             <WeeklyAdherence
               protocolId={activeProtocol?.id || ''}
               actions={actions}
-              habits={habits}
             />
 
             {/* Actions */}
             <ActionList actions={actions} />
-
-            {/* Habits */}
-            <HabitTracker habits={habits} />
           </>
         )}
 
@@ -184,4 +162,3 @@ export default async function CoachingPage() {
     </main>
   )
 }
-

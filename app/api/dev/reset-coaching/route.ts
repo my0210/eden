@@ -47,7 +47,7 @@ function getAdminSupabase() {
 
 /**
  * Reset coaching data only - keeps onboarding, profile, scorecard, uploads intact.
- * Clears: conversations, messages, goals, protocols, milestones, actions, habits, habit_logs, checkins, decisions
+ * Clears: conversations, messages, goals, protocols, milestones, actions, checkins, decisions
  */
 export async function POST() {
   const authSupabase = await getAuthSupabase()
@@ -94,7 +94,7 @@ export async function POST() {
       ? { error: convError.message } 
       : { deleted: conversationIds.length }
 
-    // 2) Delete goals (cascades to protocols, milestones, actions, habits, habit_logs, checkins, decisions)
+    // 2) Delete goals (cascades to protocols, milestones, actions, checkins, decisions)
     const { data: goals } = await supabase
       .from('eden_goals')
       .select('id')

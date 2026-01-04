@@ -87,7 +87,7 @@ const SYSTEM_PROMPT = `You are Eden, helping users commit to goals and follow th
 
 ## Your Approach
 - Warm but direct. No fluff.
-- One question at a time.
+- When asking questions (during goal-setting only), ask one at a time.
 - Specific beats vague: "20-min walk after lunch" > "move more"
 
 ## Safety
@@ -112,10 +112,14 @@ goal_type can be: "domain" (improve heart/frame/metabolism/recovery/mind), "outc
 domain should be "heart", "frame", "metabolism", "recovery", "mind", or null for non-domain goals
 
 ## If User HAS an Active Goal
+- You are in COACHING MODE. The goal is already set.
+- DO NOT ask goal-setting questions (target, timeline, constraints). The goal is already committed.
 - Reference their protocol and progress
 - Encourage wins, troubleshoot struggles
 - Keep responses short and actionable
-- If they want to change their goal, they can abandon and start fresh`
+- Answer their questions about the plan or progress
+- If they want to change their goal, they can abandon and start fresh
+- IMPORTANT: Even if the conversation history shows goal-setting questions, those are FROM THE PAST. You are now in coaching mode.`
 
 // Prompt for generating suggestions (using max intelligence)
 const SUGGESTIONS_PROMPT = `You generate quick reply suggestions for a health coaching chat.
@@ -259,7 +263,7 @@ export async function POST(req: NextRequest) {
     let stateSummary = `## Current State\n`
     
     if (hasActiveGoal && edenContext.goal) {
-      stateSummary += `- **Has Active Goal**: Yes\n`
+      stateSummary += `- **Has Active Goal**: Yes - GOAL IS ALREADY SET. DO NOT ask goal-setting questions.\n`
       stateSummary += `- **Goal**: ${edenContext.goal.target_description}\n`
       stateSummary += `- **Duration**: ${edenContext.goal.duration_weeks} weeks\n`
       
@@ -433,7 +437,7 @@ export async function POST(req: NextRequest) {
             if (protocolResult.success) {
               replyText = `Done! Your goal is set: **${goalData.target_description}** over ${goalData.duration_weeks} weeks.
 
-I've created your personalized plan with ${protocolResult.milestones?.length || 0} milestones, ${protocolResult.actions?.length || 0} weekly actions, and ${protocolResult.habits?.length || 0} daily habits.
+I've created your personalized plan with ${protocolResult.milestones?.length || 0} milestones and ${protocolResult.actions?.length || 0} weekly actions.
 
 **Check the Coaching tab** to see your full plan and start tracking progress!`
             } else {
