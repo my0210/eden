@@ -42,83 +42,6 @@ async function getSupabase() {
   )
 }
 
-function buildFallbackSuggestions(params: {
-  replyText: string
-  hasActiveGoal: boolean
-}): string[] {
-  const r = (params.replyText || '').toLowerCase()
-
-  // Goal-setting flow (no active goal)
-  if (!params.hasActiveGoal) {
-    // Check constraints FIRST (most specific) - look for question patterns
-    const asksConstraints =
-      (r.includes('constraints') && (r.includes('?') || r.includes('do you have') || r.includes('any'))) ||
-      (r.includes('injur') && (r.includes('?') || r.includes('any'))) ||
-      (r.includes('time restriction') && (r.includes('?') || r.includes('any'))) ||
-      (r.includes("won't do") && (r.includes('?') || r.includes('any'))) ||
-      (r.includes('limitations') && (r.includes('?') || r.includes('any')))
-    
-    // Timeline - only match if explicitly asking "how many weeks" as a question
-    // Exclude confirmations like "12-week timeline it is"
-    const isTimelineConfirmation = r.includes('timeline it is') || r.includes('timeline is') || r.includes('weeks it is')
-    const asksTimeline = 
-      !isTimelineConfirmation &&
-      !asksConstraints &&
-      ((r.includes('how many weeks') && r.includes('?')) ||
-       (r.includes('timeline') && r.includes('?')))
-    
-    // Target - check for question patterns
-    const asksTarget = 
-      (r.includes('target') && r.includes('?')) ||
-      (r.includes('specific outcome') && r.includes('?')) ||
-      (r.includes('what\'s your') && (r.includes('target') || r.includes('outcome')))
-
-    // If Eden asked for target + timeline + constraints in one go, give one option for each
-    if (asksTarget && asksTimeline && asksConstraints) {
-      return ['Drop 3–5 kg', '8 weeks', 'No injuries']
-    }
-
-    if (r.includes('ready to commit') || (r.includes('commit') && r.includes('?'))) {
-      return ["Yes, let's do it", 'Change something', 'Not ready yet']
-    }
-
-    // Check constraints BEFORE timeline (more specific)
-    if (asksConstraints) {
-      return ['No injuries', 'Limited time', 'Bad knee']
-    }
-
-    if (asksTimeline) {
-      return ['4 weeks', '8 weeks', '12 weeks']
-    }
-
-    if (asksTarget) {
-      return ['Drop 5% body fat', 'Waist -5 cm', 'Lose 3 kg']
-    }
-
-    if (r.includes('what would you like to work on') || r.includes('what would you like to focus')) {
-      return ['Get lean', 'Sleep better', 'Build strength']
-    }
-
-    // Generic but still aligned with goal-setting
-    return ["Here's my goal", '8 weeks', 'No injuries']
-  }
-
-  // Coaching flow (has active goal)
-  if (r.includes('what’s making') || r.includes("what's making") || r.includes('what is making')) {
-    return ['Time', 'Energy', 'Motivation']
-  }
-
-  if (r.includes('how are you doing') || r.includes('how am i doing') || r.includes('this week')) {
-    return ['Good week', 'So-so week', 'Rough week']
-  }
-
-  if (r.includes('change') || r.includes('update') || r.includes('adapt')) {
-    return ['Small tweak', 'Bigger change', 'Keep it as-is']
-  }
-
-  return ['How am I doing?', "I'm struggling", "What's next?"]
-}
-
 type CoachRequestBody = {
   message: string
   channel?: 'web' | 'whatsapp'
@@ -324,6 +247,17 @@ export async function POST(req: NextRequest) {
 
     let replyText = completion.choices[0]?.message?.content || 'I could not generate a response.'
 
+    // Extract suggestions from LLM response BEFORE any text replacement
+    let suggestions: string[] = []
+    const suggestionsMatch = replyText.match(/\[SUGGESTIONS\]\s*(\[[\s\S]*?\])(?:\s*$|\n)/i)
+    if (suggestionsMatch) {
+      try {
+        suggestions = JSON.parse(suggestionsMatch[1])
+      } catch (e) {
+        console.log('Failed to parse suggestions:', suggestionsMatch[1], e)
+      }
+    }
+
     // Check for goal commitment
     if (replyText.includes('[COMMIT_GOAL]')) {
       let goalData: any = null
@@ -464,24 +398,8 @@ I'm still setting up your detailed plan - check the Coaching tab in a moment.`
       replyText = replyText.replace(/\[COMMIT_GOAL\][\s\S]*$/i, '').trim()
     }
 
-    // Parse suggestions from response (handle various formats)
-    let suggestions: string[] = []
-    // Match [SUGGESTIONS] followed by a JSON array, allowing newlines and whitespace
-    const suggestionsMatch = replyText.match(/\[SUGGESTIONS\]\s*(\[[\s\S]*?\])(?:\s*$|\n)/i)
-    if (suggestionsMatch) {
-      try {
-        suggestions = JSON.parse(suggestionsMatch[1])
-        // Remove suggestions from the reply text
-        replyText = replyText.replace(/\[SUGGESTIONS\]\s*\[[\s\S]*?\](?:\s*$|\n)?/i, '').trim()
-      } catch (e) {
-        console.log('Failed to parse suggestions:', suggestionsMatch[1], e)
-      }
-    }
-    
-    // Fallback: if no suggestions found, provide contextual defaults
-    if (suggestions.length === 0) {
-      suggestions = buildFallbackSuggestions({ replyText, hasActiveGoal })
-    }
+    // Remove suggestions marker from reply text (if not already removed)
+    replyText = replyText.replace(/\[SUGGESTIONS\]\s*\[[\s\S]*?\](?:\s*$|\n)?/i, '').trim()
 
     // Insert assistant reply (without suggestions marker)
     await supabase
