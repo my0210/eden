@@ -5,6 +5,7 @@ import { buildEdenContext, summarizeContextForCoach } from '@/lib/context/buildE
 import { generateProtocolForGoal } from '@/lib/coaching/generateProtocol'
 import { extractGoalFromConversation } from '@/lib/coaching/extractGoalFromConversation'
 import { Goal } from '@/lib/coaching/types'
+import { LLM_MODELS } from '@/lib/llm/models'
 import OpenAI from 'openai'
 
 // Lazy initialization
@@ -309,7 +310,7 @@ export async function POST(req: NextRequest) {
 
     // Call OpenAI
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
+      model: LLM_MODELS.REASONING,
       messages: openaiMessages,
       temperature: 0.7,
     })

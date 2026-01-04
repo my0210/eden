@@ -7,6 +7,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import { LLM_MODELS } from '@/lib/llm/models'
 import { CHECKIN_PROMPT } from './prompts'
 import { Checkin, CheckinType, CheckinSummary, Protocol, Habit } from './types'
 
@@ -157,7 +158,7 @@ ${context.recentMessages?.length ? `\nRecent messages:\n${context.recentMessages
 
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
+      model: LLM_MODELS.REASONING,
       messages: [
         { role: 'system', content: CHECKIN_PROMPT },
         { role: 'user', content: contextSummary },

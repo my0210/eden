@@ -7,6 +7,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import { LLM_MODELS } from '@/lib/llm/models'
 import { PROTOCOL_ADAPTATION_PROMPT } from './prompts'
 import {
   Protocol,
@@ -72,7 +73,7 @@ export async function adaptProtocol(
 
     // 3) Call LLM for adaptation suggestions
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
+      model: LLM_MODELS.REASONING,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: PROTOCOL_ADAPTATION_PROMPT },
@@ -128,7 +129,7 @@ export async function adaptProtocol(
       },
       changes,
       {
-        model: 'gpt-4o',
+        model: LLM_MODELS.REASONING,
         adaptation,
         generated_at: new Date().toISOString(),
       }

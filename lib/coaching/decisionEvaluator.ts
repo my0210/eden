@@ -7,6 +7,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
+import { LLM_MODELS } from '@/lib/llm/models'
 import { ProtocolDecision, DecisionOutcomeStatus } from './types'
 import { getPendingReevaluations, recordDecisionOutcome } from './decisionLogging'
 
@@ -84,7 +85,7 @@ ADHERENCE SINCE CHANGE:
 
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
+      model: LLM_MODELS.REASONING,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: EVALUATION_PROMPT },

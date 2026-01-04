@@ -8,6 +8,7 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
 import { buildEdenContext, summarizeContextForCoach } from '@/lib/context/buildEdenContext'
+import { LLM_MODELS } from '@/lib/llm/models'
 import { PROTOCOL_GENERATION_PROMPT } from './prompts'
 import {
   Goal,
@@ -61,7 +62,7 @@ export async function generateProtocolForGoal(
 
     // 3) Call LLM
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
+      model: LLM_MODELS.REASONING,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: PROTOCOL_GENERATION_PROMPT },
@@ -106,7 +107,7 @@ export async function generateProtocolForGoal(
         status: 'active',
         effective_from: new Date().toISOString(),
         llm_raw: {
-          model: 'gpt-4o',
+          model: LLM_MODELS.REASONING,
           response: generated,
           generated_at: new Date().toISOString(),
         },

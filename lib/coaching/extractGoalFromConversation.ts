@@ -6,6 +6,7 @@
  */
 
 import OpenAI from 'openai'
+import { LLM_MODELS } from '@/lib/llm/models'
 import { ExtractedGoal, GoalType, GoalConstraints } from './types'
 import { PrimeDomain, PRIME_DOMAINS } from '@/lib/prime-scorecard/types'
 
@@ -133,7 +134,7 @@ export async function extractGoalFromConversation(
 
   try {
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
+      model: LLM_MODELS.REASONING,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: GOAL_EXTRACTION_PROMPT },
