@@ -102,8 +102,12 @@ Health is organized into **five domains**:
 
 - [ ] [P1] Coach Plan: Goal + Protocol system
 - [ ] [P1] Giving Coach context: create summaries from uploads, questionnaires
+- [ ] [P1] Model usage: determine which model to use where
+- [ ] [P1] Coach chat: add response helpers
+- [ ] [P1] Coach behaviour pre-goal: more human and friendly when greeting and generating
 - [ ] [P2] Improve conversation memory and context window
 - [ ] [P2] Add coaching templates for common scenarios
+- [ ] [P2] Rename: coaching reset
 - [ ] [P3] Voice input/output for coach interactions
 
 ### Data Imports
@@ -124,7 +128,7 @@ Health is organized into **five domains**:
 ### User Experience
 
 - [ ] [P1] Core interactions with the App: logging system
-- [ ] [P1] User Feedback: in-app feedback mechanism + admin dashboard
+- [ ] [P1] User Feedback: in-app feedback mechanism + admin dashboard for reviewing and ranking feedback
 - [ ] [P2] Push notifications for reminders
 - [ ] [P3] Achievements/streaks gamification
 
@@ -221,4 +225,3 @@ Health is organized into **five domains**:
 - [EDEN_SUMMARY.md](usefulDocsForPlanning/EDEN_SUMMARY.md) - Full product & implementation summary
 - [APPLE_HEALTH_FLOW.md](usefulDocsForPlanning/APPLE_HEALTH_FLOW.md) - Data import pipeline
 - [SCORECARD_GENERATION_ACCESS.md](usefulDocsForPlanning/SCORECARD_GENERATION_ACCESS.md) - Supabase access patterns
-

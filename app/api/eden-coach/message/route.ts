@@ -116,49 +116,81 @@ domain should be "heart", "frame", "metabolism", "recovery", "mind", or null for
 - Keep responses short and actionable
 - If they want to change their goal, they can abandon and start fresh`
 
-// Prompt for generating suggestions (separate lightweight call)
+// Prompt for generating suggestions (using max intelligence)
 const SUGGESTIONS_PROMPT = `You generate quick reply suggestions for a health coaching chat.
 
-Given the coach's message, suggest 2-3 short replies the user might want to send.
+Given the conversation context, suggest 2-3 short replies the user might want to send.
 
 Rules:
-- Each suggestion should be 1-5 words max
+- Each suggestion should be 1-6 words max
 - Make them specific and actionable
-- Match the context of what the coach asked
-- If coach asks a question, suggest likely answers
-- If coach confirms something, suggest next steps
+- Match the context of what the coach just asked
+- Answer the LAST question Eden asked (target/timeline/constraints/confirmation/next step)
+- Avoid repeating what the user just said
+- If coach asks for constraints → suggest constraint examples
+- If coach asks for timeline → suggest durations (4 weeks, 8 weeks, 12 weeks)
+- If coach asks for target → suggest specific outcomes
+- If coach confirms plan creation → suggest next steps (e.g., "View my plan", "What's next?")
+- If in coaching mode → suggest progress-related responses
 
 Respond with ONLY valid JSON in this exact format:
 {"suggestions": ["Option 1", "Option 2", "Option 3"]}`
 
 /**
- * Generate suggestions using a lightweight model call
+ * Generate suggestions using max-intelligence model
  */
-async function generateSuggestions(coachMessage: string, hasActiveGoal: boolean): Promise<string[]> {
+async function generateSuggestions(
+  coachMessage: string,
+  userMessage: string,
+  hasActiveGoal: boolean,
+  goalSummary?: string
+): Promise<string[]> {
   try {
-    const contextHint = hasActiveGoal 
+    const modeContext = hasActiveGoal 
       ? "User has an active goal and is in coaching mode."
       : "User is setting up a new goal (needs target, timeline, constraints)."
+    
+    let contextParts = [
+      `Mode: ${modeContext}`,
+      `User's last message: "${userMessage}"`,
+      `Coach's message:\n${coachMessage}`,
+    ]
+    
+    if (goalSummary) {
+      contextParts.push(`Current goal: ${goalSummary}`)
+    }
 
     const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4o',
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: SUGGESTIONS_PROMPT },
-        { role: 'user', content: `Context: ${contextHint}\n\nCoach message:\n${coachMessage}` },
+        { role: 'user', content: contextParts.join('\n\n') },
       ],
       temperature: 0.7,
-      max_tokens: 100,
+      max_tokens: 150,
     })
 
     const responseText = completion.choices[0]?.message?.content
     if (!responseText) return []
 
     const parsed = JSON.parse(responseText)
-    if (Array.isArray(parsed.suggestions)) {
-      return parsed.suggestions.slice(0, 3) // Max 3 suggestions
+    if (!Array.isArray(parsed.suggestions)) {
+      return []
     }
-    return []
+
+    // Validate and clean suggestions
+    let suggestions = parsed.suggestions
+      .filter((s: any): s is string => typeof s === 'string' && s.trim().length > 0) // Remove empty strings
+      .map((s: string) => s.trim()) // Trim whitespace
+      .filter((s: string, idx: number, arr: string[]) => {
+        // De-duplicate (case-insensitive)
+        const lower = s.toLowerCase()
+        return arr.findIndex(item => item.toLowerCase() === lower) === idx
+      })
+      .slice(0, 3) // Hard cap at 3
+
+    return suggestions
   } catch (error) {
     console.error('Failed to generate suggestions:', error)
     return []
@@ -427,8 +459,14 @@ I'm still setting up your detailed plan - check the Coaching tab in a moment.`
     replyText = replyText.replace(/\[SUGGESTIONS\]\s*\[[\s\S]*?\](?:\s*$|\n)?/i, '').trim()
     replyText = replyText.replace(/\[COMMIT_GOAL\][\s\S]*$/i, '').trim()
 
-    // Generate suggestions using dedicated lightweight model call
-    const suggestions = await generateSuggestions(replyText, hasActiveGoal)
+    // Build goal summary if available
+    let goalSummary: string | undefined = undefined
+    if (hasActiveGoal && edenContext.goal) {
+      goalSummary = `${edenContext.goal.target_description} (${edenContext.goal.duration_weeks} weeks)`
+    }
+
+    // Generate suggestions using max-intelligence model call
+    const suggestions = await generateSuggestions(replyText, body.message, hasActiveGoal, goalSummary)
 
     // Insert assistant reply (without suggestions marker)
     await supabase
