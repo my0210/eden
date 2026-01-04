@@ -250,8 +250,15 @@ export async function runReevaluationJob(
   // Group by user
   const userIds = new Set<string>()
   for (const d of pendingDecisions) {
-    const userId = (d.eden_protocols as { eden_goals: { user_id: string } }).eden_goals.user_id
-    userIds.add(userId)
+    // Extract user_id from nested query result
+    const protocols = d.eden_protocols as unknown
+    if (protocols && typeof protocols === 'object') {
+      const p = protocols as { eden_goals?: { user_id?: string } }
+      const userId = p.eden_goals?.user_id
+      if (userId) {
+        userIds.add(userId)
+      }
+    }
   }
 
   // Process each user
