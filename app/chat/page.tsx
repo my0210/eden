@@ -18,18 +18,29 @@ export default async function ChatPage() {
   const focusPrimary = userState?.goals_json?.focus_primary ?? null
   const hasScorecard = !!userState?.latest_scorecard_id
 
-  // Get active plan (optional)
-  const today = new Date().toISOString().slice(0, 10)
-  const { data: activePlans } = await supabase
-    .from('eden_plans')
-    .select('id, focus_summary')
+  // Get active goal (optional)
+  const { data: activeGoals } = await supabase
+    .from('eden_goals')
+    .select(`
+      id, 
+      target_description,
+      goal_type,
+      domain,
+      eden_protocols!inner (
+        id,
+        focus_summary,
+        current_phase,
+        total_phases,
+        status
+      )
+    `)
     .eq('user_id', user.id)
     .eq('status', 'active')
-    .lte('start_date', today)
-    .gte('end_date', today)
+    .eq('eden_protocols.status', 'active')
     .limit(1)
 
-  const activePlan = activePlans?.[0] ?? null
+  const activeGoal = activeGoals?.[0] ?? null
+  const activeProtocol = activeGoal?.eden_protocols?.[0] ?? null
 
   return (
     <main className="h-screen bg-[#F2F2F7] flex flex-col">
@@ -39,6 +50,7 @@ export default async function ChatPage() {
           <nav className="flex items-center gap-6">
             <Link href="/chat" className="text-[17px] font-semibold text-[#007AFF]">Eden</Link>
             <Link href="/dashboard" className="text-[17px] text-[#3C3C43]/60 hover:text-[#007AFF]">Dashboard</Link>
+            <Link href="/coaching" className="text-[17px] text-[#3C3C43]/60 hover:text-[#007AFF]">Coaching</Link>
             <Link href="/data" className="text-[17px] text-[#3C3C43]/60 hover:text-[#007AFF]">Data</Link>
           </nav>
           <ProfileMenu email={user.email || ''} />
@@ -70,18 +82,48 @@ export default async function ChatPage() {
                 {hasScorecard ? 'View Scorecard' : 'Prime Scorecard'}
               </span>
             </Link>
+
+            {/* Coaching link (if active goal) */}
+            {activeGoal && (
+              <Link 
+                href="/coaching"
+                className="flex items-center gap-2 bg-[#FF9500]/10 px-3 py-1.5 rounded-full hover:bg-[#FF9500]/20 transition-colors"
+              >
+                <svg className="w-4 h-4 text-[#FF9500]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <span className="text-[13px] text-[#FF9500] font-medium">
+                  View Plan
+                </span>
+              </Link>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Weekly plan banner (if exists) */}
-      {activePlan && (
+      {/* Active goal banner (if exists) */}
+      {activeGoal && activeProtocol && (
         <div className="flex-shrink-0">
           <div className="max-w-3xl mx-auto px-4 pb-2">
-            <div className="bg-white rounded-xl shadow-sm px-4 py-3">
-              <p className="text-[11px] text-[#8E8E93] uppercase tracking-wide mb-1">This week&apos;s focus</p>
-              <p className="text-[15px] text-black">{activePlan.focus_summary}</p>
-            </div>
+            <Link href="/coaching" className="block">
+              <div className="bg-white rounded-xl shadow-sm px-4 py-3 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[11px] text-[#8E8E93] uppercase tracking-wide mb-1">Active Goal</p>
+                    <p className="text-[15px] text-black">{activeGoal.target_description}</p>
+                    {activeProtocol.focus_summary && (
+                      <p className="text-[13px] text-[#8E8E93] mt-1">{activeProtocol.focus_summary}</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[11px] text-[#8E8E93] uppercase tracking-wide">Phase</p>
+                    <p className="text-[15px] text-[#007AFF] font-medium">
+                      {activeProtocol.current_phase}/{activeProtocol.total_phases}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Link>
           </div>
         </div>
       )}

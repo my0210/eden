@@ -1,22 +1,11 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { PrimeScorecard, PrimeDomain, PRIME_DOMAINS } from '@/lib/prime-scorecard/types';
-import { domainDisplay, expectedMetricsByDomain } from '@/lib/prime-scorecard/metrics';
+import { domainDisplay } from '@/lib/prime-scorecard/metrics';
+import { GoalContext, ProtocolContext, GoalConstraints } from '@/lib/coaching/types';
 
-export type EdenPlanContextAction = {
-  title: string;
-  description: string | null;
-  metric_code: string | null;
-  target_value: string | null;
-  cadence: string | null;
-};
-
-export type EdenPlanContext = {
-  id: string;
-  focusSummary: string | null;
-  startDate: string | null;
-  endDate: string | null;
-  actions: EdenPlanContextAction[];
-} | null;
+// ============================================================================
+// Types
+// ============================================================================
 
 // Focus from onboarding goals
 export type EdenFocus = {
@@ -32,16 +21,6 @@ export type EdenEssentials = {
   height: number | null;
   weight: number | null;
   units: string | null;
-};
-
-// Safety rails from onboarding
-export type EdenSafetyRails = {
-  diagnoses: string | null;
-  meds: string | null;
-  injuries_limitations: string | null;
-  red_lines: string | null;
-  doctor_restrictions: string | null;
-  privacy_ack: boolean;
 };
 
 // Scorecard summary for context (not the full object)
@@ -72,41 +51,45 @@ export type EdenUploadsContext = {
   };
 };
 
+// Main context type - REFACTORED to remove legacy fields
 export type EdenContext = {
-  // v2: Onboarding-derived data (single source of truth)
-  focus: EdenFocus;
+  // Core data
   essentials: EdenEssentials;
-  safety_rails: EdenSafetyRails;
+  focus: EdenFocus;
   scorecard: EdenScorecardContext | null;
   uploads: EdenUploadsContext;
   
-  // Legacy (kept for compatibility)
-  profile: Record<string, unknown> | null;
-  persona: Record<string, unknown> | null;
-  plan: EdenPlanContext;
-  hasPlan: boolean;
+  // Coaching data (new)
+  goal: GoalContext | null;
+  protocol: ProtocolContext | null;
   
-  // Computed flags
+  // Simplified from safety_rails (only privacy_ack needed)
+  privacy_ack: boolean;
+  
+  // Flags
   hasScorecard: boolean;
+  hasActiveGoal: boolean;
   isFirstChat: boolean;
 };
 
 export type EdenContextResult = {
   edenContext: EdenContext;
-  profile: Record<string, unknown> | null;
-  activePlan: Record<string, unknown> | null;
   rawScorecard: PrimeScorecard | null;
 };
 
+// ============================================================================
+// Main Function
+// ============================================================================
+
 /**
  * Build Eden context for the coach - READ-ONLY, no DB writes.
- * Now includes Prime Scorecard + focus as the single source of truth.
+ * Includes Prime Scorecard + focus + active goal/protocol.
  */
 export async function buildEdenContext(
   supabase: SupabaseClient,
   userId: string
 ): Promise<EdenContextResult> {
-  // 1) Load eden_user_state (goals_json, identity_json, safety_json)
+  // 1) Load eden_user_state
   const { data: userState, error: stateError } = await supabase
     .from('eden_user_state')
     .select('goals_json, identity_json, safety_json, latest_scorecard_id')
@@ -134,18 +117,11 @@ export async function buildEdenContext(
     units: identity.units ?? null,
   };
 
-  // Extract safety rails
+  // Extract privacy_ack (simplified from safety_rails)
   const safety = userState?.safety_json ?? {};
-  const safety_rails: EdenSafetyRails = {
-    diagnoses: safety.diagnoses ?? null,
-    meds: safety.meds ?? null,
-    injuries_limitations: safety.injuries_limitations ?? null,
-    red_lines: safety.red_lines ?? null,
-    doctor_restrictions: safety.doctor_restrictions ?? null,
-    privacy_ack: safety.privacy_ack ?? false,
-  };
+  const privacy_ack = safety.privacy_ack ?? false;
 
-  // 2) Load latest scorecard (prefer latest_scorecard_id, fallback to newest)
+  // 2) Load latest scorecard
   let rawScorecard: PrimeScorecard | null = null;
   let scorecardContext: EdenScorecardContext | null = null;
 
@@ -178,7 +154,6 @@ export async function buildEdenContext(
 
   // Build scorecard context summary
   if (rawScorecard) {
-    // Count metrics with values
     const metricsWithValues = rawScorecard.evidence.filter(
       e => e.value_raw !== undefined && e.subscore !== undefined
     );
@@ -186,7 +161,6 @@ export async function buildEdenContext(
       d => rawScorecard!.domain_scores[d] !== null
     ).length;
 
-    // Find freshest timestamp
     let freshestTimestamp: string | null = null;
     for (const e of rawScorecard.evidence) {
       if (e.measured_at && e.value_raw !== undefined) {
@@ -219,7 +193,6 @@ export async function buildEdenContext(
   };
 
   try {
-    // Apple Health import status
     const { data: ahImport } = await supabase
       .from('apple_health_imports')
       .select('status, uploaded_at')
@@ -236,7 +209,6 @@ export async function buildEdenContext(
       };
     }
 
-    // Photo count
     const { count: photoCount } = await supabase
       .from('eden_user_photos')
       .select('id', { count: 'exact', head: true })
@@ -247,118 +219,197 @@ export async function buildEdenContext(
     console.error('buildEdenContext: uploads query failed', e);
   }
 
-  // 4) Check if this is first chat (no messages yet)
+  // 4) Check if first chat
   let isFirstChat = true;
   try {
-    const { count: messageCount } = await supabase
-      .from('eden_messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', (await supabase
-        .from('eden_conversations')
-        .select('id')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      ).data?.id ?? '00000000-0000-0000-0000-000000000000');
+    const { data: conversation } = await supabase
+      .from('eden_conversations')
+      .select('id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    isFirstChat = (messageCount ?? 0) === 0;
+    if (conversation) {
+      const { count: messageCount } = await supabase
+        .from('eden_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', conversation.id);
+
+      isFirstChat = (messageCount ?? 0) === 0;
+    }
   } catch (e) {
     // Ignore - default to true
   }
 
-  // 5) Legacy profile (for compatibility)
-  const { data: profile, error: profileError } = await supabase
-    .from('eden_user_profile')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
+  // 5) Load active goal
+  let goalContext: GoalContext | null = null;
+  let protocolContext: ProtocolContext | null = null;
 
-  if (profileError) {
-    console.error('buildEdenContext: profileError', profileError);
-  }
-
-  // 6) Persona (optional)
-  let persona: Record<string, unknown> | null = null;
   try {
-    const { data: personaRow } = await supabase
-      .from('eden_user_personas')
+    const { data: activeGoal } = await supabase
+      .from('eden_goals')
       .select('*')
       .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    persona = personaRow ?? null;
-  } catch (e) {
-    // Table may not exist yet
-  }
+    if (activeGoal) {
+      goalContext = {
+        id: activeGoal.id,
+        goal_type: activeGoal.goal_type,
+        target_description: activeGoal.target_description,
+        domain: activeGoal.domain,
+        baseline_value: activeGoal.baseline_value,
+        target_value: activeGoal.target_value,
+        duration_weeks: activeGoal.duration_weeks,
+        started_at: activeGoal.started_at,
+        constraints: (activeGoal.constraints_json || {}) as GoalConstraints,
+      };
 
-  // 7) Active plan
-  const today = new Date().toISOString().slice(0, 10);
-  let activePlan: Record<string, unknown> | null = null;
-  let actions: EdenPlanContextAction[] = [];
+      // 6) Load active protocol for this goal
+      const { data: activeProtocol } = await supabase
+        .from('eden_protocols')
+        .select('*')
+        .eq('goal_id', activeGoal.id)
+        .eq('status', 'active')
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-  try {
-    const { data: plans } = await supabase
-      .from('eden_plans')
-      .select('id, user_id, start_date, end_date, status, focus_summary')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .lte('start_date', today)
-      .gte('end_date', today)
-      .order('start_date', { ascending: false })
-      .limit(1);
+      if (activeProtocol) {
+        // Get current milestone
+        const { data: currentMilestone } = await supabase
+          .from('eden_milestones')
+          .select('title, target_date, success_criteria')
+          .eq('protocol_id', activeProtocol.id)
+          .eq('status', 'current')
+          .limit(1)
+          .maybeSingle();
 
-    activePlan = plans?.[0] ?? null;
+        // Calculate weekly adherence
+        const weekStart = getWeekStart(new Date());
+        const weekEnd = getWeekEnd(new Date());
 
-    if (activePlan) {
-      const { data: actionsData } = await supabase
-        .from('eden_plan_actions')
-        .select('title, description, metric_code, target_value, cadence')
-        .eq('plan_id', activePlan.id as string)
-        .order('priority', { ascending: true });
+        // Count completed actions this week
+        const { count: actionsCompleted } = await supabase
+          .from('eden_protocol_actions')
+          .select('id', { count: 'exact', head: true })
+          .eq('protocol_id', activeProtocol.id)
+          .not('completed_at', 'is', null)
+          .gte('completed_at', weekStart.toISOString())
+          .lte('completed_at', weekEnd.toISOString());
 
-      actions = (actionsData ?? []) as EdenPlanContextAction[];
+        // Count total actions for current week
+        const currentWeekNumber = Math.ceil(
+          (Date.now() - new Date(activeProtocol.effective_from).getTime()) / 
+          (7 * 24 * 60 * 60 * 1000)
+        );
+        
+        const { count: actionsTotal } = await supabase
+          .from('eden_protocol_actions')
+          .select('id', { count: 'exact', head: true })
+          .eq('protocol_id', activeProtocol.id)
+          .or(`week_number.is.null,week_number.eq.${currentWeekNumber}`);
+
+        // Count habit completions this week
+        const { data: habits } = await supabase
+          .from('eden_habits')
+          .select('id')
+          .eq('protocol_id', activeProtocol.id)
+          .eq('is_active', true);
+
+        const habitIds = (habits ?? []).map(h => h.id);
+        let habitDaysCompleted = 0;
+        let habitDaysTarget = 0;
+
+        if (habitIds.length > 0) {
+          // Target = habits * days in week so far
+          const daysSoFar = Math.min(
+            7,
+            Math.ceil((Date.now() - weekStart.getTime()) / (24 * 60 * 60 * 1000))
+          );
+          habitDaysTarget = habitIds.length * daysSoFar;
+
+          const { count: logsCount } = await supabase
+            .from('eden_habit_logs')
+            .select('id', { count: 'exact', head: true })
+            .in('habit_id', habitIds)
+            .eq('completed', true)
+            .gte('logged_date', weekStart.toISOString().slice(0, 10))
+            .lte('logged_date', weekEnd.toISOString().slice(0, 10));
+
+          habitDaysCompleted = logsCount ?? 0;
+        }
+
+        protocolContext = {
+          id: activeProtocol.id,
+          version: activeProtocol.version,
+          focus_summary: activeProtocol.focus_summary,
+          current_phase: activeProtocol.current_phase,
+          total_phases: activeProtocol.total_phases,
+          current_milestone: currentMilestone ? {
+            title: currentMilestone.title,
+            target_date: currentMilestone.target_date,
+            success_criteria: currentMilestone.success_criteria,
+          } : null,
+          weekly_adherence: {
+            actions_completed: actionsCompleted ?? 0,
+            actions_total: actionsTotal ?? 0,
+            habit_days_completed: habitDaysCompleted,
+            habit_days_target: habitDaysTarget,
+          },
+        };
+      }
     }
   } catch (e) {
-    console.error('buildEdenContext: plan query failed', e);
+    console.error('buildEdenContext: goal/protocol query failed', e);
   }
 
-  const hasPlan = !!activePlan;
-
   const edenContext: EdenContext = {
-    // v2 data
-    focus,
     essentials,
-    safety_rails,
+    focus,
     scorecard: scorecardContext,
     uploads: uploadsContext,
-    
-    // Legacy
-    profile: profile ?? null,
-    persona,
-    plan: activePlan
-      ? {
-          id: activePlan.id as string,
-          focusSummary: (activePlan.focus_summary as string) ?? null,
-          startDate: (activePlan.start_date as string) ?? null,
-          endDate: (activePlan.end_date as string) ?? null,
-          actions,
-        }
-      : null,
-    hasPlan,
-    
-    // Flags
+    goal: goalContext,
+    protocol: protocolContext,
+    privacy_ack,
     hasScorecard: !!scorecardContext,
+    hasActiveGoal: !!goalContext,
     isFirstChat,
   };
 
   return {
     edenContext,
-    profile: profile ?? null,
-    activePlan,
     rawScorecard,
   };
 }
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getWeekEnd(date: Date): Date {
+  const d = getWeekStart(date);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+// ============================================================================
+// Context Summary for Coach
+// ============================================================================
 
 /**
  * Generate a natural language summary of the context for the coach.
@@ -399,28 +450,6 @@ export function summarizeContextForCoach(ctx: EdenContext): string {
     parts.push(`**Focus**: Not specified`);
   }
 
-  // Safety Rails (only mention if significant)
-  const safetyNotes: string[] = [];
-  if (ctx.safety_rails.diagnoses && ctx.safety_rails.diagnoses !== 'none') {
-    safetyNotes.push(`Diagnoses: ${ctx.safety_rails.diagnoses}`);
-  }
-  if (ctx.safety_rails.meds && ctx.safety_rails.meds !== 'none') {
-    safetyNotes.push(`Medications: ${ctx.safety_rails.meds}`);
-  }
-  if (ctx.safety_rails.injuries_limitations && ctx.safety_rails.injuries_limitations !== 'none') {
-    safetyNotes.push(`Injuries/Limitations: ${ctx.safety_rails.injuries_limitations}`);
-  }
-  if (ctx.safety_rails.red_lines && ctx.safety_rails.red_lines !== 'none') {
-    safetyNotes.push(`Red lines: ${ctx.safety_rails.red_lines}`);
-  }
-  if (ctx.safety_rails.doctor_restrictions && ctx.safety_rails.doctor_restrictions !== 'none') {
-    safetyNotes.push(`Doctor restrictions: ${ctx.safety_rails.doctor_restrictions}`);
-  }
-
-  if (safetyNotes.length > 0) {
-    parts.push(`**Safety Rails**: ${safetyNotes.join('; ')}`);
-  }
-
   // Prime Scorecard
   if (ctx.scorecard) {
     const sc = ctx.scorecard;
@@ -440,7 +469,6 @@ export function summarizeContextForCoach(ctx: EdenContext): string {
       if (domScore !== null) {
         parts.push(`  - ${domLabel}: ${domScore} (${domConf}% confidence)`);
       } else {
-        // Show what's missing
         const missing = howCalc.find(h => h.startsWith('Missing:'));
         if (missing) {
           parts.push(`  - ${domLabel}: No data yet. ${missing}`);
@@ -467,10 +495,45 @@ export function summarizeContextForCoach(ctx: EdenContext): string {
     parts.push(`**Uploads**: None yet`);
   }
 
-  // Weekly plan
-  if (ctx.plan && ctx.hasPlan) {
-    const actionTitles = ctx.plan.actions.map(a => a.title).join('; ');
-    parts.push(`**This week's focus**: ${ctx.plan.focusSummary || 'No summary'}. Actions: ${actionTitles || 'none'}`);
+  // Active Goal
+  if (ctx.goal) {
+    const g = ctx.goal;
+    parts.push(`**Active Goal**: ${g.target_description}`);
+    parts.push(`  - Type: ${g.goal_type}${g.domain ? ` (${g.domain})` : ''}`);
+    parts.push(`  - Duration: ${g.duration_weeks} weeks${g.started_at ? `, started ${g.started_at.slice(0, 10)}` : ''}`);
+    
+    if (g.baseline_value !== null && g.target_value !== null) {
+      parts.push(`  - Target: ${g.baseline_value} → ${g.target_value}`);
+    }
+    
+    // Constraints
+    const constraints = g.constraints;
+    const constraintNotes: string[] = [];
+    if (constraints.injuries?.length) constraintNotes.push(`Injuries: ${constraints.injuries.join(', ')}`);
+    if (constraints.time_restrictions?.length) constraintNotes.push(`Time: ${constraints.time_restrictions.join(', ')}`);
+    if (constraints.equipment_limitations?.length) constraintNotes.push(`Equipment: ${constraints.equipment_limitations.join(', ')}`);
+    if (constraints.red_lines?.length) constraintNotes.push(`Won't do: ${constraints.red_lines.join(', ')}`);
+    if (constraints.other?.length) constraintNotes.push(`Other: ${constraints.other.join(', ')}`);
+    
+    if (constraintNotes.length > 0) {
+      parts.push(`  - Constraints: ${constraintNotes.join('; ')}`);
+    }
+  }
+
+  // Protocol Status
+  if (ctx.protocol) {
+    const p = ctx.protocol;
+    parts.push(`**Current Protocol** (v${p.version}): ${p.focus_summary || 'No summary'}`);
+    parts.push(`  - Phase ${p.current_phase}/${p.total_phases}`);
+    
+    if (p.current_milestone) {
+      parts.push(`  - Current milestone: "${p.current_milestone.title}"${p.current_milestone.target_date ? ` (target: ${p.current_milestone.target_date})` : ''}`);
+    }
+    
+    const adh = p.weekly_adherence;
+    if (adh.actions_total > 0 || adh.habit_days_target > 0) {
+      parts.push(`  - This week: ${adh.actions_completed}/${adh.actions_total} actions, ${adh.habit_days_completed}/${adh.habit_days_target} habit completions`);
+    }
   }
 
   return parts.join('\n');

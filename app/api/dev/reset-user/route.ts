@@ -96,36 +96,15 @@ export async function POST() {
       console.error('reset-user: eden_conversations delete error', convDeleteError)
     }
 
-    // 2) plans + actions
-    const { data: plans, error: plansSelectError } = await supabase
-      .from('eden_plans')
-      .select('id')
-      .eq('user_id', userId)
-
-    if (plansSelectError) {
-      console.error('reset-user: eden_plans select error', plansSelectError)
-    }
-
-    const planIds = (plans ?? []).map((p) => p.id)
-
-    if (planIds.length > 0) {
-      const { error: actionsDeleteError } = await supabase
-        .from('eden_plan_actions')
-        .delete()
-        .in('plan_id', planIds)
-
-      if (actionsDeleteError) {
-        console.error('reset-user: eden_plan_actions delete error', actionsDeleteError)
-      }
-    }
-
-    const { error: plansDeleteError } = await supabase
-      .from('eden_plans')
+    // 2) coaching system: goals + protocols (cascade deletes handle related tables)
+    // Delete goals - this cascades to protocols, milestones, actions, habits, habit_logs, checkins, decisions
+    const { error: goalsDeleteError } = await supabase
+      .from('eden_goals')
       .delete()
       .eq('user_id', userId)
 
-    if (plansDeleteError) {
-      console.error('reset-user: eden_plans delete error', plansDeleteError)
+    if (goalsDeleteError) {
+      console.error('reset-user: eden_goals delete error', goalsDeleteError)
     }
 
     // 3) scorecards - MUST clear latest_scorecard_id FIRST (FK constraint)

@@ -16,21 +16,16 @@ export interface GoalsJson {
 }
 
 /**
- * Safety JSON structure (v2)
- * - privacy_ack: required acknowledgment of privacy policy
- * - diagnoses: "none" or list of diagnosed conditions
- * - meds: "none" or list of medications
- * - injuries_limitations: "none" or description
- * - red_lines: "none" or things user won't do
- * - doctor_restrictions: "none" or restrictions
+ * Safety JSON structure (simplified)
+ * 
+ * Previous fields (diagnoses, meds, injuries_limitations, red_lines, 
+ * doctor_restrictions) have been removed as they were never populated.
+ * 
+ * Constraints are now captured per-goal in eden_goals.constraints_json
+ * and extracted from ongoing chat via lib/coaching/extractConstraintsFromChat.ts
  */
 export interface SafetyJson {
   privacy_ack?: boolean
-  diagnoses?: string | string[]
-  meds?: string | string[]
-  injuries_limitations?: string
-  red_lines?: string
-  doctor_restrictions?: string
 }
 
 /**
