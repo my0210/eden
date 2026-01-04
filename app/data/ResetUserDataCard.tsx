@@ -8,12 +8,14 @@ type ResetResult = {
   userId?: string
   results?: Record<string, { deleted?: number; error?: string }>
   error?: string
+  message?: string
 }
 
 export default function ResetUserDataCard() {
   const router = useRouter()
   const [isResetting, setIsResetting] = useState(false)
   const [isResettingOnboarding, setIsResettingOnboarding] = useState(false)
+  const [isResettingCoaching, setIsResettingCoaching] = useState(false)
   const [result, setResult] = useState<ResetResult | null>(null)
 
   const handleResetAll = async () => {
@@ -32,7 +34,6 @@ export default function ResetUserDataCard() {
       setResult(data)
       
       if (data.ok) {
-        // Reload page after short delay to show fresh state
         setTimeout(() => window.location.reload(), 2000)
       }
     } catch (err) {
@@ -58,7 +59,6 @@ export default function ResetUserDataCard() {
       const data = await res.json()
       
       if (res.ok && data.ok) {
-        // Redirect to onboarding step 1
         router.push('/onboarding/1')
       } else {
         setResult({ ok: false, error: data.error || 'Failed to reset onboarding' })
@@ -71,6 +71,36 @@ export default function ResetUserDataCard() {
     }
   }
 
+  const handleResetCoaching = async () => {
+    const confirmed = window.confirm(
+      'This will clear coaching data only:\n\n• All chat messages with Eden\n• Goals & protocols\n• Actions, habits, check-ins\n\nYour onboarding, profile, scorecard, and uploads will be preserved.\n\nContinue?'
+    )
+
+    if (!confirmed) return
+
+    setIsResettingCoaching(true)
+    setResult(null)
+
+    try {
+      const res = await fetch('/api/dev/reset-coaching', { method: 'POST' })
+      const data: ResetResult = await res.json()
+      setResult(data)
+      
+      if (data.ok) {
+        setTimeout(() => {
+          router.push('/chat')
+        }, 1500)
+      }
+    } catch (err) {
+      console.error('Reset coaching error:', err)
+      setResult({ ok: false, error: 'Network error. Check console.' })
+    } finally {
+      setIsResettingCoaching(false)
+    }
+  }
+
+  const isAnyLoading = isResetting || isResettingOnboarding || isResettingCoaching
+
   return (
     <div className="mt-8 rounded-xl border border-red-100 bg-red-50/70 p-4 text-sm">
       <p className="font-semibold text-red-800">Developer tools</p>
@@ -78,11 +108,20 @@ export default function ResetUserDataCard() {
         Developer-only actions for testing and development.
       </p>
       
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 flex flex-wrap gap-2">
+        {/* Reset Coaching Only */}
+        <button
+          onClick={handleResetCoaching}
+          disabled={isAnyLoading}
+          className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isResettingCoaching ? 'Clearing...' : 'Clear coaching only'}
+        </button>
+
         {/* Reset Onboarding Button */}
         <button
           onClick={handleResetOnboarding}
-          disabled={isResettingOnboarding || isResetting}
+          disabled={isAnyLoading}
           className="inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isResettingOnboarding ? 'Resetting...' : 'Reset onboarding'}
@@ -91,8 +130,8 @@ export default function ResetUserDataCard() {
         {/* Wipe All Data Button */}
         <button
           onClick={handleResetAll}
-          disabled={isResetting || isResettingOnboarding}
-          className="ml-2 inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isAnyLoading}
+          className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isResetting ? 'Resetting...' : 'Wipe all Eden data'}
         </button>
@@ -102,7 +141,7 @@ export default function ResetUserDataCard() {
         <div className="mt-3">
           {result.ok ? (
             <p className="text-xs text-green-700">
-              ✓ All Eden data has been reset. Reloading page...
+              ✓ {result.message || 'Data cleared successfully.'}
             </p>
           ) : (
             <p className="text-xs text-red-700">
