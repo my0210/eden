@@ -81,7 +81,7 @@ function extractCommitGoalJson(text: string): string | null {
   return null
 }
 
-// Concise, goal-focused system prompt
+// Concise, goal-focused system prompt (no suggestion instructions - handled separately)
 const SYSTEM_PROMPT = `You are Eden, helping users commit to goals and follow through.
 
 ## Your Approach
@@ -102,11 +102,10 @@ Help them define ONE clear goal by gathering:
 Once you have all three, present a summary:
 "Here's your goal: [description]. Timeline: [X] weeks. Constraints: [list]. Ready to commit?"
 
-If they confirm (yes, let's do it, commit, etc.), respond with ONLY these two lines:
+If they confirm (yes, let's do it, commit, etc.), respond with ONLY this line:
 [COMMIT_GOAL]{"goal_type":"outcome","target_description":"...","duration_weeks":N,"domain":null,"constraints":{"injuries":[],"time_restrictions":[],"equipment_limitations":[],"red_lines":[],"other":[]}}
-[SUGGESTIONS]["Option 1", "Option 2", "Option 3"]
 
-Do NOT add any other text before or after these lines. The [COMMIT_GOAL] line must be valid JSON with proper nested braces.
+Do NOT add any other text before or after this line. The JSON must have proper nested braces.
 
 goal_type can be: "domain" (improve heart/frame/metabolism/recovery/mind), "outcome" (specific achievement), or "composite" (overall health)
 domain should be "heart", "frame", "metabolism", "recovery", "mind", or null for non-domain goals
@@ -115,18 +114,56 @@ domain should be "heart", "frame", "metabolism", "recovery", "mind", or null for
 - Reference their protocol and progress
 - Encourage wins, troubleshoot struggles
 - Keep responses short and actionable
-- If they want to change their goal, they can abandon and start fresh
+- If they want to change their goal, they can abandon and start fresh`
 
-## REQUIRED: Suggested Replies
-You MUST end EVERY response with exactly this format on its own line:
-[SUGGESTIONS]["Option 1", "Option 2", "Option 3"]
+// Prompt for generating suggestions (separate lightweight call)
+const SUGGESTIONS_PROMPT = `You generate quick reply suggestions for a health coaching chat.
 
-This is mandatory. Never skip it. Examples:
-- Goals question: [SUGGESTIONS]["Improve my cardio", "Sleep better", "Build strength"]
-- Timeline question: [SUGGESTIONS]["4 weeks", "8 weeks", "12 weeks"]
-- Constraints question: [SUGGESTIONS]["No injuries", "Bad knees", "Limited time"]
-- Confirm commitment: [SUGGESTIONS]["Yes, let's do it", "Change something", "Not ready yet"]
-- General follow-up: [SUGGESTIONS]["Tell me more", "What's next?", "I have a question"]`
+Given the coach's message, suggest 2-3 short replies the user might want to send.
+
+Rules:
+- Each suggestion should be 1-5 words max
+- Make them specific and actionable
+- Match the context of what the coach asked
+- If coach asks a question, suggest likely answers
+- If coach confirms something, suggest next steps
+
+Respond with ONLY valid JSON in this exact format:
+{"suggestions": ["Option 1", "Option 2", "Option 3"]}`
+
+/**
+ * Generate suggestions using a lightweight model call
+ */
+async function generateSuggestions(coachMessage: string, hasActiveGoal: boolean): Promise<string[]> {
+  try {
+    const contextHint = hasActiveGoal 
+      ? "User has an active goal and is in coaching mode."
+      : "User is setting up a new goal (needs target, timeline, constraints)."
+
+    const completion = await getOpenAI().chat.completions.create({
+      model: 'gpt-4o-mini',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SUGGESTIONS_PROMPT },
+        { role: 'user', content: `Context: ${contextHint}\n\nCoach message:\n${coachMessage}` },
+      ],
+      temperature: 0.7,
+      max_tokens: 100,
+    })
+
+    const responseText = completion.choices[0]?.message?.content
+    if (!responseText) return []
+
+    const parsed = JSON.parse(responseText)
+    if (Array.isArray(parsed.suggestions)) {
+      return parsed.suggestions.slice(0, 3) // Max 3 suggestions
+    }
+    return []
+  } catch (error) {
+    console.error('Failed to generate suggestions:', error)
+    return []
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -246,17 +283,6 @@ export async function POST(req: NextRequest) {
     })
 
     let replyText = completion.choices[0]?.message?.content || 'I could not generate a response.'
-
-    // Extract suggestions from LLM response BEFORE any text replacement
-    let suggestions: string[] = []
-    const suggestionsMatch = replyText.match(/\[SUGGESTIONS\]\s*(\[[\s\S]*?\])(?:\s*$|\n)/i)
-    if (suggestionsMatch) {
-      try {
-        suggestions = JSON.parse(suggestionsMatch[1])
-      } catch (e) {
-        console.log('Failed to parse suggestions:', suggestionsMatch[1], e)
-      }
-    }
 
     // Check for goal commitment
     if (replyText.includes('[COMMIT_GOAL]')) {
@@ -394,12 +420,15 @@ I'm still setting up your detailed plan - check the Coaching tab in a moment.`
       }
 
       // Remove the [COMMIT_GOAL] marker from reply text if it's still there
-      replyText = replyText.replace(/\[COMMIT_GOAL\][\s\S]*?\[SUGGESTIONS\]/i, '').trim()
       replyText = replyText.replace(/\[COMMIT_GOAL\][\s\S]*$/i, '').trim()
     }
 
-    // Remove suggestions marker from reply text (if not already removed)
+    // Clean up any stray markers from reply text
     replyText = replyText.replace(/\[SUGGESTIONS\]\s*\[[\s\S]*?\](?:\s*$|\n)?/i, '').trim()
+    replyText = replyText.replace(/\[COMMIT_GOAL\][\s\S]*$/i, '').trim()
+
+    // Generate suggestions using dedicated lightweight model call
+    const suggestions = await generateSuggestions(replyText, hasActiveGoal)
 
     // Insert assistant reply (without suggestions marker)
     await supabase
