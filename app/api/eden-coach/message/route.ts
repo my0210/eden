@@ -41,6 +41,68 @@ async function getSupabase() {
   )
 }
 
+function buildFallbackSuggestions(params: {
+  replyText: string
+  hasActiveGoal: boolean
+}): string[] {
+  const r = (params.replyText || '').toLowerCase()
+
+  // Goal-setting flow (no active goal)
+  if (!params.hasActiveGoal) {
+    const asksTarget = r.includes('target') || r.includes('specific outcome') || r.includes('outcome')
+    const asksTimeline = r.includes('timeline') || r.includes('how many weeks') || r.includes('weeks')
+    const asksConstraints =
+      r.includes('constraints') ||
+      r.includes('injur') ||
+      r.includes('time restriction') ||
+      r.includes("won't do") ||
+      r.includes('limitations')
+
+    // If Eden asked for target + timeline + constraints in one go, give one option for each
+    if (asksTarget && asksTimeline && asksConstraints) {
+      return ['Drop 3–5 kg', '8 weeks', 'No injuries']
+    }
+
+    if (r.includes('ready to commit') || (r.includes('commit') && r.includes('?'))) {
+      return ["Yes, let's do it", 'Change something', 'Not ready yet']
+    }
+
+    if (asksTimeline) {
+      return ['4 weeks', '8 weeks', '12 weeks']
+    }
+
+    if (asksConstraints) {
+      return ['No injuries', 'Limited time', 'Bad knee']
+    }
+
+    if (asksTarget) {
+      return ['Drop 5% body fat', 'Waist -5 cm', 'Lose 3 kg']
+    }
+
+    if (r.includes('what would you like to work on') || r.includes('what would you like to focus')) {
+      return ['Get lean', 'Sleep better', 'Build strength']
+    }
+
+    // Generic but still aligned with goal-setting
+    return ["Here's my goal", '8 weeks', 'No injuries']
+  }
+
+  // Coaching flow (has active goal)
+  if (r.includes('what’s making') || r.includes("what's making") || r.includes('what is making')) {
+    return ['Time', 'Energy', 'Motivation']
+  }
+
+  if (r.includes('how are you doing') || r.includes('how am i doing') || r.includes('this week')) {
+    return ['Good week', 'So-so week', 'Rough week']
+  }
+
+  if (r.includes('change') || r.includes('update') || r.includes('adapt')) {
+    return ['Small tweak', 'Bigger change', 'Keep it as-is']
+  }
+
+  return ['How am I doing?', "I'm struggling", "What's next?"]
+}
+
 type CoachRequestBody = {
   message: string
   channel?: 'web' | 'whatsapp'
@@ -281,11 +343,7 @@ I'm still setting up your detailed plan - check the Coaching tab in a moment.`
     
     // Fallback: if no suggestions found, provide contextual defaults
     if (suggestions.length === 0) {
-      if (!hasActiveGoal) {
-        suggestions = ["Improve my fitness", "Sleep better", "Build strength"]
-    } else {
-        suggestions = ["How am I doing?", "I need help", "What's next?"]
-      }
+      suggestions = buildFallbackSuggestions({ replyText, hasActiveGoal })
     }
 
     // Insert assistant reply (without suggestions marker)
