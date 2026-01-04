@@ -26,6 +26,20 @@ async function getSupabase() {
   )
 }
 
+// Helper to extract user_id from nested query result
+function getUserIdFromHabit(habit: unknown): string | null {
+  try {
+    const h = habit as {
+      eden_protocols: {
+        eden_goals: { user_id: string }
+      }
+    }
+    return h.eden_protocols?.eden_goals?.user_id ?? null
+  } catch {
+    return null
+  }
+}
+
 // Log habit completion
 export async function POST(
   req: NextRequest,
@@ -63,7 +77,8 @@ export async function POST(
       .eq('id', habitId)
       .single()
 
-    if (!habit || (habit.eden_protocols as { eden_goals: { user_id: string } }).eden_goals.user_id !== user.id) {
+    const ownerId = getUserIdFromHabit(habit)
+    if (!habit || ownerId !== user.id) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
@@ -162,7 +177,8 @@ export async function DELETE(
       .eq('id', habitId)
       .single()
 
-    if (!habit || (habit.eden_protocols as { eden_goals: { user_id: string } }).eden_goals.user_id !== user.id) {
+    const ownerId = getUserIdFromHabit(habit)
+    if (!habit || ownerId !== user.id) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
@@ -192,4 +208,3 @@ export async function DELETE(
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-
