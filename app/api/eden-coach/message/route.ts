@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { buildEdenContext, summarizeContextForCoach } from '@/lib/context/buildEdenContext'
 import { generateProtocolForGoal } from '@/lib/coaching/generateProtocol'
+import { extractGoalFromConversation } from '@/lib/coaching/extractGoalFromConversation'
 import { Goal } from '@/lib/coaching/types'
 import OpenAI from 'openai'
 
@@ -108,6 +109,40 @@ type CoachRequestBody = {
   channel?: 'web' | 'whatsapp'
 }
 
+/**
+ * Extract JSON object from text starting with [COMMIT_GOAL]{...}
+ * Handles nested braces properly by counting brace depth
+ */
+function extractCommitGoalJson(text: string): string | null {
+  const startMarker = '[COMMIT_GOAL]{'
+  const startIdx = text.indexOf(startMarker)
+  if (startIdx === -1) return null
+
+  // Find the opening brace after the marker
+  const jsonStart = startIdx + startMarker.length - 1 // -1 because we want the {
+  let depth = 0
+  let i = jsonStart
+
+  while (i < text.length) {
+    const char = text[i]
+    
+    if (char === '{') {
+      depth++
+    } else if (char === '}') {
+      depth--
+      if (depth === 0) {
+        // Found matching closing brace
+        return text.substring(jsonStart, i + 1)
+      }
+    }
+    
+    i++
+  }
+
+  // Didn't find matching brace - might be incomplete
+  return null
+}
+
 // Concise, goal-focused system prompt
 const SYSTEM_PROMPT = `You are Eden, helping users commit to goals and follow through.
 
@@ -129,8 +164,11 @@ Help them define ONE clear goal by gathering:
 Once you have all three, present a summary:
 "Here's your goal: [description]. Timeline: [X] weeks. Constraints: [list]. Ready to commit?"
 
-If they confirm (yes, let's do it, commit, etc.), respond with EXACTLY this format:
+If they confirm (yes, let's do it, commit, etc.), respond with ONLY these two lines:
 [COMMIT_GOAL]{"goal_type":"outcome","target_description":"...","duration_weeks":N,"domain":null,"constraints":{"injuries":[],"time_restrictions":[],"equipment_limitations":[],"red_lines":[],"other":[]}}
+[SUGGESTIONS]["Option 1", "Option 2", "Option 3"]
+
+Do NOT add any other text before or after these lines. The [COMMIT_GOAL] line must be valid JSON with proper nested braces.
 
 goal_type can be: "domain" (improve heart/frame/metabolism/recovery/mind), "outcome" (specific achievement), or "composite" (overall health)
 domain should be "heart", "frame", "metabolism", "recovery", "mind", or null for non-domain goals
@@ -273,16 +311,94 @@ export async function POST(req: NextRequest) {
 
     // Check for goal commitment
     if (replyText.includes('[COMMIT_GOAL]')) {
-      const match = replyText.match(/\[COMMIT_GOAL\](\{[\s\S]*?\})/)
-      
-      if (match) {
+      let goalData: any = null
+      let commitSuccess = false
+
+      // Try robust JSON extraction first
+      const jsonStr = extractCommitGoalJson(replyText)
+      if (jsonStr) {
         try {
-          const goalData = JSON.parse(match[1])
-          
+          goalData = JSON.parse(jsonStr)
+          commitSuccess = true
+        } catch (parseError) {
+          console.error('Failed to parse extracted JSON:', parseError, 'Extracted:', jsonStr)
+        }
+      }
+
+      // Fallback: if parsing failed, try extraction from conversation
+      if (!commitSuccess) {
+        console.log('Commit JSON parse failed, attempting fallback extraction from conversation')
+        
+        // Reuse the context we already built
+        const essentials = edenContext.essentials
+        
+        // Build conversation context for extraction
+        const conversationMessages = [
+          ...messages.map(m => ({ role: m.role, content: m.content })),
+          { role: 'user' as const, content: body.message },
+        ]
+
+        // Convert height/weight based on units if needed
+        let heightCm: number | undefined = undefined
+        let weightKg: number | undefined = undefined
+        
+        if (essentials.height !== null) {
+          if (essentials.units === 'imperial') {
+            // Convert inches to cm
+            heightCm = essentials.height * 2.54
+          } else {
+            // Assume metric (cm)
+            heightCm = essentials.height
+          }
+        }
+        
+        if (essentials.weight !== null) {
+          if (essentials.units === 'imperial') {
+            // Convert lbs to kg
+            weightKg = essentials.weight * 0.453592
+          } else {
+            // Assume metric (kg)
+            weightKg = essentials.weight
+          }
+        }
+
+        const extractionResult = await extractGoalFromConversation({
+          messages: conversationMessages,
+          user_essentials: {
+            age: essentials.age || undefined,
+            sex_at_birth: essentials.sex_at_birth || undefined,
+            weight: weightKg,
+            height: heightCm,
+          },
+          current_scorecard: edenContext.scorecard ? {
+            prime_score: edenContext.scorecard.prime_score,
+            domain_scores: edenContext.scorecard.domain_scores,
+          } : undefined,
+        })
+
+        if (extractionResult.success && extractionResult.goal) {
+          // Convert ExtractedGoal to the format we need
+          goalData = {
+            goal_type: extractionResult.goal.goal_type,
+            domain: extractionResult.goal.domain || null,
+            target_description: extractionResult.goal.target_description,
+            duration_weeks: extractionResult.goal.duration_weeks,
+            constraints: extractionResult.goal.constraints || {},
+          }
+          commitSuccess = true
+          console.log('Fallback extraction succeeded')
+        } else {
+          console.error('Fallback extraction failed:', extractionResult.missing)
+        }
+      }
+
+      // If we have goal data, create the goal
+      if (commitSuccess && goalData) {
+        try {
           // Create goal in database
           const { data: newGoal, error: goalError } = await supabase
             .from('eden_goals')
-        .insert({
+            .insert({
               user_id: user.id,
               goal_type: goalData.goal_type || 'outcome',
               domain: goalData.domain || null,
@@ -297,8 +413,7 @@ export async function POST(req: NextRequest) {
 
           if (goalError || !newGoal) {
             console.error('Failed to create goal:', goalError)
-            replyText = replyText.replace(/\[COMMIT_GOAL\]\{[\s\S]*?\}/, 
-              "I tried to create your goal but something went wrong. Let's try again - can you confirm your goal one more time?")
+            replyText = "I tried to create your goal but something went wrong. Let's try again - can you confirm your goal one more time?"
           } else {
             // Generate protocol
             const protocolResult = await generateProtocolForGoal(
@@ -319,12 +434,19 @@ I've created your personalized plan with ${protocolResult.milestones?.length || 
 I'm still setting up your detailed plan - check the Coaching tab in a moment.`
             }
           }
-        } catch (parseError) {
-          console.error('Failed to parse goal JSON:', parseError)
-          replyText = replyText.replace(/\[COMMIT_GOAL\]\{[\s\S]*?\}/, 
-            "I understood you want to commit, but I had trouble processing the details. Can you confirm your goal one more time?")
+        } catch (dbError) {
+          console.error('Database error creating goal:', dbError)
+          replyText = "I tried to create your goal but something went wrong. Let's try again - can you confirm your goal one more time?"
         }
+      } else {
+        // Both parsing and extraction failed
+        const missingFields = goalData?.missing || ['target', 'timeline', 'constraints']
+        replyText = `I understood you want to commit, but I need a bit more clarity. Can you tell me:\n\n${missingFields.map((f: string) => `- ${f}`).join('\n')}`
       }
+
+      // Remove the [COMMIT_GOAL] marker from reply text if it's still there
+      replyText = replyText.replace(/\[COMMIT_GOAL\][\s\S]*?\[SUGGESTIONS\]/i, '').trim()
+      replyText = replyText.replace(/\[COMMIT_GOAL\][\s\S]*$/i, '').trim()
     }
 
     // Parse suggestions from response (handle various formats)
