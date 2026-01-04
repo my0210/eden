@@ -79,16 +79,16 @@ domain should be "heart", "frame", "metabolism", "recovery", "mind", or null for
 - Keep responses short and actionable
 - If they want to change their goal, they can abandon and start fresh
 
-## Suggested Replies
-At the end of EVERY response, add 2-3 suggested quick replies the user might want to send.
-Format them EXACTLY like this on a new line at the very end:
+## REQUIRED: Suggested Replies
+You MUST end EVERY response with exactly this format on its own line:
 [SUGGESTIONS]["Option 1", "Option 2", "Option 3"]
 
-Examples:
-- After asking about goals: [SUGGESTIONS]["Improve my cardio", "Sleep better", "Build strength"]
-- After asking about timeline: [SUGGESTIONS]["4 weeks", "8 weeks", "12 weeks"]
-- After asking about constraints: [SUGGESTIONS]["No injuries", "Bad knees", "Can't do mornings"]
-- After asking to confirm: [SUGGESTIONS]["Yes, let's do it", "Change something", "Not ready yet"]`
+This is mandatory. Never skip it. Examples:
+- Goals question: [SUGGESTIONS]["Improve my cardio", "Sleep better", "Build strength"]
+- Timeline question: [SUGGESTIONS]["4 weeks", "8 weeks", "12 weeks"]
+- Constraints question: [SUGGESTIONS]["No injuries", "Bad knees", "Limited time"]
+- Confirm commitment: [SUGGESTIONS]["Yes, let's do it", "Change something", "Not ready yet"]
+- General follow-up: [SUGGESTIONS]["Tell me more", "What's next?", "I have a question"]`
 
 export async function POST(req: NextRequest) {
   try {
@@ -194,10 +194,10 @@ export async function POST(req: NextRequest) {
 
     // Add conversation history
     for (const msg of messages) {
-      openaiMessages.push({
-        role: msg.role === 'user' ? 'user' : 'assistant',
-        content: msg.content,
-      })
+        openaiMessages.push({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content,
+        })
     }
 
     // Call OpenAI
@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
           // Create goal in database
           const { data: newGoal, error: goalError } = await supabase
             .from('eden_goals')
-            .insert({
+        .insert({
               user_id: user.id,
               goal_type: goalData.goal_type || 'outcome',
               domain: goalData.domain || null,
@@ -265,27 +265,37 @@ I'm still setting up your detailed plan - check the Coaching tab in a moment.`
       }
     }
 
-    // Parse suggestions from response
+    // Parse suggestions from response (handle various formats)
     let suggestions: string[] = []
-    const suggestionsMatch = replyText.match(/\[SUGGESTIONS\]\s*\[(.*?)\]/)
+    // Match [SUGGESTIONS] followed by a JSON array, allowing newlines and whitespace
+    const suggestionsMatch = replyText.match(/\[SUGGESTIONS\]\s*(\[[\s\S]*?\])(?:\s*$|\n)/i)
     if (suggestionsMatch) {
       try {
-        suggestions = JSON.parse(`[${suggestionsMatch[1]}]`)
+        suggestions = JSON.parse(suggestionsMatch[1])
         // Remove suggestions from the reply text
-        replyText = replyText.replace(/\[SUGGESTIONS\]\s*\[.*?\]/, '').trim()
-      } catch {
-        // Ignore parse errors
+        replyText = replyText.replace(/\[SUGGESTIONS\]\s*\[[\s\S]*?\](?:\s*$|\n)?/i, '').trim()
+      } catch (e) {
+        console.log('Failed to parse suggestions:', suggestionsMatch[1], e)
+      }
+    }
+    
+    // Fallback: if no suggestions found, provide contextual defaults
+    if (suggestions.length === 0) {
+      if (!hasActiveGoal) {
+        suggestions = ["Improve my fitness", "Sleep better", "Build strength"]
+      } else {
+        suggestions = ["How am I doing?", "I need help", "What's next?"]
       }
     }
 
     // Insert assistant reply (without suggestions marker)
     await supabase
-      .from('eden_messages')
-      .insert({
-        conversation_id: conversationId,
-        role: 'assistant',
-        content: replyText,
-      })
+        .from('eden_messages')
+        .insert({
+          conversation_id: conversationId,
+          role: 'assistant',
+          content: replyText,
+        })
 
     // Update conversation timestamp
     await supabase
