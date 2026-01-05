@@ -109,25 +109,25 @@ export default function ResetUserDataCard() {
       </p>
       
       <div className="mt-3 flex flex-wrap gap-2">
-        {/* Reset Onboarding */}
+        {/* Reset Onboarding - least destructive */}
         <button
           onClick={handleResetOnboarding}
           disabled={isAnyLoading}
-          className="inline-flex items-center rounded-md bg-orange-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isResettingOnboarding ? 'Resetting...' : 'Reset onboarding'}
         </button>
 
-        {/* Reset Coaching */}
+        {/* Reset Coaching - medium destructive */}
         <button
           onClick={handleResetCoaching}
           disabled={isAnyLoading}
-          className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center rounded-md bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isResettingCoaching ? 'Resetting...' : 'Reset coaching'}
         </button>
         
-        {/* Reset All Data */}
+        {/* Reset All Data - most destructive */}
         <button
           onClick={handleResetAll}
           disabled={isAnyLoading}
