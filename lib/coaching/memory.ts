@@ -216,9 +216,13 @@ export async function applyMemoryPatches(
   let updatedEvents = [...memory.notable_events]
   let updatedConfirmed = { ...memory.confirmed }
 
-  // Add stated facts
+  // Add stated facts (dedupe by fact text)
   if (patches.add_stated?.length) {
-    updatedStated = [...updatedStated, ...patches.add_stated]
+    const existingFacts = new Set(updatedStated.map(s => s.fact.toLowerCase().trim()))
+    const newFacts = patches.add_stated.filter(
+      s => !existingFacts.has(s.fact.toLowerCase().trim())
+    )
+    updatedStated = [...updatedStated, ...newFacts]
   }
 
   // Remove stated facts by text match
@@ -234,9 +238,13 @@ export async function applyMemoryPatches(
     updatedEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }
 
-  // Add inferred patterns
+  // Add inferred patterns (dedupe by pattern text)
   if (patches.add_inferred?.length) {
-    updatedInferred = [...updatedInferred, ...patches.add_inferred]
+    const existingPatterns = new Set(updatedInferred.map(p => p.pattern.toLowerCase().trim()))
+    const newPatterns = patches.add_inferred.filter(
+      p => !existingPatterns.has(p.pattern.toLowerCase().trim())
+    )
+    updatedInferred = [...updatedInferred, ...newPatterns]
   }
 
   // Remove inferred by text match
