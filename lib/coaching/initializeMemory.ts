@@ -264,17 +264,17 @@ async function loadLabAnalysis(
   if (!markers?.length) return undefined
 
   // Build current lab data
-  const current: Record<string, unknown> = {
-    date: labs.uploaded_at
+  const current: LabData['current'] = {
+    date: labs.uploaded_at || new Date().toISOString()
   }
 
   for (const marker of markers) {
     const name = (marker.name as string)?.toLowerCase().replace(/\s+/g, '_')
     if (name) {
       current[name] = {
-        value: marker.value,
-        unit: marker.unit,
-        status: marker.status || 'normal'
+        value: marker.value as number,
+        unit: marker.unit as string,
+        status: (marker.status as string) || 'normal'
       }
     }
   }
