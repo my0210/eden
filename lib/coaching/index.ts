@@ -5,20 +5,46 @@
 // Types
 export * from './types'
 
-// Goal extraction
-export { 
-  extractGoalFromConversation, 
-  detectGoalIntent,
-  type GoalExtractionResult,
-  type ConversationContext,
-} from './extractGoalFromConversation'
-
-// Constraint extraction
+// Memory system
 export {
-  extractConstraintsFromMessage,
-  mergeConstraints,
-  type ConstraintExtractionResult,
-} from './extractConstraintsFromChat'
+  getMemory,
+  getOrCreateMemory,
+  applyMemoryPatches,
+  updateConfirmed,
+  addNotableEvent,
+  addStatedFact,
+  setBaselineSnapshot,
+  clearMemory,
+  removeStatedFact,
+  removeInferredPattern,
+  type UserMemory,
+  type MemoryPatches,
+  type ConfirmedData,
+  type StatedFact,
+  type InferredPattern,
+  type NotableEvent,
+} from './memory'
+
+// Memory context building
+export {
+  buildMemoryContext,
+  buildShortContext,
+  buildWelcomeContext,
+  hasActiveGoal,
+  getUserName,
+} from './buildMemoryContext'
+
+// Extraction from chat
+export {
+  extractFromChat,
+  detectGoalIntent,
+  detectProgressMention,
+  type ExtractionResult,
+  type GoalData,
+} from './extractFromChat'
+
+// Memory initialization
+export { initializeMemory } from './initializeMemory'
 
 // Protocol generation
 export {
@@ -26,7 +52,7 @@ export {
   type ProtocolGenerationResult,
 } from './generateProtocol'
 
-// Protocol versioning
+// Protocol versioning (kept for trust/accountability)
 export {
   getVersionChain,
   createNewVersion,
@@ -35,7 +61,7 @@ export {
   type VersionChainEntry,
 } from './protocolVersioning'
 
-// Decision logging
+// Decision logging (kept for trust/accountability)
 export {
   createDecision,
   getDecisionsForProtocol,
@@ -55,28 +81,9 @@ export {
   CHECKIN_PROMPT,
 } from './prompts'
 
-// Check-in engine
-export {
-  shouldTriggerCheckIn,
-  generateCheckInMessage,
-  createCheckIn,
-  getRecentCheckIns,
-  type CheckInContext,
-} from './checkInEngine'
-
 // Protocol adaptation
 export {
   adaptProtocol,
   type AdaptationContext,
   type AdaptationResult,
 } from './adaptProtocol'
-
-// Decision evaluation
-export {
-  evaluateDecision,
-  processPendingReevaluations,
-  runReevaluationJob,
-  type EvaluationContext,
-  type EvaluationResult,
-} from './decisionEvaluator'
-

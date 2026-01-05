@@ -1,9 +1,27 @@
+/**
+ * Eden Coach Welcome Message
+ * 
+ * LLM-generated, personal, directional welcome.
+ * Uses memory to create a coach-like first impression.
+ */
+
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { buildEdenContext } from '@/lib/context/buildEdenContext'
-import { domainDisplay } from '@/lib/prime-scorecard/metrics'
-import { PRIME_DOMAINS } from '@/lib/prime-scorecard/types'
+import OpenAI from 'openai'
+import { LLM_MODELS } from '@/lib/llm/models'
+import { getOrCreateMemory } from '@/lib/coaching/memory'
+import { buildWelcomeContext, hasActiveGoal, getUserName } from '@/lib/coaching/buildMemoryContext'
+
+let openai: OpenAI | null = null
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  }
+  return openai
+}
 
 async function getSupabase() {
   const cookieStore = await cookies()
@@ -29,10 +47,26 @@ async function getSupabase() {
   )
 }
 
+const WELCOME_PROMPT = `You are Eden, greeting this person for the first time after they completed their health assessment.
+
+You know everything below about them.
+
+Write a welcome (4-5 sentences) that:
+1. Uses their name naturally (if you know it)
+2. Shows you noticed something specific about them (not a score - something human like an injury, goal, or challenge)
+3. Acknowledges where they are AND hints at where they could be
+4. Creates momentum - you're here to help them become their best self
+5. Ends with a focused question or suggestion that moves toward commitment
+
+You're a friend who genuinely cares AND a coach who sees their potential.
+Don't list scores. Don't say "based on your data." Sound like a thoughtful friend who read their story.
+
+If you don't have much info about them yet, still be warm and curious - ask what they want to work on.`
+
 /**
  * GET /api/eden-coach/welcome
  * 
- * Returns a concise, goal-oriented welcome message.
+ * Returns a personalized, LLM-generated welcome message.
  */
 export async function GET() {
   try {
@@ -43,54 +77,60 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { edenContext } = await buildEdenContext(supabase, user.id)
+    // Load memory
+    const memory = await getOrCreateMemory(supabase, user.id)
+    const hasGoal = hasActiveGoal(memory)
+    const userName = getUserName(memory)
+    const welcomeContext = buildWelcomeContext(memory)
 
-    // Build concise welcome message
-    const parts: string[] = []
+    let message: string
+    let suggestions: string[]
 
-    // Intro - avoid "health coach" terminology
-    parts.push("Hey, I'm Eden. I'm here to help you feel and perform at your best.")
-    parts.push("")
-
-    // If they have a scorecard, give one insight
-    if (edenContext.scorecard && edenContext.scorecard.prime_score !== null) {
-      const sc = edenContext.scorecard
+    // If they already have a goal, give a different kind of welcome
+    if (hasGoal) {
+      const goalTitle = memory.confirmed.protocol?.goal_title || 'your goal'
+      const week = memory.confirmed.protocol?.current_week || 1
       
-      // Find weakest domain with data
-      const domainsWithScores = PRIME_DOMAINS
-        .filter(d => sc.domain_scores[d] !== null)
-        .sort((a, b) => (sc.domain_scores[a] ?? 100) - (sc.domain_scores[b] ?? 100))
-      
-      if (domainsWithScores.length > 0) {
-        const weakest = domainsWithScores[0]
-        const weakestScore = sc.domain_scores[weakest]
-        const weakestLabel = domainDisplay[weakest].label
-        
-        parts.push(`Based on your Prime Check, **${weakestLabel}** (${weakestScore}) looks like an area with room to grow.`)
-        parts.push("")
-      }
-    }
-
-    // Soft nudge toward goal
-    parts.push("What would you like to work on? I'll help you set a clear goal and build a plan to get there.")
-
-    // Default suggestions based on context
-    let suggestions: string[] = []
-    if (edenContext.hasActiveGoal) {
-      suggestions = ["How am I doing?", "I'm struggling", "Update my plan"]
+      message = `Welcome back${userName ? `, ${userName}` : ''}! You're in week ${week} of ${goalTitle}. How's it going?`
+      suggestions = ["Going well!", "I'm struggling", "Update me on progress"]
     } else {
-      suggestions = ["Improve my fitness", "Sleep better", "Manage stress"]
+      // Generate personalized welcome using LLM
+      try {
+        const completion = await getOpenAI().chat.completions.create({
+          model: LLM_MODELS.STANDARD,
+          messages: [
+            { role: 'system', content: WELCOME_PROMPT },
+            { role: 'user', content: `Here's what you know about this person:\n\n${welcomeContext || 'No information yet - they just started.'}` },
+          ],
+          temperature: 0.8,
+          max_tokens: 300,
+        })
+
+        message = completion.choices[0]?.message?.content || getFallbackWelcome(userName)
+      } catch (llmError) {
+        console.error('LLM welcome failed:', llmError)
+        message = getFallbackWelcome(userName)
+      }
+
+      // Default suggestions for goal-setting
+      suggestions = ["Improve my fitness", "Sleep better", "Lose weight"]
     }
 
     return NextResponse.json({ 
-      message: parts.join("\n"),
+      message,
       suggestions,
-      hasScorecard: edenContext.hasScorecard,
-      hasActiveGoal: edenContext.hasActiveGoal,
+      hasActiveGoal: hasGoal,
     })
 
   } catch (err) {
     console.error('Welcome message error:', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
+}
+
+function getFallbackWelcome(name: string | null): string {
+  const greeting = name ? `Hey ${name}!` : 'Hey!'
+  return `${greeting} I'm Eden. I'm here to help you feel and perform at your best.
+
+What's one thing you'd like to improve about your health or fitness? Let's make it happen together.`
 }

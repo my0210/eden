@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 type Message = {
   id: string
@@ -8,6 +9,13 @@ type Message = {
   content: string
   suggestions?: string[]
 }
+
+// Preset quick actions - always available
+const PRESET_SUGGESTIONS = [
+  { label: 'Check in with me', message: "Let's do a check-in. How am I doing on my goal?" },
+  { label: 'Adjust my plan', message: "I'd like to adjust my plan. Can we talk about it?" },
+  { label: 'I have news', message: "I have some updates to share with you." },
+]
 
 // Simple markdown renderer for bold text and newlines
 function renderMarkdown(text: string) {
@@ -20,14 +28,25 @@ function renderMarkdown(text: string) {
   })
 }
 
-export default function EdenCoachChat() {
+interface EdenCoachChatProps {
+  initialMessage?: string
+}
+
+export default function EdenCoachChat({ initialMessage }: EdenCoachChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
+  const [hasActiveGoal, setHasActiveGoal] = useState(false)
+  const [showPresets, setShowPresets] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const hasLoadedHistory = useRef(false)
-  const isSendingRef = useRef(false) // Prevent double-sends
+  const hasSentInitialMessage = useRef(false)
+  const isSendingRef = useRef(false)
+  const searchParams = useSearchParams()
+
+  // Check for pre-filled message from URL
+  const urlMessage = searchParams.get('message')
 
   // Load conversation history on mount
   useEffect(() => {
@@ -50,6 +69,7 @@ export default function EdenCoachChat() {
         const welcomeRes = await fetch('/api/eden-coach/welcome')
         if (welcomeRes.ok) {
           const welcomeData = await welcomeRes.json()
+          setHasActiveGoal(welcomeData.hasActiveGoal || false)
           setMessages([{
             id: 'welcome',
             role: 'assistant',
@@ -61,16 +81,15 @@ export default function EdenCoachChat() {
           setMessages([{
             id: 'welcome',
             role: 'assistant',
-            content: "Welcome to Eden! I'm your primespan coach. What would you like to focus on today?"
+            content: "Hey! I'm Eden. What would you like to work on today?"
           }])
         }
       } catch (err) {
         console.error('Failed to load chat:', err)
-        // Fallback message
         setMessages([{
           id: 'welcome',
           role: 'assistant',
-          content: "Welcome to Eden! I'm your primespan coach. What would you like to focus on today?"
+          content: "Hey! I'm Eden. What would you like to work on today?"
         }])
       } finally {
         setIsLoadingHistory(false)
@@ -79,6 +98,22 @@ export default function EdenCoachChat() {
 
     loadHistory()
   }, [])
+
+  // Handle pre-filled message from URL or prop
+  useEffect(() => {
+    if (hasSentInitialMessage.current) return
+    if (isLoadingHistory) return
+
+    const messageToSend = initialMessage || (urlMessage ? decodeURIComponent(urlMessage) : null)
+    
+    if (messageToSend && messages.length > 0) {
+      hasSentInitialMessage.current = true
+      // Small delay to ensure UI is ready
+      setTimeout(() => {
+        handleSend(messageToSend)
+      }, 100)
+    }
+  }, [isLoadingHistory, messages.length, initialMessage, urlMessage])
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -91,6 +126,7 @@ export default function EdenCoachChat() {
     
     // Lock immediately with ref (sync, no race condition)
     isSendingRef.current = true
+    setShowPresets(false)
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -119,6 +155,11 @@ export default function EdenCoachChat() {
           suggestions: data?.suggestions,
         },
       ])
+
+      // Check if goal was just created
+      if (data?.reply?.includes('Check the Coaching tab')) {
+        setHasActiveGoal(true)
+      }
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -192,6 +233,23 @@ export default function EdenCoachChat() {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Preset suggestions (show when user has active goal) */}
+      {hasActiveGoal && showPresets && !isLoading && (
+        <div className="flex-shrink-0 px-4 pb-2 border-t border-[#E5E5EA] pt-2">
+          <div className="flex flex-wrap gap-2">
+            {PRESET_SUGGESTIONS.map((preset, i) => (
+              <button
+                key={i}
+                onClick={() => handleSend(preset.message)}
+                className="px-3 py-1.5 text-sm rounded-full bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA] transition-colors"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input - iMessage style */}
       <div className="flex-shrink-0 px-4 py-3 border-t border-[#C6C6C8]">
         <form
@@ -201,6 +259,22 @@ export default function EdenCoachChat() {
           }}
           className="flex items-center gap-2"
         >
+          {/* Preset toggle button (only show when user has active goal) */}
+          {hasActiveGoal && (
+            <button
+              type="button"
+              onClick={() => setShowPresets(!showPresets)}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+                showPresets ? 'bg-[#007AFF] text-white' : 'bg-[#F2F2F7] text-[#8E8E93]'
+              }`}
+              aria-label="Quick actions"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+            </button>
+          )}
+
           <input
             type="text"
             value={input}
