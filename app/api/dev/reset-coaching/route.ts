@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { initializeMemory } from '@/lib/coaching/initializeMemory'
 
 // Auth client
 async function getAuthSupabase() {
@@ -120,6 +121,16 @@ export async function POST() {
     results['eden_user_memory'] = memoryError 
       ? { error: memoryError.message } 
       : { deleted: 1 }
+
+    // 4) Re-initialize memory from onboarding data
+    try {
+      await initializeMemory(supabase, userId)
+      results['memory_reinit'] = { deleted: 0 } // 0 = success, not a delete
+      console.log(`reset-coaching: re-initialized memory for user ${userId}`)
+    } catch (initError) {
+      console.error('reset-coaching: failed to re-init memory', initError)
+      results['memory_reinit'] = { error: initError instanceof Error ? initError.message : 'Failed' }
+    }
 
     console.log(`reset-coaching: cleared coaching data for user ${userId}`)
 
