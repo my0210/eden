@@ -109,16 +109,7 @@ export default function ResetUserDataCard() {
       </p>
       
       <div className="mt-3 flex flex-wrap gap-2">
-        {/* Reset Coaching Only */}
-        <button
-          onClick={handleResetCoaching}
-          disabled={isAnyLoading}
-          className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isResettingCoaching ? 'Clearing...' : 'Clear coaching only'}
-        </button>
-
-        {/* Reset Onboarding Button */}
+        {/* Reset Onboarding */}
         <button
           onClick={handleResetOnboarding}
           disabled={isAnyLoading}
@@ -126,14 +117,23 @@ export default function ResetUserDataCard() {
         >
           {isResettingOnboarding ? 'Resetting...' : 'Reset onboarding'}
         </button>
+
+        {/* Reset Coaching */}
+        <button
+          onClick={handleResetCoaching}
+          disabled={isAnyLoading}
+          className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isResettingCoaching ? 'Resetting...' : 'Reset coaching'}
+        </button>
         
-        {/* Wipe All Data Button */}
+        {/* Reset All Data */}
         <button
           onClick={handleResetAll}
           disabled={isAnyLoading}
           className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isResetting ? 'Resetting...' : 'Wipe all Eden data'}
+          {isResetting ? 'Resetting...' : 'Reset all data'}
         </button>
       </div>
       
