@@ -31,10 +31,10 @@ export async function initializeMemory(
 ): Promise<void> {
   console.log('Initializing memory for user:', userId)
 
-  // 1. Load user state (onboarding data)
+  // 1. Load user state (onboarding data) - including prime_check_json!
   const { data: userState } = await supabase
     .from('eden_user_state')
-    .select('identity_json, goals_json')
+    .select('identity_json, goals_json, prime_check_json')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -59,6 +59,7 @@ export async function initializeMemory(
   // Build confirmed data
   const identity = userState?.identity_json || {}
   const goals = userState?.goals_json || {}
+  const primeCheckAnswers = userState?.prime_check_json || {}
   const scorecard = scorecardRow?.scorecard_json
 
   const primeCheck: PrimeCheckData = {
@@ -73,6 +74,9 @@ export async function initializeMemory(
     stated_goals: extractStatedGoals(goals)
   }
 
+  // Extract rich details from Prime Check answers
+  const statedFromPrimeCheck = extractStatedFromPrimeCheck(primeCheckAnswers)
+
   const confirmed: ConfirmedData = {
     prime_check: primeCheck,
     apple_health: appleHealthData,
@@ -82,7 +86,7 @@ export async function initializeMemory(
   }
 
   // Build stated facts from onboarding
-  const stated: StatedFact[] = []
+  const stated: StatedFact[] = [...statedFromPrimeCheck]
   
   // Add goals as stated facts
   if (goals.focus_primary) {
@@ -221,24 +225,24 @@ async function loadPhotoAnalysis(
   userId: string
 ): Promise<BodyPhotoData | undefined> {
   const { data: photos } = await supabase
-    .from('eden_user_photos')
-    .select('analysis_json, uploaded_at')
+    .from('eden_photo_uploads')
+    .select('metadata_json, processed_at')
     .eq('user_id', userId)
-    .not('analysis_json', 'is', null)
-    .order('uploaded_at', { ascending: false })
+    .eq('status', 'completed')
+    .order('processed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (!photos?.analysis_json) return undefined
+  if (!photos?.metadata_json) return undefined
 
-  const analysis = photos.analysis_json as Record<string, unknown>
+  const metadata = photos.metadata_json as Record<string, unknown>
 
   return {
     current: {
-      date: photos.uploaded_at,
-      body_fat_estimate: analysis.body_fat_estimate as number | undefined,
-      posture_notes: analysis.posture_notes as string | undefined,
-      analysis_notes: analysis.notes as string | undefined
+      date: photos.processed_at,
+      body_fat_estimate: metadata.body_fat_estimate as number | undefined,
+      posture_notes: metadata.posture_notes as string | undefined,
+      analysis_notes: metadata.overall_assessment as string | undefined
     }
   }
 }
@@ -248,24 +252,23 @@ async function loadLabAnalysis(
   userId: string
 ): Promise<LabData | undefined> {
   const { data: labs } = await supabase
-    .from('eden_lab_reports')
-    .select('analysis_json, uploaded_at')
+    .from('eden_lab_uploads')
+    .select('extracted_values, analysis_metadata, lab_date, processed_at')
     .eq('user_id', userId)
-    .not('analysis_json', 'is', null)
-    .order('uploaded_at', { ascending: false })
+    .eq('status', 'completed')
+    .order('processed_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
-  if (!labs?.analysis_json) return undefined
+  if (!labs?.extracted_values) return undefined
 
-  const analysis = labs.analysis_json as Record<string, unknown>
-  const markers = analysis.markers as Record<string, unknown>[] | undefined
+  const markers = labs.extracted_values as Record<string, unknown>[] | undefined
 
   if (!markers?.length) return undefined
 
   // Build current lab data
   const current: LabData['current'] = {
-    date: labs.uploaded_at || new Date().toISOString()
+    date: labs.lab_date || labs.processed_at || new Date().toISOString()
   }
 
   for (const marker of markers) {
@@ -305,5 +308,95 @@ function extractStatedGoals(goalsJson: Record<string, unknown>): string[] {
   }
   
   return goals
+}
+
+/**
+ * Extract stated facts from Prime Check answers
+ * This pulls rich health context from the onboarding questionnaire
+ */
+function extractStatedFromPrimeCheck(primeCheck: Record<string, unknown>): StatedFact[] {
+  const facts: StatedFact[] = []
+  const now = new Date().toISOString()
+
+  // Heart domain
+  const heart = primeCheck.heart as Record<string, unknown> | undefined
+  if (heart) {
+    if (heart.cardio_frequency) {
+      facts.push({ fact: `Cardio frequency: ${heart.cardio_frequency}`, date: now, source: 'prime_check' })
+    }
+    if (heart.resting_heart_rate) {
+      facts.push({ fact: `Self-reported resting HR: ${heart.resting_heart_rate}`, date: now, source: 'prime_check' })
+    }
+    if (heart.heart_conditions && (heart.heart_conditions as string[]).length > 0) {
+      facts.push({ fact: `Heart conditions: ${(heart.heart_conditions as string[]).join(', ')}`, date: now, source: 'prime_check' })
+    }
+  }
+
+  // Frame domain (body/fitness)
+  const frame = primeCheck.frame as Record<string, unknown> | undefined
+  if (frame) {
+    if (frame.strength_training_frequency) {
+      facts.push({ fact: `Strength training: ${frame.strength_training_frequency}`, date: now, source: 'prime_check' })
+    }
+    if (frame.mobility_issues && (frame.mobility_issues as string[]).length > 0) {
+      facts.push({ fact: `Mobility issues: ${(frame.mobility_issues as string[]).join(', ')}`, date: now, source: 'prime_check' })
+    }
+    if (frame.injuries && (frame.injuries as string[]).length > 0) {
+      facts.push({ fact: `Current/past injuries: ${(frame.injuries as string[]).join(', ')}`, date: now, source: 'prime_check' })
+    }
+    if (frame.body_goal) {
+      facts.push({ fact: `Body goal: ${frame.body_goal}`, date: now, source: 'prime_check' })
+    }
+  }
+
+  // Metabolism domain
+  const metabolism = primeCheck.metabolism as Record<string, unknown> | undefined
+  if (metabolism) {
+    if (metabolism.diet_type) {
+      facts.push({ fact: `Diet type: ${metabolism.diet_type}`, date: now, source: 'prime_check' })
+    }
+    if (metabolism.energy_levels) {
+      facts.push({ fact: `Energy levels: ${metabolism.energy_levels}`, date: now, source: 'prime_check' })
+    }
+    if (metabolism.digestion_issues && (metabolism.digestion_issues as string[]).length > 0) {
+      facts.push({ fact: `Digestion issues: ${(metabolism.digestion_issues as string[]).join(', ')}`, date: now, source: 'prime_check' })
+    }
+    if (metabolism.metabolic_conditions && (metabolism.metabolic_conditions as string[]).length > 0) {
+      facts.push({ fact: `Metabolic conditions: ${(metabolism.metabolic_conditions as string[]).join(', ')}`, date: now, source: 'prime_check' })
+    }
+  }
+
+  // Recovery domain (sleep)
+  const recovery = primeCheck.recovery as Record<string, unknown> | undefined
+  if (recovery) {
+    if (recovery.sleep_hours) {
+      facts.push({ fact: `Typical sleep: ${recovery.sleep_hours} hours`, date: now, source: 'prime_check' })
+    }
+    if (recovery.sleep_quality) {
+      facts.push({ fact: `Sleep quality: ${recovery.sleep_quality}`, date: now, source: 'prime_check' })
+    }
+    if (recovery.sleep_issues && (recovery.sleep_issues as string[]).length > 0) {
+      facts.push({ fact: `Sleep issues: ${(recovery.sleep_issues as string[]).join(', ')}`, date: now, source: 'prime_check' })
+    }
+    if (recovery.stress_level) {
+      facts.push({ fact: `Stress level: ${recovery.stress_level}`, date: now, source: 'prime_check' })
+    }
+  }
+
+  // Mind domain
+  const mind = primeCheck.mind as Record<string, unknown> | undefined
+  if (mind) {
+    if (mind.focus_rating) {
+      facts.push({ fact: `Focus/concentration: ${mind.focus_rating}`, date: now, source: 'prime_check' })
+    }
+    if (mind.mood_rating) {
+      facts.push({ fact: `Mood rating: ${mind.mood_rating}`, date: now, source: 'prime_check' })
+    }
+    if (mind.mental_health_conditions && (mind.mental_health_conditions as string[]).length > 0) {
+      facts.push({ fact: `Mental health: ${(mind.mental_health_conditions as string[]).join(', ')}`, date: now, source: 'prime_check' })
+    }
+  }
+
+  return facts
 }
 
