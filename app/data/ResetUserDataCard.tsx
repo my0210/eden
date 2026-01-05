@@ -16,6 +16,7 @@ export default function ResetUserDataCard() {
   const [isResetting, setIsResetting] = useState(false)
   const [isResettingOnboarding, setIsResettingOnboarding] = useState(false)
   const [isResettingCoaching, setIsResettingCoaching] = useState(false)
+  const [isInitingMemory, setIsInitingMemory] = useState(false)
   const [result, setResult] = useState<ResetResult | null>(null)
 
   const handleResetAll = async () => {
@@ -99,7 +100,29 @@ export default function ResetUserDataCard() {
     }
   }
 
-  const isAnyLoading = isResetting || isResettingOnboarding || isResettingCoaching
+  const handleInitMemory = async () => {
+    setIsInitingMemory(true)
+    setResult(null)
+
+    try {
+      const res = await fetch('/api/dev/init-memory', { method: 'POST' })
+      const data: ResetResult = await res.json()
+      setResult(data)
+      
+      if (data.ok) {
+        setTimeout(() => {
+          router.push('/chat')
+        }, 1500)
+      }
+    } catch (err) {
+      console.error('Init memory error:', err)
+      setResult({ ok: false, error: 'Network error. Check console.' })
+    } finally {
+      setIsInitingMemory(false)
+    }
+  }
+
+  const isAnyLoading = isResetting || isResettingOnboarding || isResettingCoaching || isInitingMemory
 
   return (
     <div className="mt-8 rounded-xl border border-red-100 bg-red-50/70 p-4 text-sm">
@@ -134,6 +157,18 @@ export default function ResetUserDataCard() {
           className="inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isResetting ? 'Resetting...' : 'Reset all data'}
+        </button>
+
+        {/* Divider */}
+        <span className="text-red-300">|</span>
+
+        {/* Init Memory - repair action */}
+        <button
+          onClick={handleInitMemory}
+          disabled={isAnyLoading}
+          className="inline-flex items-center rounded-md border border-green-300 bg-white px-3 py-1.5 text-xs font-medium text-green-700 shadow-sm hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isInitingMemory ? 'Initializing...' : 'Init memory'}
         </button>
       </div>
       
