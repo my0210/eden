@@ -120,6 +120,16 @@ export async function POST(request: NextRequest) {
       console.error('reset-onboarding: eden_metric_values delete error', metricsDeleteError)
     }
 
+    // Delete user memory (gets re-initialized on onboarding complete)
+    const { error: memoryDeleteError } = await supabase
+      .from('eden_user_memory')
+      .delete()
+      .eq('user_id', user.id)
+
+    if (memoryDeleteError) {
+      console.error('reset-onboarding: eden_user_memory delete error', memoryDeleteError)
+    }
+
     // Reset onboarding state with all new v2/v3 fields cleared
     const { error: updateError } = await supabase
       .from('eden_user_state')

@@ -111,6 +111,16 @@ export async function POST() {
       ? { error: goalsError.message } 
       : { deleted: goalCount }
 
+    // 3) Clear user memory
+    const { error: memoryError } = await supabase
+      .from('eden_user_memory')
+      .delete()
+      .eq('user_id', userId)
+
+    results['eden_user_memory'] = memoryError 
+      ? { error: memoryError.message } 
+      : { deleted: 1 }
+
     console.log(`reset-coaching: cleared coaching data for user ${userId}`)
 
     return NextResponse.json({ 

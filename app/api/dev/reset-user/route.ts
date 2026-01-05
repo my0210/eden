@@ -280,7 +280,17 @@ export async function POST() {
       console.error('reset-user: lab cleanup error', labErr)
     }
 
-    // 7) Reset eden_user_state (v2/v3 onboarding)
+    // 7) Clear user memory
+    const { error: memoryDeleteError } = await supabase
+      .from('eden_user_memory')
+      .delete()
+      .eq('user_id', userId)
+
+    if (memoryDeleteError) {
+      console.error('reset-user: eden_user_memory delete error', memoryDeleteError)
+    }
+
+    // 8) Reset eden_user_state (v2/v3 onboarding)
     const { error: stateResetError } = await supabase
       .from('eden_user_state')
       .update({
