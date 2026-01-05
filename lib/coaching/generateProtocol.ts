@@ -7,7 +7,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'
 import OpenAI from 'openai'
-import { getUserMemory } from './memory'
+import { getOrCreateMemory } from './memory'
 import { buildMemoryContext } from './buildMemoryContext'
 import { LLM_MODELS } from '@/lib/llm/models'
 import { PROTOCOL_GENERATION_PROMPT } from './prompts'
@@ -52,7 +52,7 @@ export async function generateProtocolForGoal(
 ): Promise<ProtocolGenerationResult> {
   try {
     // 1) Build context from memory
-    const memory = await getUserMemory(supabase, userId)
+    const memory = await getOrCreateMemory(supabase, userId)
     const contextSummary = buildMemoryContext(memory)
 
     // 2) Build goal-specific context

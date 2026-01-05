@@ -19,7 +19,7 @@ export async function completeOnboarding(userId: string) {
   
   // Initialize user memory from onboarding data
   try {
-    await initializeMemory(userId)
+    await initializeMemory(supabase, userId)
   } catch (error) {
     console.error('Failed to initialize memory:', error)
     // Don't block onboarding completion if memory init fails
