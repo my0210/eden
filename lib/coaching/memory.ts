@@ -65,12 +65,14 @@ export interface AppleHealthData {
     rhr?: number
     sleep_avg?: number
     steps_avg?: number
+    hrv_avg?: number
     [key: string]: unknown
   }
   trend?: {
     rhr?: string
     sleep?: string
     steps?: string
+    hrv?: string
   }
 }
 

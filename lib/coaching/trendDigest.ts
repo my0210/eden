@@ -133,17 +133,18 @@ export async function computeAppleHealthTrends(
   }
 
   // Calculate HRV trend (higher is better)
-  if (hrvValues.length > 0 && baseline.hrv_avg) {
+  const baselineHrv = baseline.hrv_avg as number | undefined
+  if (hrvValues.length > 0 && baselineHrv) {
     const currentHrv = average(hrvValues)
-    trends.hrv = computeTrend(currentHrv, baseline.hrv_avg, 'higher_better')
+    trends.hrv = computeTrend(currentHrv, baselineHrv, 'higher_better')
   }
 
   // Update memory with current values and trends
   const currentData = {
-    rhr: rhrValues.length > 0 ? average(rhrValues) : baseline.rhr,
-    sleep_avg: sleepValues.length > 0 ? average(sleepValues) : baseline.sleep_avg,
-    steps_avg: stepsValues.length > 0 ? average(stepsValues) : baseline.steps_avg,
-    hrv_avg: hrvValues.length > 0 ? average(hrvValues) : baseline.hrv_avg
+    rhr: rhrValues.length > 0 ? average(rhrValues) : (baseline.rhr as number | undefined),
+    sleep_avg: sleepValues.length > 0 ? average(sleepValues) : (baseline.sleep_avg as number | undefined),
+    steps_avg: stepsValues.length > 0 ? average(stepsValues) : (baseline.steps_avg as number | undefined),
+    hrv_avg: hrvValues.length > 0 ? average(hrvValues) : baselineHrv
   }
 
   const trendSummary = {
