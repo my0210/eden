@@ -92,20 +92,22 @@ Support them - answer questions, encourage progress, troubleshoot blockers. Don'
 COACHING STATE: DOMAINS SELECTED - READY TO CREATE PROTOCOL
 This person chose their focus areas: ${domainList}.
 
-Your job: gather context to personalize their protocol, then help them commit.
+Your job: gather enough context to create their personalized protocol, then DO IT.
 
 RULES:
 - Ask ONE question per message - never combine multiple questions
-- Build understanding gradually across exchanges
-- After 3-4 exchanges, you should have enough to propose a plan
+- You need to know: (1) their current routine, (2) schedule OR equipment OR challenges
+- After 2-3 exchanges, you MUST have enough info to create their protocol
+- When you have enough info, say something like "Perfect, I have what I need. Let me build your ${domains.primary} protocol..."
 
-Good question topics (ask ONE at a time):
-- Current routine/habits in this domain
-- Schedule/time availability  
-- Equipment or resource access
-- Specific challenges or constraints
+Good questions (ask ONE at a time):
+- "What does your current [domain] routine look like?" (ALWAYS ask first)
+- "When can you dedicate time to this?" OR "What equipment do you have access to?"
 
-DO NOT ask generic "what brought you here" - they already chose ${domains.primary}.`
+DO NOT:
+- Keep asking endless questions - 2-3 exchanges max
+- Ask generic "what brought you here" - they already chose ${domains.primary}
+- Wait for perfect information - we can adapt the protocol later`
   }
   
   // No domains, no goal - truly new user
@@ -292,6 +294,78 @@ I've created your personalized plan with ${protocolResult.milestones?.length || 
         }
       } catch (dbError) {
         console.error('Database error creating goal:', dbError)
+      }
+    }
+
+    // 9b. Handle domain protocol creation if detected
+    if (extraction.actions.createDomainProtocol && !hasGoal && hasDomains && domains) {
+      const protocolData = extraction.actions.createDomainProtocol
+      const domainName = domains.primary.charAt(0).toUpperCase() + domains.primary.slice(1)
+      
+      try {
+        // Create domain goal
+        const { data: newGoal, error: goalError } = await supabase
+          .from('eden_goals')
+          .insert({
+            user_id: user.id,
+            goal_type: 'domain',
+            domain: domains.primary,
+            priority: 1,
+            target_description: `${domainName} Protocol`,
+            duration_weeks: 8,
+            constraints_json: {
+              current_routine: protocolData.current_routine,
+              schedule: protocolData.schedule_availability,
+              equipment: protocolData.equipment_access,
+              challenges: protocolData.specific_challenges,
+            },
+            status: 'active',
+            started_at: new Date().toISOString(),
+          })
+          .select()
+          .single()
+
+        if (!goalError && newGoal) {
+          // Generate protocol
+          const protocolResult = await generateProtocolForGoal(
+            supabase,
+            user.id,
+            newGoal as Goal
+          )
+
+          // Update memory with protocol info
+          await updateConfirmed(supabase, user.id, 'protocol', {
+            goal_id: newGoal.id,
+            goal_title: `${domainName} Protocol`,
+            goal_type: 'domain',
+            duration_weeks: 8,
+            started_at: new Date().toISOString(),
+            current_week: 1,
+            current_phase: 1,
+            total_phases: protocolResult.milestones?.length || 3,
+            actions_done: 0,
+            actions_total: protocolResult.actions?.length || 0,
+          })
+
+          // Set baseline snapshot
+          await setBaselineSnapshot(supabase, user.id)
+
+          // Add notable event
+          await addNotableEvent(supabase, user.id, {
+            date: new Date().toISOString(),
+            description: `Started ${domainName} protocol`,
+            source: 'protocol'
+          })
+
+          // Update reply with success message
+          replyText = `Done! I've created your ${domainName} protocol.
+
+Based on what you told me, I've built an 8-week plan with ${protocolResult.milestones?.length || 0} milestones and ${protocolResult.actions?.length || 0} weekly actions.
+
+Check the Coaching tab to see your plan and start tracking!`
+        }
+      } catch (dbError) {
+        console.error('Database error creating domain protocol:', dbError)
       }
     }
 

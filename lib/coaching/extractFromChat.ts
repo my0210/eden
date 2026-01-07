@@ -27,10 +27,20 @@ export interface GoalData {
   constraints?: string[]
 }
 
+export interface DomainProtocolData {
+  domain: string
+  current_routine?: string
+  schedule_availability?: string
+  equipment_access?: string[]
+  specific_challenges?: string
+  ready_to_generate: boolean
+}
+
 export interface ExtractionResult {
   patches: MemoryPatches
   actions: {
     createGoal?: GoalData
+    createDomainProtocol?: DomainProtocolData
     completeAction?: { actionTitle: string }
     updateConstraints?: string[]
   }
@@ -91,12 +101,23 @@ Extract the following as JSON:
   ],
   
   "goal_intent": null or {
-    // If user expresses clear intent to commit to a goal
+    // If user expresses clear intent to commit to a SPECIFIC goal
     "target_description": "Run a 5K without stopping",
-    "goal_type": "outcome",  // or "domain" or "composite"
-    "domain": "cardio",  // optional
+    "goal_type": "outcome",
+    "domain": "cardio",
     "duration_weeks": 8,
-    "constraints": ["knee injury", "no gym access"]  // optional
+    "constraints": ["knee injury", "no gym access"]
+  },
+  
+  "domain_protocol_context": null or {
+    // If this is a domain-focused conversation (user chose a domain like HEART, FRAME, etc.)
+    // Extract what we've learned to personalize their protocol
+    "domain": "heart",  // the domain being discussed
+    "current_routine": "runs 2x/week",  // their current activity in this domain
+    "schedule_availability": "mornings and weekends",  // when they can train
+    "equipment_access": ["treadmill", "bike"],  // equipment they have
+    "specific_challenges": "gets bored with steady state cardio",  // challenges mentioned
+    "ready_to_generate": true  // TRUE if Eden has gathered enough info (current routine + at least one of: schedule, equipment, or challenges)
   },
   
   "action_completed": null or {
@@ -114,6 +135,11 @@ Extract the following as JSON:
     // Example: "Actually I do have gym access now"
   ]
 }
+
+IMPORTANT for domain_protocol_context:
+- Set ready_to_generate=true when we know their current routine AND at least one other detail
+- Don't wait for perfect information - 2-3 data points is enough to create a personalized protocol
+- The domain should match what they're discussing (heart, frame, metabolism, recovery, mind)
 
 Rules:
 - Only extract explicitly stated information
@@ -197,7 +223,7 @@ function buildResultFromExtraction(extracted: Record<string, unknown>): Extracti
     patches.remove_stated = contradictions
   }
 
-  // Goal intent
+  // Goal intent (for outcome goals)
   const goalIntent = extracted.goal_intent as GoalData | null | undefined
   if (goalIntent && goalIntent.target_description) {
     actions.createGoal = {
@@ -208,6 +234,19 @@ function buildResultFromExtraction(extracted: Record<string, unknown>): Extracti
       baseline_value: goalIntent.baseline_value,
       target_value: goalIntent.target_value,
       constraints: goalIntent.constraints
+    }
+  }
+
+  // Domain protocol context (for domain-focused protocols)
+  const domainContext = extracted.domain_protocol_context as DomainProtocolData | null | undefined
+  if (domainContext && domainContext.domain && domainContext.ready_to_generate) {
+    actions.createDomainProtocol = {
+      domain: domainContext.domain,
+      current_routine: domainContext.current_routine,
+      schedule_availability: domainContext.schedule_availability,
+      equipment_access: domainContext.equipment_access,
+      specific_challenges: domainContext.specific_challenges,
+      ready_to_generate: true
     }
   }
 
