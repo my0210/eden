@@ -8,6 +8,7 @@ import AppleHealthSection from './AppleHealthSection'
 import BodyPhotoSection from './BodyPhotoSection'
 import LabSection from './LabSection'
 import AboutYouSection from './AboutYouSection'
+import FocusAreasSection from './FocusAreasSection'
 
 export default async function DataPage() {
   const user = await requireAuth()
@@ -29,6 +30,9 @@ export default async function DataPage() {
 
       <div className="max-w-3xl mx-auto px-4 py-6">
         <div className="space-y-6">
+          {/* Focus Areas - What they're working on */}
+          <FocusAreasSection />
+
           {/* What Eden Knows - Memory */}
           <section>
             <h2 className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-wide mb-3">Eden&apos;s Memory</h2>

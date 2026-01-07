@@ -21,8 +21,15 @@ export interface DomainProtocol {
   week_adherence: number | null
 }
 
+interface DomainSelection {
+  primary: string
+  secondary?: string | null
+  time_budget_hours?: number
+}
+
 interface DomainProtocolCardsProps {
   protocols: DomainProtocol[]
+  domainSelection?: DomainSelection | null
 }
 
 const DOMAIN_CONFIG: Record<PrimeDomain, { 
@@ -75,8 +82,104 @@ const PRIORITY_LABELS: Record<number, string> = {
   3: 'Tertiary',
 }
 
-export default function DomainProtocolCards({ protocols }: DomainProtocolCardsProps) {
+export default function DomainProtocolCards({ protocols, domainSelection }: DomainProtocolCardsProps) {
   if (protocols.length === 0) {
+    // Show selected focus areas if they exist
+    if (domainSelection?.primary) {
+      const primaryConfig = DOMAIN_CONFIG[domainSelection.primary as PrimeDomain]
+      const secondaryConfig = domainSelection.secondary 
+        ? DOMAIN_CONFIG[domainSelection.secondary as PrimeDomain] 
+        : null
+
+      return (
+        <div className="space-y-4">
+          <h2 className="text-[13px] font-semibold text-[#8E8E93] uppercase tracking-wide px-1">
+            Your Focus Areas
+          </h2>
+
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            {/* Primary Focus */}
+            <div className={`bg-gradient-to-r ${primaryConfig?.gradient || 'from-[#007AFF] to-[#3395FF]'} p-4 text-white`}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {primaryConfig?.icon}
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-[11px] text-white/70 uppercase tracking-wide">Primary Focus</p>
+                  <h3 className="text-[20px] font-semibold">{primaryConfig?.name || domainSelection.primary}</h3>
+                </div>
+              </div>
+            </div>
+
+            {/* Secondary Focus (if exists) */}
+            {secondaryConfig && (
+              <div className="p-4 border-b border-[#E5E5EA]">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ backgroundColor: `${secondaryConfig.color}15` }}
+                  >
+                    <svg 
+                      className="w-5 h-5" 
+                      fill="none" 
+                      stroke={secondaryConfig.color} 
+                      viewBox="0 0 24 24"
+                    >
+                      {secondaryConfig.icon}
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-[#8E8E93] uppercase tracking-wide">Secondary Focus</p>
+                    <h4 className="text-[17px] font-medium text-black">{secondaryConfig.name}</h4>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Status & CTA */}
+            <div className="p-4 bg-[#FFF9E6]">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-[#FF9500]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg className="w-4 h-4 text-[#FF9500]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-[15px] font-medium text-black">Ready to create your protocol</p>
+                  <p className="text-[13px] text-[#8E8E93] mt-1">
+                    Chat with Eden to personalize your plan based on your schedule and preferences.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <div className="p-4 pt-0">
+              <Link
+                href="/chat"
+                className="flex items-center justify-center gap-2 w-full bg-[#007AFF] text-white py-3 rounded-xl text-[17px] font-medium hover:bg-[#0066CC] transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Continue with Eden
+              </Link>
+            </div>
+          </div>
+
+          {/* Link to change focus areas */}
+          <p className="text-center">
+            <Link href="/data" className="text-[13px] text-[#8E8E93] hover:text-[#007AFF] transition-colors">
+              Change focus areas →
+            </Link>
+          </p>
+        </div>
+      )
+    }
+
+    // No selection and no protocols - completely empty state
     return (
       <div className="bg-white rounded-2xl shadow-sm p-8 text-center">
         <div className="w-16 h-16 bg-[#FF9500]/10 rounded-full flex items-center justify-center mx-auto mb-4">

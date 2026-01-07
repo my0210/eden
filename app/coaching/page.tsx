@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { requireOnboardedUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { getOrCreateMemory } from '@/lib/coaching/memory'
 import ProfileMenu from '../dashboard/ProfileMenu'
 import DomainProtocolCards, { DomainProtocol } from './DomainProtocolCards'
 import WeekItemList, { WeekItem } from './WeekItemList'
@@ -9,6 +10,10 @@ import MilestoneTimeline from './MilestoneTimeline'
 export default async function CoachingPage() {
   const { user } = await requireOnboardedUser()
   const supabase = await createClient()
+
+  // Get domain selection from memory
+  const memory = await getOrCreateMemory(supabase, user.id)
+  const domainSelection = memory.confirmed.domain_selection || null
 
   // Get active domain goals (goal_type = 'domain')
   const { data: domainGoals } = await supabase
@@ -242,8 +247,8 @@ export default async function CoachingPage() {
 
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {!hasAnyProtocol ? (
-          // No active protocols - show empty state
-          <DomainProtocolCards protocols={[]} />
+          // No active protocols - show empty state with domain selection if available
+          <DomainProtocolCards protocols={[]} domainSelection={domainSelection} />
         ) : hasDomainProtocols ? (
           // Domain-centered coaching view
           <>
