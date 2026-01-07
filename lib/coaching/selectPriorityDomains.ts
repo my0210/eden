@@ -247,7 +247,7 @@ function buildSecondaryReasoning(
   }
 
   const domainInfo = scoredDomains.find(d => d.domain === secondary)
-  if (domainInfo?.score !== null) {
+  if (domainInfo && domainInfo.score !== null) {
     return `${capitalize(secondary)} as secondary focus (score: ${domainInfo.score}) - will compound your ${primary} progress.`
   }
 
