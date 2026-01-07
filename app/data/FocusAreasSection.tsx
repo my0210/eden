@@ -237,7 +237,7 @@ export default function FocusAreasSection() {
               </button>
             </div>
           </div>
-        ) : (
+        ) : selection ? (
           // View mode
           <div className="divide-y divide-[#E5E5EA]">
             {/* Primary */}
@@ -317,7 +317,7 @@ export default function FocusAreasSection() {
               </button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   )
