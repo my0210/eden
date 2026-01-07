@@ -34,6 +34,7 @@ export interface Goal {
   duration_weeks: number
   constraints_json: GoalConstraints
   status: GoalStatus
+  priority: number | null // 1, 2, 3 for domain protocol order
   started_at: string | null
   completed_at: string | null
   created_at: string
@@ -68,6 +69,9 @@ export interface Protocol {
   status: ProtocolStatus
   effective_from: string
   effective_until: string | null
+  template_id: string | null // Domain template identifier (heart, frame, etc.)
+  template_version: number | null // Version of template used
+  personalization_json: Record<string, unknown> | null // AI customizations
   llm_raw: Record<string, unknown> | null
   changes_from_parent: ProtocolChanges | null
   created_at: string
