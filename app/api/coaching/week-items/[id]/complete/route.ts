@@ -12,7 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user } = await requireAuth()
+    const user = await requireAuth()
     const supabase = await createClient()
     const { id: itemId } = await params
 
@@ -78,7 +78,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user } = await requireAuth()
+    const user = await requireAuth()
     const supabase = await createClient()
     const { id: itemId } = await params
 
