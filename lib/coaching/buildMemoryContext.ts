@@ -124,6 +124,23 @@ export function buildMemoryContext(memory: UserMemory): string {
     }
   }
 
+  // Domain selection (from onboarding Step 6)
+  const domainSelection = confirmed.domain_selection
+  if (domainSelection?.primary) {
+    parts.push('')
+    parts.push('Focus areas chosen during onboarding:')
+    parts.push(`- Primary: ${domainSelection.primary.toUpperCase()}`)
+    if (domainSelection.secondary) {
+      parts.push(`- Secondary: ${domainSelection.secondary.toUpperCase()}`)
+    }
+    if (domainSelection.time_budget_hours) {
+      parts.push(`- Time budget: ${domainSelection.time_budget_hours} hours/week`)
+    }
+    if (domainSelection.reasoning?.primary) {
+      parts.push(`- Why ${domainSelection.primary}: ${domainSelection.reasoning.primary}`)
+    }
+  }
+
   // Current protocol/goal
   const protocol = confirmed.protocol
   if (protocol?.goal_title) {
@@ -211,6 +228,22 @@ export function buildShortContext(memory: UserMemory): string {
  */
 export function hasActiveGoal(memory: UserMemory): boolean {
   return !!memory.confirmed.protocol?.goal_id
+}
+
+/**
+ * Check if user has selected focus domains (from onboarding)
+ */
+export function hasDomainSelection(memory: UserMemory): boolean {
+  return !!memory.confirmed.domain_selection?.primary
+}
+
+/**
+ * Get selected domains
+ */
+export function getDomainSelection(memory: UserMemory): { primary: string; secondary?: string | null } | null {
+  const ds = memory.confirmed.domain_selection
+  if (!ds?.primary) return null
+  return { primary: ds.primary, secondary: ds.secondary }
 }
 
 /**

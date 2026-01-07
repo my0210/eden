@@ -17,7 +17,7 @@ import { cookies } from 'next/headers'
 import OpenAI from 'openai'
 import { LLM_MODELS } from '@/lib/llm/models'
 import { getOrCreateMemory, applyMemoryPatches, updateConfirmed, addNotableEvent, setBaselineSnapshot } from '@/lib/coaching/memory'
-import { buildMemoryContext, hasActiveGoal as checkHasActiveGoal } from '@/lib/coaching/buildMemoryContext'
+import { buildMemoryContext, hasActiveGoal as checkHasActiveGoal, hasDomainSelection as checkHasDomainSelection, getDomainSelection } from '@/lib/coaching/buildMemoryContext'
 import { extractFromChat, GoalData } from '@/lib/coaching/extractFromChat'
 import { generateProtocolForGoal } from '@/lib/coaching/generateProtocol'
 import { Goal } from '@/lib/coaching/types'
@@ -71,11 +71,39 @@ Be direct, curious, warm. Think Peter Attia or Andrew Huberman tone.
 
 You're not a doctor - suggest professionals for medical concerns.
 
-Your memory of this person is provided below.
+Your memory of this person is provided below.`
 
-NO ACTIVE GOAL: Help them define a specific goal with timeline. Ask questions to understand, then help them commit.
+// Additional context based on coaching state
+function getCoachingStatePrompt(hasGoal: boolean, hasDomains: boolean, domains: { primary: string; secondary?: string | null } | null): string {
+  if (hasGoal) {
+    return `
+COACHING STATE: HAS ACTIVE PROTOCOL
+Support them - answer questions, encourage progress, troubleshoot blockers. Don't interrogate.`
+  }
+  
+  if (hasDomains && domains) {
+    const domainList = domains.secondary 
+      ? `${domains.primary.toUpperCase()} (primary) and ${domains.secondary.toUpperCase()} (secondary)`
+      : domains.primary.toUpperCase()
+    
+    return `
+COACHING STATE: DOMAINS SELECTED - READY TO CREATE PROTOCOL
+This person just completed onboarding and chose their focus areas: ${domainList}.
 
-HAS ACTIVE GOAL: Support them - answer questions, encourage progress, troubleshoot blockers. Don't interrogate.`
+Your job now is to:
+1. Acknowledge their chosen focus areas - they specifically selected these
+2. Ask 1-2 targeted questions to personalize their protocol (e.g., schedule constraints, equipment access, current habits, specific challenges)
+3. Once you have enough context, help them commit to a specific, actionable protocol
+
+DO NOT ask generic "what brought you here" questions - they already told you their focus areas.
+Start by acknowledging their ${domains.primary} focus and asking something specific to help customize their plan.`
+  }
+  
+  // No domains, no goal - truly new user
+  return `
+COACHING STATE: NO FOCUS SELECTED
+Help them identify what matters most. Ask questions to understand their situation, then recommend focus areas from the 5 Prime domains: Heart, Frame, Metabolism, Recovery, Mind.`
+}
 
 // Suggestions prompt
 const SUGGESTIONS_PROMPT = `Generate 2-3 short reply suggestions (1-6 words each) based on the conversation.
@@ -107,6 +135,8 @@ export async function POST(req: NextRequest) {
     const memory = await getOrCreateMemory(supabase, user.id)
     const memoryContext = buildMemoryContext(memory)
     const hasGoal = checkHasActiveGoal(memory)
+    const hasDomains = checkHasDomainSelection(memory)
+    const domains = getDomainSelection(memory)
 
     // 2. Get or create conversation
     let conversationId: string
@@ -155,8 +185,9 @@ export async function POST(req: NextRequest) {
     const messages = (recentMsgs?.reverse() ?? [])
 
     // 5. Build OpenAI messages
+    const coachingStatePrompt = getCoachingStatePrompt(hasGoal, hasDomains, domains)
     const openaiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: SYSTEM_PROMPT + coachingStatePrompt },
       { role: 'system', content: `## About this person\n${memoryContext}` },
     ]
 

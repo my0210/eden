@@ -12,6 +12,13 @@ interface SaveOnboardingRequest {
     prime_check_json?: Record<string, unknown>
     behaviors_json?: Record<string, unknown>
     coaching_json?: Record<string, unknown>
+    // Domain selection from Step 6
+    domain_selection?: {
+      primary: string
+      secondary?: string | null
+      time_budget_hours: number
+      reasoning?: Record<string, string>
+    }
   }
 }
 
@@ -97,6 +104,14 @@ export async function POST(request: NextRequest) {
       }
       if (body.patch.coaching_json !== undefined) {
         update.coaching_json = shallowMerge(currentState?.coaching_json, body.patch.coaching_json as Record<string, unknown>)
+      }
+      // Handle domain_selection → store in coaching_json
+      if (body.patch.domain_selection !== undefined) {
+        const existingCoaching = currentState?.coaching_json || {}
+        update.coaching_json = {
+          ...existingCoaching,
+          domain_selection: body.patch.domain_selection
+        }
       }
     }
 

@@ -91,12 +91,26 @@ export interface ProtocolData {
   milestones_total?: number
 }
 
+export interface DomainSelectionData {
+  primary: string
+  secondary?: string | null
+  tertiary?: string | null
+  time_budget_hours: number
+  reasoning?: {
+    primary?: string
+    secondary?: string
+    tertiary?: string
+  }
+  selected_at?: string
+}
+
 export interface ConfirmedData {
   prime_check?: PrimeCheckData
   body_photos?: BodyPhotoData
   labs?: LabData
   apple_health?: AppleHealthData
   protocol?: ProtocolData
+  domain_selection?: DomainSelectionData
 }
 
 export interface StatedFact {

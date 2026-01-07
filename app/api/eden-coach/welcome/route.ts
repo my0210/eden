@@ -11,7 +11,8 @@ import { cookies } from 'next/headers'
 import OpenAI from 'openai'
 import { LLM_MODELS } from '@/lib/llm/models'
 import { getOrCreateMemory } from '@/lib/coaching/memory'
-import { buildWelcomeContext, hasActiveGoal, getUserName } from '@/lib/coaching/buildMemoryContext'
+import { buildWelcomeContext, hasActiveGoal, getUserName, hasDomainSelection, getDomainSelection } from '@/lib/coaching/buildMemoryContext'
+import { initializeMemory } from '@/lib/coaching/initializeMemory'
 
 let openai: OpenAI | null = null
 function getOpenAI(): OpenAI {
@@ -61,6 +62,29 @@ Example: "Hey Marcus. I noticed the sleep has been rough and you mentioned wanti
 
 If no info: Be curious about what brought them here and what matters to them.`
 
+const DOMAIN_SELECTED_PROMPT = `You are Eden, a coach - think Peter Attia meets Andrew Huberman.
+
+This person just completed onboarding and chose their focus areas. They're ready to start but we need to personalize their protocol first.
+
+TONE: Energized but grounded. You're excited they chose their focus, and now you want to understand THEIR specific situation to build the right plan.
+
+Write 2-3 sentences that:
+1. Greet them and ACKNOWLEDGE their chosen domain(s) specifically - they made a deliberate choice
+2. Ask ONE targeted question to help personalize their protocol
+
+DO NOT:
+- Ask generic "what brought you here" questions - they already told you
+- Repeat generic suggestions like "improve fitness / sleep better / lose weight"
+- Be vague about what you'll do together
+
+INSTEAD:
+- Reference their PRIMARY focus domain by name
+- Ask something specific that would help customize their plan (schedule, equipment, current habits, specific challenges)
+
+Example for HEART focus: "Hey Marcus - I see you're prioritizing your cardiovascular health. Before I build your plan, I'm curious: do you have any current cardio routine, or are we starting from scratch?"
+
+Example for RECOVERY focus: "Nice choice prioritizing recovery. Sleep is foundational for everything else. Quick question - are your sleep struggles more about falling asleep, staying asleep, or both?"`
+
 /**
  * GET /api/eden-coach/welcome
  * 
@@ -76,8 +100,28 @@ export async function GET() {
     }
 
     // Load memory
-    const memory = await getOrCreateMemory(supabase, user.id)
+    let memory = await getOrCreateMemory(supabase, user.id)
+    
+    // Check if memory needs to be refreshed (domain selection in user_state but not in memory)
+    if (!hasDomainSelection(memory)) {
+      const { data: userState } = await supabase
+        .from('eden_user_state')
+        .select('coaching_json, onboarding_status')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      
+      // If user completed onboarding and has domain selection in state but not in memory, reinitialize
+      const coachingJson = userState?.coaching_json as { domain_selection?: unknown } | null
+      if (userState?.onboarding_status === 'completed' && coachingJson?.domain_selection) {
+        console.log('Welcome: reinitializing memory for user (domain_selection missing)', user.id)
+        await initializeMemory(supabase, user.id)
+        memory = await getOrCreateMemory(supabase, user.id)
+      }
+    }
+    
     const hasGoal = hasActiveGoal(memory)
+    const hasDomains = hasDomainSelection(memory)
+    const domains = getDomainSelection(memory)
     const userName = getUserName(memory)
     const welcomeContext = buildWelcomeContext(memory)
 
@@ -91,6 +135,31 @@ export async function GET() {
       
       message = `Welcome back${userName ? `, ${userName}` : ''}! You're in week ${week} of ${goalTitle}. How's it going?`
       suggestions = ["Going well!", "I'm struggling", "Update me on progress"]
+    } else if (hasDomains && domains) {
+      // User has selected domains but no protocol yet - personalize for their choice
+      const domainContext = domains.secondary
+        ? `Primary focus: ${domains.primary.toUpperCase()}, Secondary focus: ${domains.secondary.toUpperCase()}`
+        : `Primary focus: ${domains.primary.toUpperCase()}`
+      
+      try {
+        const completion = await getOpenAI().chat.completions.create({
+          model: LLM_MODELS.STANDARD,
+          messages: [
+            { role: 'system', content: DOMAIN_SELECTED_PROMPT },
+            { role: 'user', content: `Person info:\n${welcomeContext}\n\nChosen domains: ${domainContext}` },
+          ],
+          temperature: 0.8,
+          max_tokens: 200,
+        })
+
+        message = completion.choices[0]?.message?.content || getDomainFallbackWelcome(userName, domains.primary)
+      } catch (llmError) {
+        console.error('LLM domain welcome failed:', llmError)
+        message = getDomainFallbackWelcome(userName, domains.primary)
+      }
+
+      // Domain-specific suggestions based on primary domain
+      suggestions = getDomainSuggestions(domains.primary)
     } else {
       // Generate personalized welcome using LLM
       try {
@@ -129,4 +198,33 @@ export async function GET() {
 function getFallbackWelcome(name: string | null): string {
   const greeting = name ? `Hey ${name}.` : 'Hey.'
   return `${greeting} I'm Eden. I'm curious - what brought you here? What's the thing you actually want to change?`
+}
+
+function getDomainFallbackWelcome(name: string | null, domain: string): string {
+  const greeting = name ? `Hey ${name}!` : 'Hey!'
+  const domainName = domain.charAt(0).toUpperCase() + domain.slice(1)
+  
+  const domainQuestions: Record<string, string> = {
+    heart: "Do you have any current cardio routine, or are we building from scratch?",
+    frame: "What's your current relationship with strength training - regular gym-goer, occasional, or just starting?",
+    metabolism: "Are you looking to optimize an already decent diet, or do a bigger overhaul?",
+    recovery: "Are your sleep struggles more about falling asleep, staying asleep, or waking up refreshed?",
+    mind: "What does your stress or focus challenge look like day-to-day?",
+  }
+  
+  const question = domainQuestions[domain.toLowerCase()] || "What does your current routine look like in this area?"
+  
+  return `${greeting} Great choice prioritizing ${domainName}. Before I build your plan - ${question}`
+}
+
+function getDomainSuggestions(domain: string): string[] {
+  const suggestions: Record<string, string[]> = {
+    heart: ["No cardio right now", "I run/walk occasionally", "Already pretty active"],
+    frame: ["Beginner to weights", "I lift sometimes", "Regular gym-goer"],
+    metabolism: ["My diet needs work", "Pretty clean, want to optimize", "Just curious about tracking"],
+    recovery: ["Trouble falling asleep", "Wake up during night", "Never feel rested"],
+    mind: ["High stress at work", "Focus is my issue", "General mental clarity"],
+  }
+  
+  return suggestions[domain.toLowerCase()] || ["Tell me more about my options", "What would the plan look like?", "Let's start simple"]
 }

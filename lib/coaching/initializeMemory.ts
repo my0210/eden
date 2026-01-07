@@ -14,7 +14,8 @@ import {
   LabData,
   BodyPhotoData,
   StatedFact,
-  NotableEvent
+  NotableEvent,
+  DomainSelectionData
 } from './memory'
 
 // ============================================================================
@@ -31,10 +32,10 @@ export async function initializeMemory(
 ): Promise<void> {
   console.log('Initializing memory for user:', userId)
 
-  // 1. Load user state (onboarding data) - including prime_check_json!
+  // 1. Load user state (onboarding data) - including prime_check_json and coaching_json!
   const { data: userState } = await supabase
     .from('eden_user_state')
-    .select('identity_json, goals_json, prime_check_json')
+    .select('identity_json, goals_json, prime_check_json, coaching_json')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -60,6 +61,7 @@ export async function initializeMemory(
   const identity = userState?.identity_json || {}
   const goals = userState?.goals_json || {}
   const primeCheckAnswers = userState?.prime_check_json || {}
+  const coachingData = userState?.coaching_json || {}
   const scorecard = scorecardRow?.scorecard_json
 
   const primeCheck: PrimeCheckData = {
@@ -77,12 +79,31 @@ export async function initializeMemory(
   // Extract rich details from Prime Check answers
   const statedFromPrimeCheck = extractStatedFromPrimeCheck(primeCheckAnswers)
 
+  // Extract domain selection from coaching_json
+  const domainSelectionRaw = coachingData.domain_selection as {
+    primary?: string
+    secondary?: string | null
+    time_budget_hours?: number
+    reasoning?: Record<string, string>
+  } | undefined
+
+  const domainSelection: DomainSelectionData | undefined = domainSelectionRaw?.primary
+    ? {
+        primary: domainSelectionRaw.primary,
+        secondary: domainSelectionRaw.secondary,
+        time_budget_hours: domainSelectionRaw.time_budget_hours || 5,
+        reasoning: domainSelectionRaw.reasoning,
+        selected_at: new Date().toISOString()
+      }
+    : undefined
+
   const confirmed: ConfirmedData = {
     prime_check: primeCheck,
     apple_health: appleHealthData,
     body_photos: photoData,
     labs: labData,
-    protocol: undefined  // No goal yet
+    protocol: undefined,  // No goal yet
+    domain_selection: domainSelection
   }
 
   // Build stated facts from onboarding
